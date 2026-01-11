@@ -1,49 +1,73 @@
-export const createExam = (req, res) => {
-  const { examName, className, subject, date, time, totalScore } = req.body;
+import ExamsService from "../services/exams_service.js";
 
-  res.json({
-    success: true,
-    message: "Exam created successfully",
-    data: { examName, className, subject, date, time, totalScore }
-  });
+const ExamsController = {
+
+  async createExam(req, res) {
+    try {
+      const data = await ExamsService.createExam(req.body);
+      res.json({ success: true, message: "Exam created", data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async getAllExams(req, res) {
+    try {
+      const data = await ExamsService.getAllExams();
+      res.json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async updateExam(req, res) {
+    try {
+      const data = await ExamsService.updateExam(req.params.id, req.body);
+      res.json({ success: true, message: "Exam updated", data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async deleteExam(req, res) {
+    try {
+      await ExamsService.deleteExam(req.params.id);
+      res.json({ success: true, message: "Exam deleted" });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async getExamTypes(req, res) {
+    try {
+      const data = await ExamsService.getExamTypes();
+      res.json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  
+
+  async addGrades(req, res) {
+    try {
+      const exam_id = req.params.exam_id;
+      const data = await ExamsService.addGrades(exam_id, req.body);
+
+      res.json({
+        success: true,
+        message: "Grades added successfully",
+        data
+      });
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+  
+
 };
 
-export const getAllExams = (req, res) => {
-  res.json({
-    success: true,
-    message: "All exams fetched successfully",
-    data: []
-  });
-};
-
-export const updateExamSchedule = (req, res) => {
-  res.json({
-    success: true,
-    message: `Exam schedule updated for ID: ${req.params.id}`
-  });
-};
-
-export const enterGrades = (req, res) => {
-  const { grades } = req.body;
-
-  res.json({
-    success: true,
-    message: `Grades added for Exam ID: ${req.params.id}`,
-    data: grades
-  });
-};
-
-export const viewResults = (req, res) => {
-  res.json({
-    success: true,
-    message: `Results fetched for Exam ID: ${req.params.id}`,
-    data: []
-  });
-};
-
-export const deleteExam = (req, res) => {
-  res.json({
-    success: true,
-    message: `Exam deleted with ID: ${req.params.id}`
-  });
-};
+export default ExamsController;

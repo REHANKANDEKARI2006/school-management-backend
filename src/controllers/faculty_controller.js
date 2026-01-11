@@ -1,99 +1,65 @@
-// src/controllers/staff_Controller.js
+// controllers/faculty_controller.js
+import { FacultyService } from "../services/faculty_Service.js";
 
-// import { FacultyService } from "../services/faculty_Service.js";
+export const FacultyController = {
 
-export const StaffController = {
-
-  // ---------- Create ----------
-  async createStaff(req, res) {
+  async getAllFaculty(req, res) {
     try {
-      const staff = await StaffService.createStaff(req.body);
-      res.status(201).json({
-        success: true,
-        message: "Staff created successfully",
-        data: staff,
+      const data = await FacultyService.getAllFaculty();
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message,
       });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  // ---------- Get All ----------
-  async getAllStaff(req, res) {
+  async getFacultyById(req, res) {
     try {
-      const staff = await StaffService.getAllStaff();
-      res.status(200).json({
-        success: true,
-        data: staff,
+      const data = await FacultyService.getFacultyById(req.params.id);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message,
       });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  // ---------- Get By ID ----------
-  async getStaffById(req, res) {
+  async createFaculty(req, res) {
     try {
-      const staff = await StaffService.getStaffById(req.params.id);
-
-      if (!staff) {
-        return res.status(404).json({
-          success: false,
-          message: "Staff not found",
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: staff,
+      const data = await FacultyService.createFaculty(req.body);
+      res.status(201).json({ success: true, data });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message,
       });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  // ---------- Update ----------
-  async updateStaff(req, res) {
+  async updateFaculty(req, res) {
     try {
-      const staff = await StaffService.updateStaff(req.params.id, req.body);
-
-      if (!staff) {
-        return res.status(404).json({
-          success: false,
-          message: "Staff not found",
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Staff updated successfully",
-        data: staff,
+      const data = await FacultyService.updateFaculty(req.params.id, req.body);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message,
       });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  // ---------- Delete ----------
-  async deleteStaff(req, res) {
+  async deleteFaculty(req, res) {
     try {
-      const staff = await StaffService.deleteStaff(req.params.id);
-
-      if (!staff) {
-        return res.status(404).json({
-          success: false,
-          message: "Staff not found",
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        message: "Staff deleted successfully",
-        data: staff,
+      const data = await FacultyService.deleteFaculty(req.params.id);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message,
       });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
     }
   },
-
 };

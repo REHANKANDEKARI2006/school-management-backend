@@ -4,9 +4,21 @@ import { FeesController } from "../controllers/fees_controller.js";
 
 const router = Router();
 
-router.get("/", FeesController.getAllCategories);
-router.post("/", FeesController.createCategory);
-router.patch("/:id", FeesController.updateCategory);
-router.delete("/:id", FeesController.deleteCategory);
+/* Fee Category */
+router.get("/categories", FeesController.getAllCategories);
+router.post("/categories", FeesController.createCategory);
+router.patch("/categories/:id", FeesController.updateCategory);
+router.delete("/categories/:id", FeesController.deleteCategory);
+
+/* Fee Structure */
+router.get("/structures", FeesController.getFeeStructures);
+router.post("/structures", FeesController.createFeeStructure);
+
+/* Fee Installments */
+router.get("/installments/:fee_struct_id", FeesController.getInstallmentsByStructure);
+
+/* Fee Collection */
+router.post("/collect", FeesController.collectFee);
+router.get("/collection/:student_id", FeesController.getStudentFeeCollection);
 
 export default router;

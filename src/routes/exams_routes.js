@@ -1,31 +1,16 @@
-import express from "express";
-import { 
-  createExam, 
-  getAllExams, 
-  updateExamSchedule,
-  enterGrades,
-  viewResults,
-  deleteExam
-} from "../controllers/exams_controller.js";
+import { Router } from "express";
+import ExamsController from "../controllers/exams_controller.js";
 
-const router = express.Router();
+const router = Router();
 
-// Create New Exam
-router.post("/", createExam);
+// Exams
+router.post("/", ExamsController.createExam);
+router.get("/", ExamsController.getAllExams);
+router.put("/:id", ExamsController.updateExam);
+router.delete("/:id", ExamsController.deleteExam);
+router.post("/grades/:exam_id", ExamsController.addGrades);
 
-// Get All Exams
-router.get("/", getAllExams);
-
-// Update Exam Schedule
-router.put("/schedule/:id", updateExamSchedule);
-
-// Enter Grades
-router.post("/grades/:id", enterGrades);
-
-// View Results
-router.get("/results/:id", viewResults);
-
-// Delete Exam
-router.delete("/:id", deleteExam);
+// Exam Types
+router.get("/types", ExamsController.getExamTypes);
 
 export default router;

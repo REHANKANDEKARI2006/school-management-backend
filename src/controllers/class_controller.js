@@ -1,27 +1,83 @@
+// controllers/class_controller.js
+import { ClassService } from "../services/class_Service.js";
+
 export const ClassController = {
 
   async getAllClasses(req, res) {
-    res.send("Get all classes");
+    try {
+      const data = await ClassService.getAllClasses();
+      res.status(200).json({
+        success: true,
+        data
+      });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message
+      });
+    }
   },
 
   async getClassById(req, res) {
-    const classId = parseInt(req.params.id, 10);
-    res.send(`Get single class by id: ${classId}`);
+    try {
+      const data = await ClassService.getClassById(req.params.id);
+      res.status(200).json({
+        success: true,
+        data
+      });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message
+      });
+    }
   },
 
   async createClass(req, res) {
-    const classData = req.body.classData;
-    res.send(`Class Created: ${JSON.stringify(classData)}`);
+    try {
+      const data = await ClassService.createClass(req.body);
+      res.status(201).json({
+        success: true,
+        data
+      });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message
+      });
+    }
   },
 
   async updateClass(req, res) {
-    const classId = parseInt(req.params.id, 10);
-    res.send(`Update some fields for existing class with ID: ${classId}`);
+    try {
+      const data = await ClassService.updateClass(
+        req.params.id,
+        req.body
+      );
+      res.status(200).json({
+        success: true,
+        data
+      });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message
+      });
+    }
   },
 
   async deleteClass(req, res) {
-    const classId = parseInt(req.params.id, 10);
-    res.send(`Delete class with ID: ${classId}`);
+    try {
+      const data = await ClassService.deleteClass(req.params.id);
+      res.status(200).json({
+        success: true,
+        data
+      });
+    } catch (err) {
+      res.status(err.status || 500).json({
+        success: false,
+        message: err.message
+      });
+    }
   }
-
 };

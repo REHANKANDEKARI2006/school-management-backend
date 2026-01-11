@@ -1,47 +1,41 @@
+import { NoticeService } from "../services/notice_services.js";
+
 export const NoticeController = {
 
   async getAllNotices(req, res) {
-    res.json({
-      success: true,
-      message: "All notices fetched successfully",
-      data: []
-    });
+    const notices = await NoticeService.getAll();
+    res.json({ success: true, data: notices });
   },
 
   async getNoticeById(req, res) {
-    const id = parseInt(req.params.id);
-    res.json({
-      success: true,
-      message: `Notice fetched with ID: ${id}`,
-      data: {}
-    });
+    const notice = await NoticeService.getById(req.params.id);
+    res.json({ success: true, data: notice });
   },
 
   async createNotice(req, res) {
-    const { title, description, author } = req.body;
-
+    const notice = await NoticeService.create(req.body);
     res.json({
       success: true,
       message: "Notice created successfully",
-      data: { title, description, author }
+      data: notice
     });
   },
 
   async updateNotice(req, res) {
-    const id = parseInt(req.params.id);
-
+    const notice = await NoticeService.update(req.params.id, req.body);
     res.json({
       success: true,
-      message: `Notice updated with ID: ${id}`
+      message: "Notice updated successfully",
+      data: notice
     });
   },
 
   async deleteNotice(req, res) {
-    const id = parseInt(req.params.id);
-
+    await NoticeService.delete(req.params.id);
     res.json({
       success: true,
-      message: `Notice deleted with ID: ${id}`
+      message: "Notice removed from user view (Soft Delete)"
     });
   }
+
 };

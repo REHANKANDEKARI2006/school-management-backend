@@ -1,33 +1,52 @@
+// src/controllers/schedule_controller.js
+import ScheduleService from "../services/schedule_service.js";
+
 const ScheduleController = {
 
   async getSchoolSchedule(req, res) {
-    res.send("Get full school weekly schedule");
+    try {
+      const data = await ScheduleService.getSchoolSchedule();
+      res.json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
   },
 
   async getMySchedule(req, res) {
-    const userId = req.query.userId; // optional for now
-    res.send(`Get personal schedule for user: ${userId || "N/A"}`);
+    try {
+      const { staff_id, class_id, section_id } = req.query;
+      const data = await ScheduleService.getMySchedule({ staff_id, class_id, section_id });
+      res.json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
   },
 
   async createSchedule(req, res) {
-    const { day, time, subject, teacher, classId } = req.body;
-
-    res.send({
-      message: "Schedule created",
-      data: { day, time, subject, teacher, classId }
-    });
+    try {
+      const data = await ScheduleService.createSchedule(req.body);
+      res.status(201).json({ success: true, data });
+    } catch (err) {
+      res.status(400).json({ success: false, message: err.message });
+    }
   },
 
   async updateSchedule(req, res) {
-    const scheduleId = req.params.id;
-
-    res.send(`Update schedule with ID: ${scheduleId}`);
+    try {
+      const data = await ScheduleService.updateSchedule(req.params.id, req.body);
+      res.json({ success: true, data });
+    } catch (err) {
+      res.status(400).json({ success: false, message: err.message });
+    }
   },
 
   async deleteSchedule(req, res) {
-    const scheduleId = req.params.id;
-
-    res.send(`Delete schedule with ID: ${scheduleId}`);
+    try {
+      await ScheduleService.deleteSchedule(req.params.id);
+      res.json({ success: true, message: "Schedule deleted" });
+    } catch (err) {
+      res.status(400).json({ success: false, message: err.message });
+    }
   }
 
 };

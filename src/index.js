@@ -1,6 +1,6 @@
 import express from 'express';
 import studentRoutes from "./routes/student_routes.js";
-// import facultyRoutes from "./routes/faculty_Routes.js";
+import facultyRoutes from "./routes/faculty_routes.js";
 import classRoutes from "./routes/class_routes.js";
 import attendanceRoutes from "./routes/attendance_routes.js";
 import feesRoutes from "./routes/fees_routes.js";
@@ -21,7 +21,7 @@ app.use(express.json());
 
 // Routes
 app.use("/students", studentRoutes);
-// app.use("/faculty", facultyRoutes);
+app.use("/faculty", facultyRoutes);
 app.use("/classes", classRoutes);
 app.use("/attendance", attendanceRoutes);
 app.use("/fees", feesRoutes);

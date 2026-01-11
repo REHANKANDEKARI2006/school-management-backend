@@ -1,66 +1,80 @@
 // controllers/materials_controller.js
+import MaterialsService from "../services/materials_service.js";
 
 export const MaterialsController = {
 
-  // Get All Materials
   async getAllMaterials(req, res) {
-    res.send("Get all materials");
+    const data = await MaterialsService.getAllMaterials();
+    res.json({ success: true, data });
   },
 
-  // Get Single Material
   async getMaterial(req, res) {
-    const materialId = parseInt(req.params.id);
-    res.send(`Get material with ID: ${materialId}`);
+    const data = await MaterialsService.getMaterialById(req.params.id);
+    res.json({ success: true, data });
   },
 
-  // Add Material
   async addMaterial(req, res) {
-    const { title, description, className, subject } = req.body;
-
+    const material = await MaterialsService.addMaterial(req.body);
     res.json({
       success: true,
       message: "Material added successfully",
-      data: { title, description, className, subject }
+      data: material
     });
   },
 
-  // Update Material
   async updateMaterial(req, res) {
-    const materialId = parseInt(req.params.id);
+    const material = await MaterialsService.updateMaterial(
+      req.params.id,
+      req.body
+    );
     res.json({
       success: true,
-      message: `Material updated with ID: ${materialId}`
+      message: "Material updated successfully",
+      data: material
     });
   },
 
-  // Delete Material
   async deleteMaterial(req, res) {
-    const materialId = parseInt(req.params.id);
+    await MaterialsService.deleteMaterial(req.params.id);
     res.json({
       success: true,
-      message: `Material deleted with ID: ${materialId}`
+      message: "Material deleted successfully"
     });
   },
 
-  // Upload Material File
   async uploadMaterialFile(req, res) {
-    const { fileName } = req.body;
-
     res.json({
       success: true,
-      message: "Material file uploaded successfully",
-      fileName
+      message: "File upload handled separately (Multer/S3)"
     });
   },
 
-  // Download Material File
   async downloadMaterialFile(req, res) {
-    const fileId = parseInt(req.params.id);
-
     res.json({
       success: true,
-      message: `Download file for ID: ${fileId}`
+      message: "File download handled separately"
+    });
+  },
+
+  async downloadMaterialFile(req, res) {
+  try {
+    const materialId = parseInt(req.params.id);
+
+    const material = await MaterialsService.getMaterialById(materialId);
+
+    if (!material) {
+      return res.status(404).json({
+        success: false,
+        message: "Material not found"
+      });
+    }
+
+    return res.download(material.file_path);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
-
+}
 };

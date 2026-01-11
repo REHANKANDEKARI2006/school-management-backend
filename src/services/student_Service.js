@@ -6,7 +6,7 @@ export const StudentService = {
   },
 
   async getStudentById(studentId) {
-    const id = parseInt(studentId);
+    const id = Number(studentId);
     if (isNaN(id)) throw Object.assign(new Error("Invalid student id"), { status: 400 });
 
     const student = await StudentModel.findById(id);
@@ -16,70 +16,53 @@ export const StudentService = {
   },
 
   async createStudent(payload) {
+    if (!payload.student_user_id) {
+      throw Object.assign(
+        new Error("student_user_id is required (FK from user table)"),
+        { status: 400 }
+      );
+    }
+
     const student = {
-      user_id: payload.user_id ?? null,
-      stu_first_name: (payload.stu_first_name || "").trim(),
-      stu_middle_name: (payload.stu_middle_name || "").trim(),
-      stu_last_name: (payload.stu_last_name || "").trim(),
-      email: payload.email ?? null,
-      status: payload.status ?? null,
-      address: payload.address ?? null,
-      date_of_birth: payload.date_of_birth ?? null,
-      bg_id: payload.bg_id ?? null,
-      joined_date: payload.joined_date ?? null,
-      gender_id: payload.gender_id ?? null
+      student_user_id: payload.student_user_id,
+      stu_first_name: payload.stu_first_name?.trim(),
+      stu_middle_name: payload.stu_middle_name || null,
+      stu_last_name: payload.stu_last_name?.trim(),
+      email: payload.email || null,
+      address: payload.address || null,
+      date_of_birth: payload.date_of_birth || null,
+      gender_id: payload.gender_id || null,
+      bg_id: payload.bg_id || null,
+      joined_date: payload.joined_date || null,
+      access_id: payload.access_id || null,
+      user_status_id: payload.user_status_id || null
     };
 
     if (!student.stu_first_name || !student.stu_last_name) {
-      throw Object.assign(new Error("First name and last name are required"), { status: 400 });
+      throw Object.assign(
+        new Error("First name and last name are required"),
+        { status: 400 }
+      );
     }
 
     return await StudentModel.create(student);
   },
 
   async updateStudent(studentId, newValues) {
-    const id = parseInt(studentId);
+    const id = Number(studentId);
     if (isNaN(id)) throw Object.assign(new Error("Invalid student id"), { status: 400 });
 
     delete newValues.student_id;
 
-    const allowed = [
-      "user_id","stu_first_name","stu_middle_name","stu_last_name","email",
-      "status","address","date_of_birth","bg_id","joined_date","gender_id"
-    ];
-
-    const fields = Object.keys(newValues).filter(k => allowed.includes(k));
-
-    if (fields.length === 0)
-      throw Object.assign(new Error("No valid fields provided for update"), { status: 400 });
-
-    const setClause = fields.map((f, i) => `${f} = $${i + 1}`);
-    const values = fields.map(f => newValues[f]);
-    values.push(id);
-
-    const query = `
-      UPDATE student
-      SET ${setClause.join(", ")}
-      WHERE student_id = $${values.length}
-      RETURNING *;
-    `;
-
-    const updated = await StudentModel.update(query, values);
-    if (!updated) throw Object.assign(new Error("Student not found"), { status: 404 });
-
-    return updated;
+    return await StudentModel.updateById(id, newValues);
   },
 
   async deleteStudent(studentId) {
-    const id = parseInt(studentId);
+    const id = Number(studentId);
     if (isNaN(id)) throw Object.assign(new Error("Invalid student id"), { status: 400 });
 
-    const exists = await StudentModel.findById(id);
-    if (!exists) throw Object.assign(new Error("Student not found"), { status: 404 });
-
     const deleted = await StudentModel.delete(id);
-    if (deleted === 0)
-      throw Object.assign(new Error("Delete failed"), { status: 500 });
+    if (!deleted) throw Object.assign(new Error("Student not found"), { status: 404 });
 
     return { message: "Student deleted successfully" };
   }
