@@ -53,6 +53,8 @@ export async function createStudentTable() {
         bg_id           INTEGER,
         joined_date     DATE,
         gender_id       INTEGER,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now(),
         CONSTRAINT student_user_id_fkey
           FOREIGN KEY (user_id) REFERENCES public."user"(user_id)
       )
@@ -160,7 +162,7 @@ export async function deleteAllStudents() {
 }
 
 // Uncomment ONE at a time to run directly:
-// createStudentTable();
+createStudentTable();
 // dropStudentTable();
-seedStudentsForUserRange();
+// seedStudentsForUserRange();
 // deleteAllStudents();

@@ -5,7 +5,7 @@ export const FacultyController = {
 
   async getAllFaculty(req, res) {
     try {
-      const data = await FacultyService.getAllFaculty();
+      const data = await FacultyService.getAllFaculty(req.user);
       res.status(200).json({ success: true, data });
     } catch (err) {
       res.status(err.status || 500).json({
@@ -29,8 +29,21 @@ export const FacultyController = {
 
   async createFaculty(req, res) {
     try {
-      const data = await FacultyService.createFaculty(req.body);
-      res.status(201).json({ success: true, data });
+      // ✅ SAFE GUARD (NEW)
+      if (!req.user || !req.user.institute_id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: institute missing",
+        });
+      }
+
+      const data = await FacultyService.createFaculty(req.body, req.user);
+
+      res.status(201).json({
+        success: true,
+        message: "Faculty created successfully",
+        data,
+      });
     } catch (err) {
       res.status(err.status || 500).json({
         success: false,

@@ -25,16 +25,21 @@ export async function createGuardianTable() {
   try {
     await db.query(`
       CREATE TABLE IF NOT EXISTS guardian (
-        guardian_id     SERIAL PRIMARY KEY,
-        user_id         INTEGER UNIQUE,
-        grdn_first_name VARCHAR(100),
-        grdn_last_name  VARCHAR(100),
-        contact         VARCHAR(20),
-        email           VARCHAR(150),
-        address         TEXT,
-        gender_id       INTEGER,
-        CONSTRAINT guardian_user_id_fkey
-          FOREIGN KEY (user_id) REFERENCES public."user"(user_id)
+        guardian_id      SERIAL PRIMARY KEY,
+        user_id          INTEGER UNIQUE,
+        student_id       INTEGER,                -- NEW: link to student
+        grdn_first_name  VARCHAR(100),
+        grdn_last_name   VARCHAR(100),
+        contact          VARCHAR(20),
+        email            VARCHAR(150),
+        address          TEXT,
+        gender_id        INTEGER,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now(),
+        CONSTRAINT guardian_gender_id_fkey
+          FOREIGN KEY (gender_id) REFERENCES public.gender(gender_id),
+        CONSTRAINT guardian_student_id_fkey
+          FOREIGN KEY (student_id) REFERENCES public.student(student_id)
       )
     `);
     console.log('guardian table ensured.');
@@ -53,154 +58,167 @@ export async function dropGuardianTable() {
   }
 }
 
-// ---------- 3A. seed FATHERS from students ----------
+// 3A. SEED father guardians from students
 export async function seedFatherGuardiansFromStudents() {
-  const START_PARENT_USER_ID = 121;   // parent users for fathers
-  const END_PARENT_USER_ID = 140;
-
-  const START_STUDENT_USER_ID = 101; // students batch
-  const END_STUDENT_USER_ID = 120;
+  // match these to your existing parent users (user_type = 'parent')
+  const START_PARENT_USER_ID = 51; // first father parent user_id
+  const END_PARENT_USER_ID   = 80; // last  father parent user_id
 
   try {
-    const { rows: parentUsers } = await db.query(
+    // fetch students ordered by student_id in the range you want to create parents for
+    const { rows: students } = await db.query(`
+      SELECT student_id, stu_first_name, stu_last_name, address
+      FROM student
+      ORDER BY student_id
+    `);
+
+    if (!students.length) {
+      console.log('No students found for father seeding.');
+      return;
+    }
+
+    // fetch corresponding parent users
+    const { rows: parents } = await db.query(
       `
-        SELECT user_id, user_name, email, phone
+        SELECT user_id
         FROM "user"
         WHERE user_id BETWEEN $1 AND $2
-          AND user_type = 'parent'
-          AND institute_id = 3
         ORDER BY user_id
       `,
       [START_PARENT_USER_ID, END_PARENT_USER_ID]
     );
 
-    const { rows: students } = await db.query(
-      `
-        SELECT user_id, stu_middle_name, stu_last_name, address
-        FROM student
-        WHERE user_id BETWEEN $1 AND $2
-          AND stu_middle_name IS NOT NULL
-        ORDER BY user_id
-      `,
-      [START_STUDENT_USER_ID, END_STUDENT_USER_ID]
-    );
-
-    const count = Math.min(parentUsers.length, students.length);
-    if (count === 0) {
-      console.log('No parents or students for father guardians.');
+    const count = Math.min(students.length, parents.length);
+    if (!count) {
+      console.log('No parent users found in given range.');
       return;
     }
 
     const values = [];
     for (let i = 0; i < count; i++) {
-      const u = parentUsers[i];
       const s = students[i];
+      const p = parents[i];
 
-      values.push(
-        `(${u.user_id},
-          '${s.stu_middle_name}',
-          '${s.stu_last_name}',
-          '${u.phone}',
-          '${u.email}',
-          '${s.address}',
-          1)`
-      ); // 1 = male
+      values.push(`
+        (${p.user_id}, ${s.student_id},
+         '${s.stu_first_name.replace(/'/g, "''")}',
+         '${s.stu_last_name.replace(/'/g, "''")}',
+         '9700000${(100 + i).toString().slice(-3)}',
+         NULL,
+         '${(s.address || '').replace(/'/g, "''")}',
+         1
+        )
+      `);
     }
 
     await db.query(`
-      INSERT INTO guardian
-        (user_id, grdn_first_name, grdn_last_name, contact, email, address, gender_id)
+      INSERT INTO guardian (
+        user_id,
+        student_id,
+        grdn_first_name,
+        grdn_last_name,
+        contact,
+        email,
+        address,
+        gender_id
+      )
       VALUES
-        ${values.join(',\n')}
+        ${values.join(',')}
+      ON CONFLICT (user_id) DO NOTHING
     `);
 
-    console.log(`Inserted ${values.length} father guardians.`);
+    console.log(`Inserted \${count} father guardians linked to students.`);
   } catch (error) {
-    console.error('seedFatherGuardiansFromStudents error:', error);
+    console.log('seedFatherGuardiansFromStudents error:', error);
   }
 }
 
-// ---------- 3B. seed MOTHERS from students ----------
+
+// 3B. SEED mother guardians from students
 export async function seedMotherGuardiansFromStudents() {
-  const START_PARENT_USER_ID = 141;   // parent users for mothers
-  const END_PARENT_USER_ID = 142;
+  const START_PARENT_USER_ID = 81; // first mother parent user_id
+  const END_PARENT_USER_ID   = 110;
 
-  const START_STUDENT_USER_ID = 119;
-  const END_STUDENT_USER_ID = 120;
+  // simple list of Indian female names to pick from
+  const motherNames = ['Anita', 'Kavita', 'Pooja', 'Sunita', 'Rakhi', 'Alka', 'Meena', 'Neha'];
 
   try {
-    const { rows: parentUsers } = await db.query(
+    const { rows: students } = await db.query(`
+      SELECT student_id, stu_last_name, address
+      FROM student
+      ORDER BY student_id
+    `);
+
+    const { rows: parents } = await db.query(
       `
-        SELECT user_id, user_name, email, phone
+        SELECT user_id
         FROM "user"
         WHERE user_id BETWEEN $1 AND $2
-          AND user_type = 'parent'
-          AND institute_id = 3
         ORDER BY user_id
       `,
       [START_PARENT_USER_ID, END_PARENT_USER_ID]
     );
 
-    const { rows: students } = await db.query(
-      `
-        SELECT user_id, stu_last_name, address
-        FROM student
-        WHERE user_id BETWEEN $1 AND $2
-        ORDER BY user_id
-      `,
-      [START_STUDENT_USER_ID, END_STUDENT_USER_ID]
-    );
-
-    const count = Math.min(parentUsers.length, students.length);
-    if (count === 0) {
-      console.log('No parents or students for mother guardians.');
+    const count = Math.min(students.length, parents.length);
+    if (!count) {
+      console.log('No parent users / students for mother seeding.');
       return;
     }
 
     const values = [];
     for (let i = 0; i < count; i++) {
-      const u = parentUsers[i];
       const s = students[i];
+      const p = parents[i];
+      const firstName = motherNames[i % motherNames.length];
 
-      const g = generateGuardianNameFemale(s.stu_last_name);
-
-      values.push(
-        `(${u.user_id},
-          '${g.firstName}',
-          '${g.lastName}',
-          '${u.phone}',
-          '${u.email}',
-          '${s.address}',
-          ${g.genderId})`
-      ); // 2 = female
+      values.push(`
+        (${p.user_id}, ${s.student_id},
+         '${firstName}',
+         '${s.stu_last_name.replace(/'/g, "''")}',
+         '9800000${(100 + i).toString().slice(-3)}',
+         NULL,
+         '${(s.address || '').replace(/'/g, "''")}',
+         2
+        )
+      `);
     }
 
     await db.query(`
-      INSERT INTO guardian
-        (user_id, grdn_first_name, grdn_last_name, contact, email, address, gender_id)
+      INSERT INTO guardian (
+        user_id,
+        student_id,
+        grdn_first_name,
+        grdn_last_name,
+        contact,
+        email,
+        address,
+        gender_id
+      )
       VALUES
-        ${values.join(',\n')}
+        ${values.join(',')}
+      ON CONFLICT (user_id) DO NOTHING
     `);
 
-    console.log(`Inserted ${values.length} mother guardians.`);
+    console.log(`Inserted \${count} mother guardians linked to students.`);
   } catch (error) {
-    console.error('seedMotherGuardiansFromStudents error:', error);
+    console.log('seedMotherGuardiansFromStudents error:', error);
   }
 }
 
-// ---------- 4. delete all rows ----------
-export async function deleteAllGuardians() {
+
+// 4. REMOVE all guardians
+export async function removeAllGuardians() {
   try {
     await db.query('DELETE FROM guardian');
-    console.log('all guardians deleted.');
+    console.log('All guardian records deleted.');
   } catch (error) {
-    console.error('deleteAllGuardians error:', error);
+    console.log('removeAllGuardians error:', error);
   }
 }
 
-// Uncomment ONE at a time to run directly:
-// createGuardianTable();
-// dropGuardianTable();
+// Uncomment one per run as needed:
+createGuardianTable();
 // seedFatherGuardiansFromStudents();
-seedMotherGuardiansFromStudents();
-// deleteAllGuardians();
+// seedMotherGuardiansFromStudents();
+// removeAllGuardians();
+// dropGuardianTable();
