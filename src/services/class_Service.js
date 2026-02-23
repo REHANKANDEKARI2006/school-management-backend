@@ -6,6 +6,10 @@ export const ClassService = {
     return await ClassModel.getAll();
   },
 
+  async getAllClassesForAdmin() {
+    return await ClassModel.getAllForAdmin();
+  },
+
   async getClassById(classId) {
     const id = parseInt(classId);
     if (isNaN(id)) {
@@ -20,13 +24,12 @@ export const ClassService = {
     return data;
   },
 
-  // 🔥 YAHI FUNCTION MISSING THA
   async createClass(payload) {
     const classData = {
       class_name: (payload.class_name || "").trim(),
-      section_id: payload.section_id ?? null,
+      section_id: payload.section_id ?? null,   // ✅ KEEP (DO NOT REMOVE)
       staff_id: payload.staff_id ?? null,
-      room_number: payload.room_number ?? null
+      room_number: payload.room_number ?? null,
     };
 
     if (!classData.class_name || !classData.section_id) {
@@ -36,7 +39,16 @@ export const ClassService = {
       );
     }
 
-    return await ClassModel.create(classData);
+    // ✅ 1. CREATE CLASS (EXISTING LOGIC)
+    const createdClass = await ClassModel.create(classData);
+
+    // ✅ 2. MAP CLASS ↔ SECTION (NEW – REQUIRED)
+    await ClassModel.attachSection(
+      createdClass.class_id,
+      classData.section_id
+    );
+
+    return createdClass;
   },
 
   async updateClass(classId, newValues) {
@@ -87,7 +99,7 @@ export const ClassService = {
       throw Object.assign(new Error("Class not found"), { status: 404 });
     }
 
-    await ClassModel.delete(id);
+    await ClassModel.softDelete(id);
     return { message: "Class deleted successfully" };
-  }
+  },
 };

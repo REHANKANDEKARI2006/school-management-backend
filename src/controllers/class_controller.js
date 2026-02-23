@@ -18,6 +18,19 @@ export const ClassController = {
     }
   },
 
+  async getAllClassesForAdmin(req, res) {
+      try {
+        const data = await ClassService.getAllClassesForAdmin();
+        res.status(200).json({ success: true, data });
+      } catch (err) {
+        res.status(500).json({
+          success: false,
+          message: err.message,
+        });
+      }
+    },
+
+
   async getClassById(req, res) {
     try {
       const data = await ClassService.getClassById(req.params.id);

@@ -8,6 +8,9 @@ export const FeesService = {
   },
 
   createCategory(data) {
+    if (!data.category_name) {
+      throw new Error("Category name is required");
+    }
     return FeesModel.createCategory(data);
   },
 
@@ -24,6 +27,10 @@ export const FeesService = {
   },
 
   createFeeStructure(data) {
+    const { class_id, fee_cat_id, amount } = data;
+    if (!class_id || !fee_cat_id || !amount) {
+      throw new Error("class_id, fee_cat_id and amount are required");
+    }
     return FeesModel.createFeeStructure(data);
   },
 
@@ -32,6 +39,10 @@ export const FeesService = {
   },
 
   collectFee(data) {
+    const { student_id, fee_struct_id, amount_paid } = data;
+    if (!student_id || !fee_struct_id || !amount_paid) {
+      throw new Error("Missing fee collection data");
+    }
     return FeesModel.collectFee(data);
   },
 

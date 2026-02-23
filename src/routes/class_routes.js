@@ -8,14 +8,17 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// EXISTING ROUTES (NO CHANGE)
+// ✅ ADMIN LIST — MUST BE ABOVE :id
+router.get("/admin/list", ClassController.getAllClassesForAdmin);
+
+// EXISTING ROUTES
 router.get("/", ClassController.getAllClasses);
 router.get("/:id", ClassController.getClassById);
 router.post("/", ClassController.createClass);
 router.patch("/:id", ClassController.updateClass);
 router.delete("/:id", ClassController.deleteClass);
 
-// ✅ NEW: SINGLE DROPDOWN DATA
+// DROPDOWN DATA (UNCHANGED)
 router.get("/class-enrollments/list", async (req, res) => {
   try {
     const { rows } = await pool.query(`
