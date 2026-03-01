@@ -1,7 +1,8 @@
 import express from "express";
-import { 
+import {
   createEvent,
   getAllEvents,
+  getEventStatuses,
   updateEvent,
   generateCertificate,
   deleteEvent
@@ -11,6 +12,7 @@ const router = express.Router();
 
 router.post("/", createEvent);
 router.get("/", getAllEvents);
+router.get("/statuses", getEventStatuses);
 router.put("/:id", updateEvent);
 router.post("/certificate/:id", generateCertificate);
 router.delete("/:id", deleteEvent);

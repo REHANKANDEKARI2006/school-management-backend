@@ -14,8 +14,8 @@ const ScheduleController = {
 
   async getMySchedule(req, res) {
     try {
-      const { staff_id, class_id, section_id } = req.query;
-      const data = await ScheduleService.getMySchedule({ staff_id, class_id, section_id });
+      const { staff_id, class_id } = req.query;
+      const data = await ScheduleService.getMySchedule({ staff_id, class_id });
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -25,6 +25,16 @@ const ScheduleController = {
   async createSchedule(req, res) {
     try {
       const data = await ScheduleService.createSchedule(req.body);
+      res.status(201).json({ success: true, data });
+    } catch (err) {
+      res.status(400).json({ success: false, message: err.message });
+    }
+  },
+
+  async replaceClassSchedule(req, res) {
+    try {
+      const { class_id, scheduleArray } = req.body;
+      const data = await ScheduleService.replaceClassSchedule(class_id, scheduleArray);
       res.status(201).json({ success: true, data });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });

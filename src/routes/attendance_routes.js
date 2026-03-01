@@ -12,5 +12,10 @@ router.get("/session/check", AttendanceController.checkSession);
 
 /* RECORD */
 router.post("/record", AttendanceController.createRecords);
+router.put("/record", AttendanceController.updateRecord);
+
+/* OTHERS */
+router.get("/students", AttendanceController.getStudents);
+router.get("/summary", AttendanceController.getSummary);
 
 export default router;

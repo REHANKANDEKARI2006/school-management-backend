@@ -37,6 +37,35 @@ export const AttendanceController = {
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
+  },
+
+  async getStudents(req, res) {
+    try {
+      const { classId } = req.query;
+      const data = await AttendanceService.getStudentsByClass(classId);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async getSummary(req, res) {
+    try {
+      const { sessionId } = req.query;
+      const data = await AttendanceService.getAttendanceSummary(sessionId);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async updateRecord(req, res) {
+    try {
+      const data = await AttendanceService.updateRecord(req.body);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
   }
 
 };

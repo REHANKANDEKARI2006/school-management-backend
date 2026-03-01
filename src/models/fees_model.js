@@ -31,7 +31,7 @@ export const FeesModel = {
     return res.rows[0];
   },
 
-  async updateCategory(id, { category_name, description, is_active }) {
+  async updateCategory(id, { category_name, description, is_active, allow_installments }) {
     const res = await pool.query(
       `
       UPDATE fee_category
@@ -39,11 +39,12 @@ export const FeesModel = {
         category_name = $1,
         description = $2,
         is_active = $3,
+        allow_installments = COALESCE($4, allow_installments),
         updated_at = now()
-      WHERE fee_category_id = $4
+      WHERE fee_category_id = $5
       RETURNING *
       `,
-      [category_name, description, is_active, id]
+      [category_name, description, is_active, allow_installments, id]
     );
     return res.rows[0];
   },

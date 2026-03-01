@@ -11,6 +11,10 @@ const EventsService = {
     return await EventsModel.getAllEvents();
   },
 
+  getEventStatuses: async () => {
+    return await EventsModel.getEventStatuses();
+  },
+
   updateEvent: async (id, data) => {
     return await EventsModel.updateEvent(id, data);
   },

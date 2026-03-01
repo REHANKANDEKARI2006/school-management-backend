@@ -12,6 +12,11 @@ export const NoticeService = {
     return result.rows[0];
   },
 
+  async getAudiences() {
+    const result = await NoticeModel.getNoticeAudiences();
+    return result.rows;
+  },
+
   async create(data) {
     const result = await NoticeModel.createNotice(data);
     return result.rows[0];

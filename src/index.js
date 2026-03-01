@@ -1,6 +1,14 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Routes
 import studentRoutes from "./routes/student_routes.js";
@@ -21,6 +29,7 @@ import sectionRoutes from "./routes/section_routes.js";
 
 import departmentRoutes from "./routes/department_routes.js";
 import subjectRoutes from "./routes/subject_routes.js";
+import questionPaperRoutes from "./routes/question_paper_routes.js";
 
 
 
@@ -36,7 +45,7 @@ const PORT = process.env.PORT || 5000;
 ===================== */
 
 app.use(cors({
-  origin: "http://localhost:3000",
+   origin: "http://localhost:3000",
 }));
 
 app.use(express.json());
@@ -64,6 +73,7 @@ app.use("/api/sections", sectionRoutes);
 
 app.use("/api/departments", departmentRoutes);
 app.use("/api/subjects", subjectRoutes);
+app.use("/api/question-papers", questionPaperRoutes);
 
 
 
@@ -72,5 +82,5 @@ app.use("/api/subjects", subjectRoutes);
 ===================== */
 
 app.listen(PORT, () => {
-  console.log(`✅ Backend server running on http://localhost:${PORT}`);
+   console.log(`✅ Backend server running on http://localhost:${PORT}`);
 });

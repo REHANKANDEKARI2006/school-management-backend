@@ -3,7 +3,13 @@ import { StudentService } from "../services/student_Service.js";
 export const StudentController = {
   async getAllStudents(req, res) {
     try {
-      const data = await StudentService.getAllStudents();
+      const { class_id } = req.query;
+      let data;
+      if (class_id) {
+        data = await StudentService.getStudentsByClassId(parseInt(class_id));
+      } else {
+        data = await StudentService.getAllStudents();
+      }
       res.json({ success: true, data });
     } catch (err) {
       res.status(err.status || 500).json({

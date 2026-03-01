@@ -10,6 +10,10 @@ const ExamsService = {
     return ExamsModel.getAllExams();
   },
 
+  getExamById(id) {
+    return ExamsModel.getExamById(id);
+  },
+
   updateExam(id, payload) {
     return ExamsModel.updateExam(id, payload);
   },
@@ -22,8 +26,20 @@ const ExamsService = {
     return ExamsModel.getExamTypes();
   },
 
+  getExamStatuses() {
+    return ExamsModel.getExamStatuses();
+  },
+
   addGrades(exam_id, payload) {
     return ExamsModel.addGrades(exam_id, payload);
+  },
+
+  getGrades(exam_id) {
+    return ExamsModel.getGrades(exam_id);
+  },
+
+  addBulkGrades(exam_id, grades) {
+    return ExamsModel.addBulkGrades(exam_id, grades);
   }
 
 };

@@ -6,7 +6,7 @@ const EventsModel = {
   createEvent: async (data) => {
     const query = `
       INSERT INTO events 
-      (event_name, description, event_date, venue, status_id)
+      (event_name, description, event_date, venue, event_status_id)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
@@ -15,7 +15,7 @@ const EventsModel = {
       data.description,
       data.event_date,
       data.venue,
-      data.status_id
+      data.event_status_id
     ];
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -23,9 +23,17 @@ const EventsModel = {
 
   getAllEvents: async () => {
     const query = `
-      SELECT * FROM events
-      ORDER BY event_date DESC
+      SELECT e.*, s.event_status_name
+      FROM events e
+      LEFT JOIN event_status s ON e.event_status_id = s.event_status_id
+      ORDER BY e.event_date DESC
     `;
+    const result = await pool.query(query);
+    return result.rows;
+  },
+
+  getEventStatuses: async () => {
+    const query = `SELECT * FROM event_status ORDER BY event_status_id ASC`;
     const result = await pool.query(query);
     return result.rows;
   },
@@ -37,7 +45,7 @@ const EventsModel = {
         description = $2,
         event_date = $3,
         venue = $4,
-        status_id = $5,
+        event_status_id = $5,
         updated_at = now()
       WHERE event_id = $6
       RETURNING *;
@@ -47,7 +55,7 @@ const EventsModel = {
       data.description,
       data.event_date,
       data.venue,
-      data.status_id,
+      data.event_status_id,
       id
     ];
     const result = await pool.query(query, values);

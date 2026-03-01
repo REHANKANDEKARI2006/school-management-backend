@@ -16,6 +16,18 @@ export const AttendanceService = {
 
   async createRecords(data) {
     return await AttendanceModel.createRecords(data);
+  },
+
+  async getStudentsByClass(classId) {
+    return await AttendanceModel.getStudentsByClass(classId);
+  },
+
+  async getAttendanceSummary(sessionId) {
+    return await AttendanceModel.getAttendanceSummary(sessionId);
+  },
+
+  async updateRecord(data) {
+    return await AttendanceModel.updateRecord(data);
   }
 
 };

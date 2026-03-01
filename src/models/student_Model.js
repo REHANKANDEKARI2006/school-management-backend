@@ -22,6 +22,7 @@ export const StudentModel = {
         s.email,
         s.joined_date,
         s.user_status_id,
+        c.class_id,
         c.class_name,
         sec.section_name
       FROM student s
@@ -33,6 +34,30 @@ export const StudentModel = {
       WHERE s.is_deleted = FALSE
       ORDER BY s.student_id DESC
     `);
+    return rows;
+  },
+
+  /* =========================
+     GET BY CLASS ID (for grade entry)
+  ========================= */
+  async getByClassId(classId) {
+    console.log(`StudentModel.getByClassId called with classId: ${classId}`);
+    const { rows } = await pool.query(`
+      SELECT
+        s.student_id,
+        s.stu_first_name,
+        s.stu_last_name,
+        s.email,
+        s.user_status_id
+      FROM student s
+      INNER JOIN class_enrollment ce
+        ON ce.student_id = s.student_id
+        AND ce.class_id = $1
+        AND ce.status_id = 1
+      WHERE s.is_deleted = FALSE
+      ORDER BY s.stu_first_name, s.stu_last_name
+    `, [classId]);
+    console.log(`StudentModel.getByClassId returned ${rows.length} rows`);
     return rows;
   },
 
@@ -77,9 +102,6 @@ export const StudentModel = {
      CREATE STUDENT (UPDATED FOR CLASS)
   ========================= */
   async createStudent(data, authUser) {
-    
-    console.log("CLASS ID RECEIVED:", class_id);
-
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -97,7 +119,7 @@ export const StudentModel = {
         motherName,
         primaryContact,
         parentEmail,
-        class_id, 
+        class_id,
       } = data;
 
       const safeStudentEmail = email || `student_${Date.now()}@temp.com`;
@@ -164,9 +186,9 @@ export const StudentModel = {
       /* ==================================================
          ✅ NEW: CREATE CLASS ENROLLMENT (NO LINE REMOVED)
       ================================================== */
-        if (class_id) {
-          await client.query(
-            `
+      if (class_id) {
+        await client.query(
+          `
             INSERT INTO class_enrollment (
               student_id,
               class_id,
@@ -174,9 +196,9 @@ export const StudentModel = {
             )
             VALUES ($1, $2, 1)
             `,
-            [studentId, class_id]
-          );
-        }
+          [studentId, class_id]
+        );
+      }
 
       /* ---------- CREATE GUARDIAN USER ---------- */
       const guardianUserRes = await client.query(

@@ -4,6 +4,7 @@ import { NoticeController } from "../controllers/notice_controller.js";
 const router = Router();
 
 router.get("/", NoticeController.getAllNotices);
+router.get("/audiences", NoticeController.getNoticeAudiences);
 router.get("/:id", NoticeController.getNoticeById);
 router.post("/", NoticeController.createNotice);
 router.put("/:id", NoticeController.updateNotice);

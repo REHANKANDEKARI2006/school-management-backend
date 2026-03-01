@@ -78,3 +78,20 @@ export const generateCertificate = async (req, res) => {
     message: `Certificate generated for Event ID ${req.params.id}`
   });
 };
+
+// Get Event Statuses
+export const getEventStatuses = async (req, res) => {
+  try {
+    const data = await EventsService.getEventStatuses();
+    res.json({
+      success: true,
+      message: "Event statuses fetched successfully",
+      data
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

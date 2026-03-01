@@ -5,6 +5,10 @@ export const StudentService = {
     return await StudentModel.getAll();
   },
 
+  async getStudentsByClassId(classId) {
+    return await StudentModel.getByClassId(classId);
+  },
+
   async getStudentById(studentId) {
     const id = Number(studentId);
     if (isNaN(id))

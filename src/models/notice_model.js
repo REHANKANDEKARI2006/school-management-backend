@@ -4,17 +4,27 @@ export const NoticeModel = {
 
   getAllNotices() {
     return pool.query(
-      `SELECT * FROM notices 
-       WHERE is_deleted = false 
-       ORDER BY created_at DESC`
+      `SELECT n.*, a.audience_name 
+       FROM notices n
+       LEFT JOIN notice_audience a ON n.audience_id = a.audience_id
+       WHERE n.is_deleted = false 
+       ORDER BY n.created_at DESC`
     );
   },
 
   getNoticeById(id) {
     return pool.query(
-      `SELECT * FROM notices 
-       WHERE notice_id = $1 AND is_deleted = false`,
+      `SELECT n.*, a.audience_name 
+       FROM notices n
+       LEFT JOIN notice_audience a ON n.audience_id = a.audience_id
+       WHERE n.notice_id = $1 AND n.is_deleted = false`,
       [id]
+    );
+  },
+
+  getNoticeAudiences() {
+    return pool.query(
+      "SELECT * FROM notice_audience ORDER BY audience_name ASC"
     );
   },
 
@@ -49,14 +59,20 @@ export const NoticeModel = {
   },
 
   updateNotice(id, data) {
-    const { title, content } = data;
+    const {
+      title,
+      content,
+      audience_id,
+      img_url,
+      attachment_id
+    } = data;
 
     return pool.query(
       `UPDATE notices 
-       SET title=$1, content=$2, updated_at=now()
-       WHERE notice_id=$3
+       SET title=$1, content=$2, audience_id=$3, img_url=$4, attachment_id=$5, updated_at=now()
+       WHERE notice_id=$6
        RETURNING *`,
-      [title, content, id]
+      [title, content, audience_id, img_url, attachment_id, id]
     );
   },
 
