@@ -19,8 +19,20 @@ const MaterialsModel = {
   // Get All Materials
   async findAll() {
     const query = `
-      SELECT * FROM materials
-      ORDER BY material_id DESC;
+      SELECT 
+        m.material_id, 
+        m.material_name, 
+        m.subject_id, 
+        sub.subject_name,
+        m.class_id, 
+        c.class_name,
+        m.file_path, 
+        m.upload_date, 
+        m.updated_at
+      FROM materials m
+      JOIN class c ON c.class_id = m.class_id
+      JOIN subject sub ON sub.subject_id = m.subject_id
+      ORDER BY m.material_id DESC;
     `;
     const { rows } = await pool.query(query);
     return rows;

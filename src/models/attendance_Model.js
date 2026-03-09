@@ -84,6 +84,8 @@ export const AttendanceModel = {
       INSERT INTO attendance_session
       (class_id, section_id, subject_id, attendance_date, created_by, faculty_id)
       VALUES ($1,$2,$3,$4,$5,$6)
+      ON CONFLICT (class_id, section_id, subject_id, attendance_date)
+      DO UPDATE SET faculty_id = EXCLUDED.faculty_id, updated_at = now()
       RETURNING *;
     `;
     const values = [
@@ -98,11 +100,21 @@ export const AttendanceModel = {
     return rows[0];
   },
 
-  async createRecords({ session_id, records }) {
+  async createRecords({ session_id, staff_id, records }) {
+    // We derive staff_id either from param, or we fetch it from the session
+    let actualStaffId = staff_id;
+    if (!actualStaffId) {
+      const sessionRes = await pool.query('SELECT faculty_id FROM attendance_session WHERE session_id = $1', [session_id]);
+      if (sessionRes.rows.length > 0) actualStaffId = sessionRes.rows[0].faculty_id || 76;
+      else actualStaffId = 76; // fallback
+    }
+
     const sql = `
       INSERT INTO attendance_record
-      (session_id, student_id, is_present, status_id, remarks)
+      (session_id, student_id, staff_id, status_id, remarks)
       VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (session_id, student_id)
+      DO UPDATE SET status_id = EXCLUDED.status_id, remarks = EXCLUDED.remarks, updated_at = now()
       RETURNING *;
     `;
 
@@ -111,7 +123,7 @@ export const AttendanceModel = {
       const { rows } = await pool.query(sql, [
         session_id,
         r.student_id,
-        r.is_present ?? (r.status_id === 1),
+        actualStaffId,
         r.status_id,
         r.remarks || null
       ]);
@@ -124,8 +136,8 @@ export const AttendanceModel = {
     const sql = `
       SELECT 
         s.student_id,
-        s.student_first_name || ' ' || s.student_last_name as name,
-        s.roll_number,
+        s.stu_first_name || ' ' || s.stu_last_name as name,
+        'N/A' as roll_number,
         c.class_name as class
       FROM student s
       JOIN class_enrollment ce ON ce.student_id = s.student_id
@@ -141,9 +153,9 @@ export const AttendanceModel = {
     const sql = `
       SELECT 
         ar.student_id,
-        s.student_first_name || ' ' || s.student_last_name as name,
-        s.roll_number,
-        ast.status_name as status,
+        s.stu_first_name || ' ' || s.stu_last_name as name,
+        'N/A' as roll_number,
+        ast.atd_status_name as status,
         ar.remarks
       FROM attendance_record ar
       JOIN student s ON s.student_id = ar.student_id
