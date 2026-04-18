@@ -7,8 +7,8 @@ const MaterialsService = {
     return await MaterialsModel.create(data);
   },
 
-  async getAllMaterials() {
-    return await MaterialsModel.findAll();
+  async getAllMaterials(class_id = null) {
+    return await MaterialsModel.findAll(class_id);
   },
 
   async getMaterialById(id) {

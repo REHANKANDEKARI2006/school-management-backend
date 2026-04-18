@@ -63,10 +63,19 @@ export const ClassController = {
 
   async updateClass(req, res) {
     try {
-      const data = await ClassService.updateClass(
-        req.params.id,
-        req.body
-      );
+      const { role_id } = req.user;
+      const classId = req.params.id;
+
+      // Only admins can update classes
+      const isAdmin = [1, 2, 10, 11, 16, 17].includes(role_id);
+      if (!isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: Only administrators can update class details"
+        });
+      }
+
+      const data = await ClassService.updateClass(classId, req.body);
       res.status(200).json({
         success: true,
         data
@@ -81,6 +90,17 @@ export const ClassController = {
 
   async deleteClass(req, res) {
     try {
+      const { role_id } = req.user;
+
+      // Only admins can delete classes
+      const isAdmin = [1, 2, 10, 11, 16, 17].includes(role_id);
+      if (!isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: Only administrators can delete classes"
+        });
+      }
+
       const data = await ClassService.deleteClass(req.params.id);
       res.status(200).json({
         success: true,

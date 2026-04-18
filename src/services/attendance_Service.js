@@ -28,6 +28,14 @@ export const AttendanceService = {
 
   async updateRecord(data) {
     return await AttendanceModel.updateRecord(data);
+  },
+
+  async getStudentHistory(studentId) {
+    return await AttendanceModel.getStudentHistory(studentId);
+  },
+
+  async getStudentDailyAttendanceWithSchedule(studentId, date) {
+    return await AttendanceModel.getStudentDailyAttendanceWithSchedule(studentId, date);
   }
 
 };

@@ -27,6 +27,21 @@
       }
     },
 
+    async uploadPhoto(req, res) {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ success: false, message: "No file uploaded" });
+        }
+        res.status(200).json({
+          success: true,
+          message: "Photo uploaded successfully",
+          data: { url: req.file.path } // Cloudinary URL automatically bound by multer config
+        });
+      } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+      }
+    },
+
     async createFaculty(req, res) {
       try {
         // ✅ SAFE GUARD (NEW)

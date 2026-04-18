@@ -4,7 +4,9 @@ export const NoticeController = {
 
   async getAllNotices(req, res) {
     try {
-      const notices = await NoticeService.getAll();
+      let { class_id } = req.query;
+      const cleanClassId = class_id && !isNaN(parseInt(class_id)) ? parseInt(class_id) : null;
+      const notices = await NoticeService.getAll(cleanClassId);
       res.json({ success: true, data: notices });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -35,6 +37,17 @@ export const NoticeController = {
   async createNotice(req, res) {
     try {
       const notice = await NoticeService.create(req.body);
+
+      // Log activity
+      try {
+          const { DashboardService } = await import("../services/dashboard_service.js");
+          await DashboardService.addActivityEntry(
+              req.user.user_id,
+              'notice_posted',
+              `New notice posted: ${req.body.title}`
+          );
+      } catch (e) { console.error(e); }
+
       res.status(201).json({
         success: true,
         message: "Notice created successfully",

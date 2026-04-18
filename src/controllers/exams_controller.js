@@ -1,10 +1,22 @@
 import ExamsService from "../services/exams_service.js";
+import { computeStatus } from "../utils/computeStatus.js";
 
 const ExamsController = {
 
   async createExam(req, res) {
     try {
       const data = await ExamsService.createExam(req.body);
+
+      // Log activity
+      try {
+          const { DashboardService } = await import("../services/dashboard_service.js");
+          await DashboardService.addActivityEntry(
+              req.user.user_id,
+              'exam_scheduled',
+              `New exam scheduled: ${req.body.exam_name}`
+          );
+      } catch (e) { console.error(e); }
+
       res.json({ success: true, message: "Exam created", data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -13,8 +25,15 @@ const ExamsController = {
 
   async getAllExams(req, res) {
     try {
-      const data = await ExamsService.getAllExams();
-      res.json({ success: true, data });
+      const { class_id } = req.query;
+      const data = await ExamsService.getAllExams(class_id);
+      
+      const enrichedData = data.map(exam => ({
+        ...exam,
+        computed_status: computeStatus(exam)
+      }));
+
+      res.json({ success: true, data: enrichedData });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <%- include('styles') %>
+    <style>
+        .branding-wrapper {
+            width: 100%;
+            min-height: 100vh;
+            padding: 40px;
+            position: relative;
+            <% if (config.border) { %>
+                border: 15px solid var(--primary-color);
+                box-sizing: border-box;
+            <% } %>
+        }
+
+        .main-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        <% if (school.show_watermark && school.logo_url) { %>
+        .watermark-img {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            opacity: 0.05;
+            z-index: 0;
+            pointer-events: none;
+        }
+        <% } %>
+
+        .assets-layer {
+            position: absolute;
+            bottom: 50px;
+            right: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            z-index: 2;
+        }
+
+        .stamp-img {
+            max-width: 100px;
+            opacity: 0.8;
+            <% if (!config.stamp) { %> display: none; <% } %>
+        }
+
+        .signature-img {
+            max-width: 120px;
+            <% if (!config.signature) { %> display: none; <% } %>
+        }
+
+        .signature-label {
+            font-size: 10px;
+            font-weight: bold;
+            color: var(--text-main);
+            text-transform: uppercase;
+            border-top: 1px solid var(--text-main);
+            padding-top: 2px;
+            <% if (!config.signature) { %> display: none; <% } %>
+        }
+    </style>
+</head>
+<body>
+    <div class="branding-wrapper">
+        <% if (school.show_watermark && school.logo_url) { %>
+            <img src="<%= school.logo_url %>" class="watermark-img" />
+        <% } %>
+
+        <% if (config.header) { %>
+            <%- include('branding_header') %>
+        <% } %>
+
+        <div class="main-content">
+            <%- body %>
+        </div>
+
+        <div class="assets-layer">
+            <% if (config.stamp && school.stamp_url) { %>
+                <img src="<%= school.stamp_url %>" class="stamp-img" />
+            <% } %>
+            <% if (config.signature && school.signature_url) { %>
+                <img src="<%= school.signature_url %>" class="signature-img" />
+                <div class="signature-label">Principal Signature</div>
+            <% } %>
+        </div>
+
+        <% if (config.footer) { %>
+            <%- include('branding_footer') %>
+        <% } %>
+    </div>
+</body>
+</html>

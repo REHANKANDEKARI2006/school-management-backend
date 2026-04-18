@@ -39,7 +39,28 @@ export const ClassService = {
       );
     }
 
-    // ✅ 1. CREATE CLASS (EXISTING LOGIC)
+    // ✅ 1. PREVENT DUPLICATE CLASSES (NEW - STRICT UNIQUENESS)
+    const allClasses = await ClassModel.getAll();
+
+    const isClassNameDuplicate = allClasses.some(
+      (c) => c.class_name.toLowerCase() === classData.class_name.toLowerCase()
+    );
+
+    if (isClassNameDuplicate) {
+      throw Object.assign(new Error("Class Name Already Exists"), { status: 409 });
+    }
+
+    if (classData.staff_id) {
+      const isTeacherAssigned = allClasses.some(
+        (c) => c.staff_id === Number(classData.staff_id)
+      );
+
+      if (isTeacherAssigned) {
+        throw Object.assign(new Error("Class Teacher Already Exists"), { status: 409 });
+      }
+    }
+
+    // ✅ 2. CREATE CLASS (EXISTING LOGIC)
     const createdClass = await ClassModel.create(classData);
 
     // ✅ 2. MAP CLASS ↔ SECTION (NEW – REQUIRED)
@@ -67,6 +88,30 @@ export const ClassService = {
         new Error("No valid fields provided"),
         { status: 400 }
       );
+    }
+
+    const allClasses = await ClassModel.getAll();
+
+    if (newValues.class_name) {
+      const isClassNameDuplicate = allClasses.some(
+        (c) =>
+          c.class_name.toLowerCase() === newValues.class_name.trim().toLowerCase() &&
+          c.class_id !== id
+      );
+
+      if (isClassNameDuplicate) {
+        throw Object.assign(new Error("Class Name Already Exists"), { status: 409 });
+      }
+    }
+
+    if (newValues.staff_id) {
+      const isTeacherAssigned = allClasses.some(
+        (c) => c.staff_id === Number(newValues.staff_id) && c.class_id !== id
+      );
+
+      if (isTeacherAssigned) {
+        throw Object.assign(new Error("Class Teacher Already Exists"), { status: 409 });
+      }
     }
 
     const setClause = fields.map((f, i) => `${f} = $${i + 1}`);

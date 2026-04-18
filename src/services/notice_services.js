@@ -2,8 +2,8 @@ import { NoticeModel } from "../models/notice_model.js";
 
 export const NoticeService = {
 
-  async getAll() {
-    const result = await NoticeModel.getAllNotices();
+  async getAll(class_id = null) {
+    const result = await NoticeModel.getAllNotices(class_id);
     return result.rows;
   },
 

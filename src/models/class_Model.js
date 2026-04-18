@@ -39,13 +39,23 @@ export const SectionModel = {
 export const ClassModel = {
 
   async getAll() {
-    const sql = `SELECT * FROM class ORDER BY class_id DESC;`;
+    const sql = `
+      SELECT c.*, s.section_name 
+      FROM class c
+      LEFT JOIN section s ON s.section_id = c.section_id
+      ORDER BY c.class_id DESC;
+    `;
     const { rows } = await pool.query(sql);
     return rows;
   },
 
   async findById(id) {
-    const sql = `SELECT * FROM class WHERE class_id = $1 LIMIT 1;`;
+    const sql = `
+      SELECT c.*, s.section_name 
+      FROM class c
+      LEFT JOIN section s ON s.section_id = c.section_id
+      WHERE c.class_id = $1 LIMIT 1;
+    `;
     const { rows } = await pool.query(sql, [id]);
     return rows[0] || null;
   },
@@ -83,16 +93,61 @@ export const ClassModel = {
     return rows[0] || null;
   },
 
-  // ✅ SOFT DELETE (DB SAFE)
+  // ✅ HARD DELETE (REPLACING SOFT DELETE)
   async softDelete(id) {
-    const sql = `
-      UPDATE class
-      SET room_number = NULL
-      WHERE class_id = $1
-      RETURNING *;
-    `;
-    const { rows } = await pool.query(sql, [id]);
-    return rows[0] || null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      
+      // Delete from child tables to avoid foreign key constraints
+      await client.query("DELETE FROM class_section WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM class_enrollment WHERE class_id = $1", [id]);
+      
+      // Attendance
+      await client.query("DELETE FROM attendance_record WHERE session_id IN (SELECT session_id FROM attendance_session WHERE class_id = $1)", [id]);
+      await client.query("DELETE FROM attendance_session WHERE class_id = $1", [id]);
+      
+      // Materials, Schedule, Events, Notices, Grade Boundary
+      await client.query("DELETE FROM materials WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM schedule WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM events WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM notice_audience WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM notices WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM grade_boundary WHERE class_id = $1", [id]);
+      
+      // Exams and its children
+      await client.query(`
+        DELETE FROM exam_grades 
+        WHERE exam_id IN (SELECT exam_id FROM exam WHERE class_id = $1)
+      `, [id]);
+      await client.query("DELETE FROM exam WHERE class_id = $1", [id]);
+      
+      // Fees and its children
+      await client.query(`
+        DELETE FROM fee_collection 
+        WHERE fee_struct_id IN (SELECT fee_struct_id FROM fee_structure WHERE class_id = $1)
+      `, [id]);
+      await client.query(`
+        DELETE FROM fee_installment 
+        WHERE fee_struct_id IN (SELECT fee_struct_id FROM fee_structure WHERE class_id = $1)
+      `, [id]);
+      await client.query("DELETE FROM fee_structure WHERE class_id = $1", [id]);
+      
+      const sql = `
+        DELETE FROM class
+        WHERE class_id = $1
+        RETURNING *;
+      `;
+      const { rows } = await client.query(sql, [id]);
+      
+      await client.query("COMMIT");
+      return rows[0] || null;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
   // ✅ ADMIN LIST (UNCHANGED)
@@ -102,6 +157,8 @@ export const ClassModel = {
           c.class_id,
           c.class_name,
           c.room_number,
+          c.section_id,
+          c.staff_id,
           s.section_name,
           st.staff_first_name,
           st.staff_last_name,
@@ -113,6 +170,8 @@ export const ClassModel = {
         WHERE c.room_number IS NOT NULL
         GROUP BY
           c.class_id,
+          c.section_id,
+          c.staff_id,
           s.section_name,
           st.staff_first_name,
           st.staff_last_name

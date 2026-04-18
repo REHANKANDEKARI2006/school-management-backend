@@ -1,1 +1,0 @@
-status_id, atd_status_name

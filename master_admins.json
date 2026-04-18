@@ -1,0 +1,12 @@
+[
+  {
+    "user_id": 1,
+    "email": "masteradmin1@demo.edu.in",
+    "m_admin_first_name": "Karim"
+  },
+  {
+    "user_id": 2,
+    "email": "masteradmin2@demo.edu.in",
+    "m_admin_first_name": "Ravi"
+  }
+]

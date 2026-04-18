@@ -20,5 +20,10 @@ router.get("/installments/:fee_struct_id", FeesController.getInstallmentsByStruc
 /* Fee Collection */
 router.post("/collect", FeesController.collectFee);
 router.get("/collection/:student_id", FeesController.getStudentFeeCollection);
+router.get("/status/class/:class_id", FeesController.getFeeStatusByClass);
+router.get("/status/student/:student_id", FeesController.getStudentDetailedFeeStatus);
+
+router.put("/structure", FeesController.updateFeeStructure);
+router.delete("/structure", FeesController.deleteFeeStructure);
 
 export default router;

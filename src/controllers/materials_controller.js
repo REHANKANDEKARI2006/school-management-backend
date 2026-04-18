@@ -5,7 +5,8 @@ export const MaterialsController = {
 
   async getAllMaterials(req, res) {
     try {
-      const data = await MaterialsService.getAllMaterials();
+      const { class_id } = req.query;
+      const data = await MaterialsService.getAllMaterials(class_id);
       res.json({ success: true, data });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });

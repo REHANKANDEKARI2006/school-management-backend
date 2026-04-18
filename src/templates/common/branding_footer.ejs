@@ -1,0 +1,36 @@
+<div class="footer-container">
+    <% if (school.footer_text) { %>
+        <div class="footer-custom-text">
+            <%= school.footer_text %>
+        </div>
+    <% } %>
+    <div class="footer-system-info">
+        <p>This is a computer-generated document. Printed on: <%= new Date().toLocaleDateString() %></p>
+    </div>
+</div>
+
+<style>
+    .footer-container {
+        position: fixed;
+        bottom: 30px;
+        left: 40px;
+        right: 40px;
+        border-top: 1px solid var(--border-color);
+        padding-top: 10px;
+        text-align: center;
+    }
+
+    .footer-custom-text {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-main);
+        margin-bottom: 5px;
+    }
+
+    .footer-system-info p {
+        margin: 0;
+        font-size: 8px;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+</style>

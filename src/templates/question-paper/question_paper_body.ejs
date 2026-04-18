@@ -1,0 +1,220 @@
+<%
+  // question_paper_body.ejs
+  // Data available: paper (PaperState object), generateAnswerKey (boolean)
+
+  function examTypeLabel(type) {
+    const m = {
+      unit_test: 'Unit Test', ca: 'Class Assessment',
+      half_yearly: 'Half Yearly Examination', annual: 'Annual Examination',
+      practice: 'Practice Paper'
+    };
+    return m[type] || type || 'Examination';
+  }
+
+  let qNum = 1;
+  const answerKeyData = []; // collect answers while rendering questions
+%>
+
+<style>
+  @page { size: A4; margin: 0; }
+  body { margin: 0; padding: 0; font-family: 'Times New Roman', Georgia, serif; }
+
+  .paper {
+    width: 210mm; min-height: 297mm; padding: 18mm 20mm;
+    box-sizing: border-box; background: #fff; color: #000;
+    font-size: 12pt; line-height: 1.5;
+  }
+
+  .school-header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 12px; }
+  .school-logo { height: 60px; object-fit: contain; display: block; margin: 0 auto 6px; }
+  .school-name { font-size: 20pt; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .school-slogan { font-size: 10pt; font-style: italic; color: #555; }
+  .school-address { font-size: 9pt; color: #555; }
+  .exam-title { font-size: 13pt; font-weight: 700; margin-top: 6px; }
+  .exam-meta { font-size: 11pt; }
+
+  .meta-bar {
+    display: flex; justify-content: space-between;
+    font-weight: 700; font-size: 11pt;
+    border-bottom: 1px dashed #999; padding-bottom: 8px; margin-bottom: 12px;
+  }
+
+  .instructions { margin-bottom: 14px; }
+  .instructions-title { font-weight: 700; text-decoration: underline; font-size: 11pt; }
+  .instructions ol { padding-left: 18px; margin: 4px 0; font-size: 10pt; }
+
+  .section-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1.5px solid #333; padding-bottom: 3px; margin-bottom: 10px;
+    font-weight: 800; font-size: 12pt;
+  }
+  .section-header span { font-size: 10pt; color: #555; font-weight: 400; }
+
+  .qgroup-title { font-weight: 600; font-size: 11pt; margin: 0 0 6px 0; }
+  .q-desc { font-size: 9pt; font-style: italic; color: #666; margin: 0 0 4px 0; }
+
+  .question { margin-bottom: 14px; page-break-inside: avoid; }
+  .q-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .q-text { flex: 1; font-size: 11pt; }
+  .q-marks { font-size: 9pt; color: #555; white-space: nowrap; margin-left: 8px; }
+  .passage {
+    background: #f9f9f9; border: 1px solid #ddd; border-radius: 3px;
+    padding: 8px 10px; margin-bottom: 6px; font-size: 10pt; font-style: italic; color: #444;
+  }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 20px; padding-left: 20px; margin-top: 4px; font-size: 10pt; }
+  .match-table { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-left: 16px; margin-top: 4px; }
+  .match-col p { font-size: 10pt; margin: 1px 0; }
+
+  .footer {
+    border-top: 1px solid #ccc; margin-top: 30px; padding-top: 8px;
+    display: flex; justify-content: space-between; font-size: 9pt; color: #777;
+  }
+
+  /* Answer Key page */
+  .answer-key { page-break-before: always; padding: 18mm 20mm; }
+  .answer-key h1 { font-size: 16pt; text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 16px; }
+  .answer-row { display: flex; gap: 12px; margin-bottom: 6px; font-size: 11pt; }
+  .answer-row .num { font-weight: 700; min-width: 24px; }
+</style>
+
+<div class="paper">
+  <%# ─── Header ─── %>
+  <div class="school-header">
+    <% if (school && school.logo_url) { %>
+      <img class="school-logo" src="<%= school.logo_url %>" alt="School Logo" />
+    <% } %>
+    <div class="school-name"><%= school ? school.school_name : 'School Name' %></div>
+    <% if (school && school.school_slogan) { %>
+      <div class="school-slogan"><%= school.school_slogan %></div>
+    <% } %>
+    <% if (school && school.school_address) { %>
+      <div class="school-address"><%= school.school_address %></div>
+    <% } %>
+
+    <div style="border-top: 1px solid #888; margin-top: 8px; padding-top: 6px;">
+      <div class="exam-title">
+        <%= paper.title || examTypeLabel(paper.exam_type) %>
+      </div>
+      <div class="exam-meta">
+        <% if (paper.subject) { %>Subject: <strong><%= paper.subject %></strong>&nbsp;&nbsp;<% } %>
+        <% if (paper.class_name) { %>Class: <strong><%= paper.class_name %><%= paper.section ? '-' + paper.section : '' %></strong><% } %>
+        <% if (paper.exam_date) { %>
+          &nbsp;&nbsp;Date: <%= new Date(paper.exam_date).toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' }) %>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <%# ─── Time / Marks bar ─── %>
+  <div class="meta-bar">
+    <span>Time Allowed: <%= Math.floor(paper.duration_mins/60) > 0 ? Math.floor(paper.duration_mins/60) + ' hr' + (Math.floor(paper.duration_mins/60) > 1 ? 's' : '') : '' %><%= paper.duration_mins % 60 > 0 ? ' ' + paper.duration_mins % 60 + ' min' : '' %></span>
+    <span>Maximum Marks: <%= paper.total_marks %></span>
+  </div>
+
+  <%# ─── Instructions ─── %>
+  <div class="instructions">
+    <p class="instructions-title">General Instructions:</p>
+    <ol>
+      <li>All questions are compulsory unless stated otherwise.</li>
+      <li>Marks for each question are indicated against it on the right.</li>
+      <li>Write neatly and clearly in the space provided.</li>
+    </ol>
+  </div>
+
+  <%# ─── Sections ─── %>
+  <% (paper.sections || []).forEach(function(sec) {
+    const secTotal = (sec.questionGroups || []).reduce((s, qg) =>
+      s + (qg.items || []).reduce((ss, qi) => ss + (qi.marks || 0), 0), 0);
+  %>
+    <div>
+      <div class="section-header">
+        <span>Section <%= sec.id %>: <%= sec.title %></span>
+        <span>[<%= secTotal %> Marks]</span>
+      </div>
+      <% if (sec.description) { %><p class="q-desc"><%= sec.description %></p><% } %>
+
+      <% (sec.questionGroups || []).forEach(function(qg) { %>
+        <p class="qgroup-title"><%= qg.title %></p>
+        <% if (qg.description) { %><p class="q-desc"><%= qg.description %></p><% } %>
+
+        <% (qg.items || []).forEach(function(item) { %>
+          <% const currentNum = qNum; qNum++; %>
+          <% if (item.answer) { answerKeyData.push({ num: currentNum, answer: item.answer, type: qg.type }); } %>
+
+          <div class="question">
+            <%# Passage %>
+            <% if ((qg.type === 'CaseBased' || qg.type === 'Comprehension') && item.passage) { %>
+              <div class="passage"><%= item.passage %></div>
+            <% } %>
+
+            <%# Assertion-Reason %>
+            <% if (qg.type === 'AssertionReason') { %>
+              <div class="q-row">
+                <div class="q-text">
+                  <strong><%= currentNum %>.</strong>
+                  <strong>Assertion:</strong> <%= item.assertion || '' %>
+                  <br><span style="margin-left:16px"><strong>Reason:</strong> <%= item.reason || '' %></span>
+                </div>
+                <span class="q-marks">[<%= item.marks %> M]</span>
+              </div>
+            <%# Match Following %>
+            <% } else if (qg.type === 'MatchFollowing') { %>
+              <div class="q-row">
+                <div class="q-text"><strong><%= currentNum %>.</strong> Match the following:</div>
+                <span class="q-marks">[<%= item.marks %> M]</span>
+              </div>
+              <div class="match-table">
+                <div class="match-col">
+                  <% (item.colA || []).forEach(function(v, i) { %><p><%= i+1 %>. <%= v %></p><% }); %>
+                </div>
+                <div class="match-col">
+                  <% (item.colB || []).forEach(function(v, i) { %><p><%= String.fromCharCode(97+i) %>. <%= v %></p><% }); %>
+                </div>
+              </div>
+            <%# Regular question %>
+            <% } else { %>
+              <div class="q-row">
+                <p class="q-text"><strong><%= currentNum %>.</strong> <%= item.text %></p>
+                <span class="q-marks">[<%= item.marks %> M]</span>
+              </div>
+            <% } %>
+
+            <%# MCQ Options %>
+            <% if (qg.type === 'MCQ' && item.options && item.options.length) { %>
+              <div class="options">
+                <% item.options.forEach(function(opt, j) { %>
+                  <span>(<%= String.fromCharCode(97+j) %>) <%= opt %></span>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+        <% }); %>
+      <% }); %>
+    </div>
+  <% }); %>
+
+  <%# ─── Footer ─── %>
+  <div class="footer">
+    <span><%= school ? school.school_name : '' %></span>
+    <strong style="font-size:11pt;color:#000;">*** BEST OF LUCK ***</strong>
+    <span><%= paper.subject %> — Max. <%= paper.total_marks %> M</span>
+  </div>
+</div>
+
+<%# ─── Answer Key Page (optional) ─── %>
+<% if (generateAnswerKey && answerKeyData.length > 0) { %>
+<div class="answer-key">
+  <h1>Answer Key</h1>
+  <p style="text-align:center; font-size:11pt; margin-bottom:20px;">
+    <%= paper.title || examTypeLabel(paper.exam_type) %>
+    | Class <%= paper.class_name %><%= paper.section ? '-'+paper.section : '' %>
+    | <%= paper.subject %>
+  </p>
+  <% answerKeyData.forEach(function(a) { %>
+    <div class="answer-row">
+      <span class="num"><%= a.num %>.</span>
+      <span><%= a.answer %></span>
+    </div>
+  <% }); %>
+</div>
+<% } %>

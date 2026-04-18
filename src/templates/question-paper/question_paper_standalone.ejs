@@ -1,0 +1,235 @@
+<%
+  // question_paper_standalone.ejs — standalone A4 HTML, NO branding_layout wrapper
+  // Available: paper, school, generateAnswerKey
+
+  function examTypeLabel(t) {
+    return ({ unit_test:'Unit Test', ca:'Class Assessment',
+      half_yearly:'Half Yearly Examination', annual:'Annual Examination',
+      practice:'Practice Paper' })[t] || t || 'Examination';
+  }
+  function durationStr(mins) {
+    const h = Math.floor(mins/60), m = mins%60;
+    return h > 0 ? `${h} hr${h>1?'s':''}${m>0?' '+m+' min':''}` : `${m} min`;
+  }
+  let qNum = 1;
+  const answers = [];
+%><!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @page { size: A4 portrait; margin: 15mm 18mm; }
+  html, body { background: #fff; font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; color: #000; }
+
+  /* ── School header ── */
+  .hd { text-align: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 10px; }
+  .logo { height: 60px; width: auto; max-width: 80px; object-fit: contain; display: block; margin: 0 auto 4px; }
+  .sname { font-size: 18pt; font-weight: 900; text-transform: uppercase; letter-spacing: .5px; line-height: 1.1; }
+  .sslogan { font-size: 9pt; font-style: italic; color: #444; }
+  .saddr  { font-size: 9pt; color: #555; }
+  .saffil { font-size: 8.5pt; color: #666; }
+  .ex-title { font-size: 13pt; font-weight: 800; margin-top: 8px; }
+  .ex-meta  { font-size: 11pt; margin-top: 2px; }
+
+  /* ── Meta bar ── */
+  .metabar { display: flex; justify-content: space-between; font-weight: 700; font-size: 11pt;
+    border-bottom: 1px dashed #888; padding-bottom: 7px; margin: 10px 0; }
+
+  /* ── Instructions ── */
+  .inst-title { font-weight: 700; text-decoration: underline; font-size: 11pt; margin-bottom: 3px; }
+  .inst ol { padding-left: 18px; font-size: 10pt; line-height: 1.55; }
+
+  /* ── Sections ── */
+  .section { margin: 14px 0 0; page-break-inside: avoid; }
+  .sec-hd { display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1.5px solid #222; margin-bottom: 8px; padding-bottom: 2px; }
+  .sec-hd .title { font-size: 12pt; font-weight: 900; }
+  .sec-hd .marks { font-size: 10pt; color: #666; }
+  .qg-title { font-size: 11.5pt; font-weight: 700; margin: 8px 0 4px; }
+  .qg-desc  { font-size: 9.5pt; font-style: italic; color: #666; margin-bottom: 3px; }
+
+  /* ── Questions ── */
+  .question { margin-bottom: 12px; page-break-inside: avoid; }
+  .qrow { display: flex; justify-content: space-between; align-items: flex-start; }
+  .qtext { flex: 1; font-size: 11pt; line-height: 1.5; }
+  .qmarks { font-size: 9.5pt; color: #555; white-space: nowrap; margin-left: 10px; padding-top: 1px; }
+  .passage { background: #f8f8f8; border-left: 3px solid #999; padding: 7px 10px;
+    margin-bottom: 7px; font-size: 10pt; font-style: italic; color: #444; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px;
+    padding-left: 22px; margin-top: 5px; font-size: 10.5pt; }
+  .match-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-left: 18px; margin-top: 4px; }
+  .match-cols p { font-size: 10.5pt; margin: 1px 0; }
+  .q-img { max-width: 240px; max-height: 160px; margin: 6px 0 4px; display: block; border: 1px solid #ddd; }
+
+  /* ── Answer lines (blank space) ── */
+  .ans-lines { margin-top: 6px; }
+  .ans-line  { height: 20px; border-bottom: 1px solid #ccc; margin-bottom: 4px; }
+
+  /* ── Footer ── */
+  .footer { border-top: 1px solid #ccc; margin-top: 20px; padding-top: 6px;
+    display: flex; justify-content: space-between; font-size: 9pt; color: #666; }
+
+  /* ── Answer Key ── */
+  .ak { page-break-before: always; }
+  .ak h1 { text-align: center; font-size: 15pt; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
+  .ak-sub { text-align: center; font-size: 10pt; color: #555; margin-bottom: 18px; }
+  .ak-row { display: flex; gap: 10px; margin-bottom: 6px; font-size: 11pt; }
+  .ak-num { font-weight: 700; min-width: 28px; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="hd">
+  <% if (school && school.logo_url) { %>
+    <img class="logo" src="<%= school.logo_url %>" alt="logo" />
+  <% } %>
+  <div class="sname"><%= school ? (school.school_name || 'School Name') : 'School Name' %></div>
+  <% if (school && school.address) { %><div class="saddr"><%= school.address %></div><% } %>
+  <% if (school && school.affiliation_number) { %><div class="saffil">Affil. No.: <%= school.affiliation_number %></div><% } %>
+  <% if (school && school.phone) { %><div class="saddr">Ph: <%= school.phone %></div><% } %>
+
+  <div style="border-top:1px solid #999;margin-top:7px;padding-top:6px">
+    <div class="ex-title"><%= paper.title || examTypeLabel(paper.exam_type) %></div>
+    <div class="ex-meta">
+      <% if (paper.subject) { %>Subject: <strong><%= paper.subject %></strong>&nbsp;&nbsp;<% } %>
+      <% if (paper.class_name) { %>Class: <strong><%= paper.class_name %><%= paper.section ? '-'+paper.section : '' %></strong><% } %>
+      <% if (paper.exam_date) { %>&nbsp;&nbsp;Date: <%= new Date(paper.exam_date).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}) %><% } %>
+    </div>
+  </div>
+</div>
+
+<!-- ── Time / Marks ── -->
+<div class="metabar">
+  <span><%= (paper.labels && paper.labels.duration) || 'Time Allowed' %>: <%= durationStr(paper.duration_mins) %></span>
+  <span><%= (paper.labels && paper.labels.max_marks) || 'Maximum Marks' %>: <%= paper.total_marks %></span>
+</div>
+
+<!-- ── Instructions ── -->
+<div class="inst" style="margin-bottom:12px">
+  <p class="inst-title"><%= (paper.labels && paper.labels.instructions_title) || 'General Instructions' %>:</p>
+  <ol>
+    <% if (paper.instructions && paper.instructions.length > 0) { %>
+      <% paper.instructions.forEach(function(ins) { %>
+        <li><%= ins %></li>
+      <% }); %>
+    <% } else { %>
+      <li>All questions are compulsory unless stated otherwise.</li>
+      <li>Marks for each question are indicated on the right-hand side.</li>
+      <li>Write neatly and clearly in the space provided below each question.</li>
+    <% } %>
+  </ol>
+</div>
+
+<!-- ── Sections & Questions ── -->
+<% (paper.sections || []).forEach(function(sec) {
+  const secTotal = (sec.questionGroups||[]).reduce((s1,qg)=>
+    s1+(qg.items||[]).reduce((s2,qi)=>s2+(qi.marks||0),0),0);
+%>
+<div class="section">
+  <% if (sec.title && sec.title !== 'Questions') { %>
+    <div class="sec-hd">
+      <span class="title">SECTION <%= sec.id %>: <%= (sec.title||'').toUpperCase() %></span>
+      <span class="marks">[<%= secTotal %> Marks]</span>
+    </div>
+  <% } %>
+  <% if (sec.description) { %><p class="qg-desc"><%= sec.description %></p><% } %>
+
+  <% (sec.questionGroups||[]).forEach(function(qg) { %>
+    <p class="qg-title"><%= qg.title %></p>
+    <% if (qg.description) { %><p class="qg-desc"><%= qg.description %></p><% } %>
+
+    <% (qg.items||[]).forEach(function(item) {
+      const n = qNum++;
+      if (item.answer) answers.push({ n, a: item.answer });
+    %>
+      <div class="question">
+        <!-- Passage/Case -->
+        <% if ((qg.type==='CaseBased'||qg.type==='Comprehension') && item.passage) { %>
+          <div class="passage"><%= item.passage %></div>
+        <% } %>
+
+        <!-- Image (if attached) -->
+        <% if (item.imageUrl) { %>
+          <img class="q-img" src="<%= item.imageUrl %>" alt="Figure" />
+        <% } %>
+
+        <!-- Assertion-Reason -->
+        <% if (qg.type==='AssertionReason') { %>
+          <div class="qrow">
+            <span class="qtext">
+              <strong><%= n %>.</strong> <strong>Assertion (A):</strong> <%= item.assertion || '' %>
+              <br><span style="margin-left:18px"><strong>Reason (R):</strong> <%= item.reason || '' %></span>
+            </span>
+            <span class="qmarks">[<%= item.marks %> M]</span>
+          </div>
+
+        <!-- Match Following -->
+        <% } else if (qg.type==='MatchFollowing') { %>
+          <div class="qrow">
+            <span class="qtext"><strong><%= n %>.</strong> Match the following:</span>
+            <span class="qmarks">[<%= item.marks %> M]</span>
+          </div>
+          <div class="match-cols">
+            <div><% (item.colA||[]).forEach(function(v,i){%><p><strong><%= i+1 %>.</strong> <%= v %></p><%});%></div>
+            <div><% (item.colB||[]).forEach(function(v,i){%><p><strong><%= String.fromCharCode(97+i) %>.</strong> <%= v %></p><%});%></div>
+          </div>
+
+        <!-- Regular -->
+        <% } else { %>
+          <div class="qrow">
+            <p class="qtext"><strong><%= n %>.</strong> <%= item.text || '' %></p>
+            <span class="qmarks">[<%= item.marks %> M]</span>
+          </div>
+        <% } %>
+
+        <!-- MCQ Options -->
+        <% if (qg.type==='MCQ' && item.options && item.options.length) { %>
+          <div class="options">
+            <% item.options.forEach(function(opt,j){ %>
+              <span>(<%= String.fromCharCode(97+j) %>) <%= opt %></span>
+            <% }); %>
+          </div>
+        <!-- True/False -->
+        <% } else if (qg.type==='TrueFalse') { %>
+          <div style="padding-left: 22px; margin-top: 5px; font-size: 10.5pt; display: flex; gap: 40px;">
+            <span>(&nbsp;&nbsp;&nbsp;&nbsp;) True</span>
+            <span>(&nbsp;&nbsp;&nbsp;&nbsp;) False</span>
+          </div>
+        <!-- Answer lines for SA / LA -->
+        <% } else if (qg.type==='SA' || qg.type==='ShortAnswer') { %>
+          <div class="ans-lines"><div class="ans-line"/><div class="ans-line"/><div class="ans-line"/></div>
+        <% } else if (qg.type==='LA' || qg.type==='LongAnswer' || qg.type==='Essay') { %>
+          <div class="ans-lines"><% for(var L=0;L<6;L++){ %><div class="ans-line"></div><% } %></div>
+        <% } %>
+      </div>
+    <% }); %>
+  <% }); %>
+</div>
+<% }); %>
+
+<!-- ── Footer ── -->
+<div class="footer">
+  <span><%= school ? (school.school_name||'') : '' %></span>
+  <strong style="font-size:12pt;color:#000"><%= (paper.labels && paper.labels.best_of_luck) || '*** BEST OF LUCK ***' %></strong>
+  <span><%= paper.subject||'' %> &mdash; Max. <%= paper.total_marks %> M</span>
+</div>
+
+<!-- ── Answer Key (optional, new page) ── -->
+<% if (generateAnswerKey && answers.length > 0) { %>
+<div class="ak">
+  <h1>Answer Key / Marking Scheme</h1>
+  <div class="ak-sub">
+    <%= paper.title || examTypeLabel(paper.exam_type) %>
+    &nbsp;|&nbsp; Class <%= paper.class_name %><%= paper.section?'-'+paper.section:'' %>
+    &nbsp;|&nbsp; <%= paper.subject %>
+  </div>
+  <% answers.forEach(function(a){ %>
+    <div class="ak-row"><span class="ak-num"><%= a.n %>.</span><span><%= a.a %></span></div>
+  <% }); %>
+</div>
+<% } %>
+
+</body>
+</html>

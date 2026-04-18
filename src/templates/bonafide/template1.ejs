@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Bonafide Certificate - Template 1</title>
+    <%- include('../common/styles') %>
+    <style>
+        body {
+            padding: 40px;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--text-main);
+            background: #ffffff;
+        }
+        .cert-container {
+            border: 2px solid var(--primary-color);
+            padding: 10px;
+            height: 100%;
+            position: relative;
+        }
+        .cert-inner {
+            border: 4px solid var(--primary-color);
+            padding: 40px 60px;
+            height: 100%;
+            position: relative;
+            background: #ffffff;
+        }
+        .cert-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .cert-header img {
+            height: 80px;
+            margin-bottom: 15px;
+            object-fit: contain;
+        }
+        .cert-header h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 32px;
+            font-weight: 900;
+            margin: 0;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .cert-header p {
+            margin: 5px 0 0;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .cert-title {
+            text-align: center;
+            margin-bottom: 50px;
+            margin-top: 20px;
+        }
+        .cert-title h2 {
+            display: inline-block;
+            font-family: 'Outfit', sans-serif;
+            font-size: 26px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--text-main);
+            background: #f1f5f9;
+            padding: 10px 30px;
+            border-radius: 40px;
+            border: 1px solid var(--border-color);
+        }
+        .cert-body {
+            font-size: 17px;
+            text-align: justify;
+            margin-bottom: 60px;
+            line-height: 2.2;
+            padding: 0 20px;
+        }
+        .cert-body p {
+            margin-bottom: 20px;
+        }
+        .highlight {
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            border-bottom: 1px dashed var(--text-main);
+            padding: 0 8px;
+            color: var(--primary-color);
+        }
+        .cert-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 100px;
+            padding: 0 40px;
+        }
+        .date-section {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .seal-area {
+            text-align: center;
+            opacity: 0.8;
+        }
+        .seal-area img {
+            height: 100px;
+        }
+        .signature-block {
+            text-align: center;
+            width: 200px;
+        }
+        .signature-block img {
+            height: 60px;
+            margin-bottom: 5px;
+            object-fit: contain;
+        }
+        .signature-block .line {
+            border-top: 1px solid var(--text-main);
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        .watermark-large {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            width: 70%;
+            opacity: 0.04;
+            pointer-events: none;
+            z-index: 0;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <div class="cert-container doc-container">
+        <div class="cert-inner">
+            <% if (school.show_watermark && school.logo_url) { %>
+                <img src="<%= school.logo_url %>" class="watermark-large" alt="Watermark">
+            <% } %>
+
+            <div class="cert-header">
+                <% if (school.logo_url) { %>
+                    <img src="<%= school.logo_url %>" alt="School Logo">
+                <% } %>
+                <h1><%= school.school_name %></h1>
+                <p><%= school.address %> | Phone: <%= school.phone || '-' %></p>
+            </div>
+
+            <div class="cert-title">
+                <h2>Bonafide Certificate</h2>
+            </div>
+
+            <div class="cert-body">
+                <p>
+                    This is to certify that Mr./Ms. <span class="highlight"><%= student.stu_first_name %> <%= student.stu_last_name %></span>, 
+                    son/daughter of <span class="highlight"><%= student.father_name || '______________' %></span> 
+                    and <span class="highlight"><%= student.mother_name || '______________' %></span>, 
+                    bearing ID number <span class="highlight"><%= student.student_id %></span>, 
+                    is a bonafide student of this institution.
+                </p>
+                <p>
+                    He/She is currently studying in class <span class="highlight"><%= student.class_name %> - <%= student.section_name || '' %></span> 
+                    for the academic year <span class="highlight"><%= school.academic_year || '2024-25' %></span>. 
+                    His/Her date of birth according to the school records is <span class="highlight"><%= new Date(student.date_of_birth).toLocaleDateString('en-GB') %></span>.
+                </p>
+                <p>
+                    To the best of our knowledge, he/she possesses a good moral character.
+                </p>
+            </div>
+
+            <div class="cert-footer">
+                <div class="date-section">
+                    Date: <%= new Date().toLocaleDateString('en-GB') %>
+                </div>
+                
+                <div class="seal-area">
+                    <% if (school.stamp_url) { %>
+                        <img src="<%= school.stamp_url %>" alt="Official Stamp">
+                    <% } else { %>
+                        <div style="height: 100px; width: 100px; border: 2px dashed #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #94a3b8;">SEAL</div>
+                    <% } %>
+                </div>
+
+                <div class="signature-block">
+                    <% if (school.signature_url) { %>
+                        <img src="<%= school.signature_url %>" class="signature-img" alt="Principal Signature">
+                    <% } else { %>
+                        <div style="height: 60px;"></div>
+                    <% } %>
+                    <div class="line"></div>
+                    <b>PRINCIPAL</b>
+                    <div style="font-size: 10pt; margin-top: 3px;"><%= school.principal_name || 'Authorized Signatory' %></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

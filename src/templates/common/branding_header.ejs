@@ -1,0 +1,171 @@
+<div class="header-container layout-<%= school ? school.header_layout_type || 'LEFT' : 'LEFT' %>">
+    <% if (!school || school.header_layout_type === 'LEFT' || !school.header_layout_type) { %>
+        <div class="header-left">
+            <div class="logo-wrapper">
+                <% if (school && school.logo_url) { %>
+                    <img src="<%= school.logo_url %>" class="primary-logo" />
+                <% } else { %>
+                    <div class="logo-placeholder">LOGO</div>
+                <% } %>
+            </div>
+            <div class="header-content">
+                <h1 class="school-name"><%= school ? school.school_name || "SCHOOL NAME" : "SCHOOL NAME" %></h1>
+                <p class="school-address"><%= school ? school.address || "School Address Line 1, City, State" : "School Address Line 1, City, State" %></p>
+                <div class="school-contact flex-start">
+                    <% if (school && school.phone) { %><span>Tel: <%= school.phone %></span><% } %>
+                    <% if (school && school.email) { %><span>Email: <%= school.email %></span><% } %>
+                </div>
+            </div>
+        </div>
+
+    <% } else if (school.header_layout_type === 'CENTER') { %>
+        <div class="header-center">
+            <div class="logo-wrapper center-logo">
+                <% if (school.logo_url) { %>
+                    <img src="<%= school.logo_url %>" class="primary-logo" />
+                <% } else { %>
+                    <div class="logo-placeholder">LOGO</div>
+                <% } %>
+            </div>
+            <h1 class="school-name"><%= school.school_name || "SCHOOL NAME" %></h1>
+            <p class="school-address"><%= school.address || "School Address Line 1, City, State" %></p>
+            <div class="school-contact text-center flex-center">
+                <% if (school.phone) { %><span>Tel: <%= school.phone %></span><% } %>
+                <% if (school.email) { %><span>Email: <%= school.email %></span><% } %>
+            </div>
+        </div>
+
+    <% } else if (school.header_layout_type === 'DUAL') { %>
+        <div class="header-dual">
+            <div class="logo-wrapper">
+                <% if (school.logo_url) { %>
+                    <img src="<%= school.logo_url %>" class="primary-logo" />
+                <% } else { %>
+                    <div class="logo-placeholder">LOGO</div>
+                <% } %>
+            </div>
+            <div class="header-content text-center">
+                <h1 class="school-name"><%= school.school_name || "SCHOOL NAME" %></h1>
+                <p class="school-address"><%= school.address || "School Address Line 1, City, State" %></p>
+                <div class="school-contact flex-center">
+                    <% if (school.phone) { %><span>Tel: <%= school.phone %></span><% } %>
+                    <% if (school.email) { %><span>Email: <%= school.email %></span><% } %>
+                </div>
+            </div>
+            <div class="logo-wrapper">
+                <% if (school.secondary_logo_url) { %>
+                    <img src="<%= school.secondary_logo_url %>" class="secondary-logo" />
+                <% } else { %>
+                    <div class="logo-placeholder">2nd LOGO</div>
+                <% } %>
+            </div>
+        </div>
+    <% } %>
+</div>
+
+<style>
+    .header-container {
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 24px;
+        width: 100%;
+        display: block;
+    }
+
+    .logo-wrapper {
+        width: 64px;
+        height: 64px;
+        flex-shrink: 0;
+        position: relative;
+        background-color: #f1f5f9;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px dashed #cbd5e1;
+    }
+
+    .primary-logo, .secondary-logo {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        position: absolute;
+        top: 0;
+        left: 0;
+        padding: 4px;
+    }
+
+    .logo-placeholder {
+        font-size: 10px;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    .school-name {
+        margin: 0 0 4px 0;
+        font-size: 14pt;
+        color: var(--primary-color);
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .school-address {
+        margin: 0 0 4px 0;
+        font-size: 10px;
+        color: var(--text-muted);
+        line-height: 1.4;
+        max-width: 300px;
+    }
+
+    .header-center .school-address,
+    .header-dual .school-address {
+        margin: 0 auto 4px auto;
+    }
+
+    .school-contact {
+        font-size: 8px;
+        color: var(--text-muted);
+        display: flex;
+        gap: 8px;
+    }
+
+    .flex-start {
+        justify-content: flex-start;
+    }
+
+    .flex-center {
+        justify-content: center;
+    }
+
+    .header-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .header-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .center-logo {
+        margin-bottom: 8px;
+    }
+
+    .header-dual {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .header-dual .header-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+</style>

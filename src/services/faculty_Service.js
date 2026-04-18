@@ -24,6 +24,12 @@ export const FacultyService = {
 
 
   async updateFaculty(id, payload) {
+    // Map 'avatar' to 'profile_url' for database consistency
+    if (payload.avatar && !payload.profile_url) {
+      payload.profile_url = payload.avatar;
+      delete payload.avatar;
+    }
+
     const fields = Object.keys(payload);
     const set = fields.map((f, i) => `${f} = $${i + 1}`);
     const values = fields.map(f => payload[f]);

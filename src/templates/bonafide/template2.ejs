@@ -1,0 +1,142 @@
+<head>
+    <meta charset="utf-8">
+    <title>Bonafide Certificate - Template 2</title>
+    <%- include('../common/styles') %>
+    <style>
+        body {
+            padding: 40px;
+            background: #f1f5f9;
+        }
+        .modern-cert {
+            background: white;
+            min-height: 1000px;
+            padding: 60px;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+        .modern-cert::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 10px;
+            background: var(--primary-color);
+        }
+        .modern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 60px;
+        }
+        .school-logo-large {
+            height: 70px;
+        }
+        .modern-header-text {
+            text-align: right;
+        }
+        .modern-header-text h1 {
+            font-size: 24px;
+            margin: 0;
+            color: var(--primary-color);
+        }
+        .modern-header-text p {
+            font-size: 12px;
+            color: var(--secondary-color);
+        }
+        .modern-title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        .modern-title h2 {
+            font-size: 38px;
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-main);
+            margin: 0;
+            letter-spacing: 3px;
+        }
+        .modern-body {
+            font-size: 20px;
+            color: #334155;
+            line-height: 1.8;
+            margin-bottom: 100px;
+        }
+        .modern-body strong {
+            color: var(--primary-color);
+            background: rgba(0,0,0,0.02);
+            padding: 0 4px;
+        }
+        .modern-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modern-seal {
+            width: 100px;
+            height: 100px;
+            border: 2px dashed var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: var(--secondary-color);
+            text-transform: uppercase;
+        }
+        .modern-sign-box {
+            text-align: center;
+        }
+        .modern-sign-box img {
+            height: 50px;
+            mix-blend-mode: multiply;
+        }
+        .modern-sign-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+            border-top: 2px solid var(--primary-color);
+            padding-top: 5px;
+            margin-top: 5px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="modern-cert doc-container">
+        <div class="watermark-large" style="font-size: 180px;"><%= school.school_name.split(' ')[0] %></div>
+        <div class="modern-header">
+            <img src="<%= logoUrl %>" class="school-logo-large" alt="Logo">
+            <div class="modern-header-text">
+                <h1 class="premium-heading"><%= school.school_name %></h1>
+                <p><%= school.email %> | <%= school.phone %></p>
+            </div>
+        </div>
+
+        <div class="modern-title">
+            <h2>CERTIFICATE</h2>
+            <div style="font-size: 12px; color: var(--secondary-color); text-transform: uppercase; letter-spacing: 5px; margin-top: 10px;">OF BONAFIDE CITIZENSHIP</div>
+        </div>
+
+        <div class="modern-body">
+            This is to formally certify that <strong><%= student.stu_first_name %> <%= student.stu_last_name %></strong>, 
+            bearing Student ID <strong>#<%= student.student_id %></strong>, is a registered and legitimate student 
+            of this institution.
+            <br><br>
+            He/She is currently enrolled in <strong>Class <%= student.class_name %></strong>, 
+            under the supervision of <strong>Section <%= student.section_name %></strong> 
+            for the tenure of academic session <strong><%= school.academic_year %></strong>.
+            <br><br>
+            According to the official repository, his/her date of birth is documented as 
+            <strong><%= new Date(student.date_of_birth).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) %></strong>.
+        </div>
+
+        <div class="modern-footer">
+            <div style="font-size: 14px; color: var(--secondary-color);">
+                Dated: <%= new Date().toLocaleDateString() %>
+            </div>
+            <div class="modern-seal">Official Seal</div>
+            <div class="modern-sign-box">
+                <img src="<%= signatureUrl %>" alt="Signature">
+                <span class="modern-sign-label">Principal</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

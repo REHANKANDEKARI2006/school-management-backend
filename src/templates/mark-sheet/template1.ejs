@@ -1,0 +1,158 @@
+<head>
+    <meta charset="utf-8">
+    <title>Academic Mark Sheet</title>
+    <%- include('../common/styles') %>
+    <style>
+        body {
+            padding: 40px;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+        }
+        .marksheet-container {
+            border: 2px solid var(--border-color);
+            padding: 30px;
+            min-height: 1000px;
+            background: white;
+        }
+        .ms-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .ms-school-info h1 {
+            font-size: 24px;
+            margin: 0;
+            color: var(--primary-color);
+        }
+        .ms-student-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .ms-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+        }
+        .ms-table th, .ms-table td {
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            text-align: left;
+        }
+        .ms-table th {
+            background: #f1f5f9;
+            font-weight: 700;
+        }
+        .ms-summary {
+            display: flex;
+            justify-content: flex-end;
+            gap: 40px;
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 20px;
+        }
+        .ms-footer {
+            margin-top: 80px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .ms-sign {
+            text-align: center;
+            width: 150px;
+        }
+        .ms-sign img { height: 40px; }
+        .ms-sign-label {
+            display: block;
+            border-top: 1px solid var(--text-main);
+            padding-top: 5px;
+            font-size: 14px;
+        }
+        .grade-a { color: #10b981; }
+        .grade-b { color: #3b82f6; }
+        .grade-c { color: #f59e0b; }
+        .grade-f { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="marksheet-container doc-container">
+        <div class="ms-header">
+            <div class="ms-school-info">
+                <h1 class="premium-heading"><%= school.school_name %></h1>
+                <p><%= school.address %></p>
+            </div>
+            <img src="<%= logoUrl %>" style="height: 60px;">
+        </div>
+
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="text-transform: uppercase; letter-spacing: 2px;">Progress Report Card</h2>
+            <p>Academic Year: <%= school.academic_year %></p>
+        </div>
+
+        <div class="ms-student-info">
+            <div>
+                <p><strong>Name:</strong> <%= student.stu_first_name %> <%= student.stu_last_name %></p>
+                <p><strong>Father's Name:</strong> <%= student.father_name %></p>
+                <p><strong>Student ID:</strong> <%= student.student_id %></p>
+            </div>
+            <div>
+                <p><strong>Class:</strong> <%= student.class_name %></p>
+                <p><strong>Section:</strong> <%= student.section_name %></p>
+                <p><strong>Roll No:</strong> <%= student.roll_number || '-' %></p>
+            </div>
+        </div>
+
+        <table class="ms-table">
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Max Marks</th>
+                    <th>Obtained Marks</th>
+                    <th>Grade</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% if (typeof marks !== 'undefined' && marks.length > 0) { %>
+                    <% marks.forEach(m => { %>
+                        <tr>
+                            <td><%= m.subject_name %></td>
+                            <td><%= m.max_marks %></td>
+                            <td><%= m.obtained_marks %></td>
+                            <td class="grade-<%= m.grade.toLowerCase() %>"><%= m.grade %></td>
+                            <td><%= m.obtained_marks >= (m.max_marks * 0.35) ? 'PASS' : 'FAIL' %></td>
+                        </tr>
+                    <% }); %>
+                <% } else { %>
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--secondary-color);">No academic data available for this period</td>
+                    </tr>
+                <% } %>
+            </tbody>
+        </table>
+
+        <div class="ms-summary">
+            <div>Total: <%= typeof totalMarks !== 'undefined' ? totalMarks : '-' %> / <%= typeof maxTotal !== 'undefined' ? maxTotal : '-' %></div>
+            <div>Percentage: <%= typeof percentage !== 'undefined' ? percentage + '%' : '-' %></div>
+            <div>Result: <span class="grade-a">PROMOTED</span></div>
+        </div>
+
+        <div class="ms-footer">
+            <div class="ms-sign">
+                <span style="height: 40px; display: block;"></span>
+                <span class="ms-sign-label">Class Teacher</span>
+            </div>
+            <div class="ms-sign">
+                <img src="<%= signatureUrl %>" alt="Principal">
+                <span class="ms-sign-label">Principal</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

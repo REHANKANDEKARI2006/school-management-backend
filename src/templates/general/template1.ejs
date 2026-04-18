@@ -1,0 +1,102 @@
+<head>
+    <meta charset="utf-8">
+    <title>General Certificate - Template 1</title>
+    <%- include('../common/styles') %>
+    <style>
+        body {
+            padding: 50px;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+        }
+        .gen-cert-container {
+            border: 15px solid var(--primary-color);
+            padding: 40px;
+            min-height: 900px;
+            position: relative;
+            background: white;
+            outline: 2px solid var(--secondary-color);
+            outline-offset: -5px;
+        }
+        .gen-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .gen-header img {
+            height: 100px;
+            margin-bottom: 20px;
+        }
+        .gen-header h1 {
+            font-size: 36px;
+            margin: 0;
+            color: var(--primary-color);
+            letter-spacing: 2px;
+        }
+        .gen-title {
+            text-align: center;
+            margin: 60px 0;
+        }
+        .gen-title h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 48px;
+            text-transform: uppercase;
+            color: var(--text-main);
+            margin: 0;
+        }
+        .gen-body {
+            font-size: 22px;
+            line-height: 1.8;
+            text-align: center;
+            margin-bottom: 80px;
+        }
+        .gen-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 100px;
+        }
+        .gen-sign-box {
+            text-align: center;
+            width: 200px;
+        }
+        .gen-sign-box img {
+            height: 60px;
+        }
+        .gen-sign-label {
+            display: block;
+            border-top: 2px solid var(--primary-color);
+            padding-top: 5px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="gen-cert-container doc-container">
+        <div class="watermark-large" style="font-size: 200px;"><%= school.school_name.split(' ')[0] %></div>
+        
+        <div class="gen-header">
+            <img src="<%= logoUrl %>" alt="Logo">
+            <h1><%= school.school_name %></h1>
+            <p><%= school.address %></p>
+        </div>
+
+        <div class="gen-title">
+            <h2>Certificate of Recognition</h2>
+        </div>
+
+        <div class="gen-body">
+            This certificate is proudly presented to<br>
+            <span style="font-size: 32px; font-weight: 800; color: var(--primary-color);"><%= student.stu_first_name %> <%= student.stu_last_name %></span><br>
+            For his/her outstanding contribution and performance in school activities.<br>
+            Class: <%= student.class_name %> | Section: <%= student.section_name %>
+        </div>
+
+        <div class="gen-footer">
+            <div style="font-size: 18px;">Date: <%= new Date().toLocaleDateString() %></div>
+            <div class="gen-sign-box">
+                <img src="<%= signatureUrl %>" alt="Signature">
+                <span class="gen-sign-label">Principal</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

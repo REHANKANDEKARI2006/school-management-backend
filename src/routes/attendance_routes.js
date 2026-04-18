@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { AttendanceController } from "../controllers/attendance_controller.js";
+import authMiddleware from "../middleware/auth_middleware.js";
 
 const router = Router();
 
@@ -17,5 +18,9 @@ router.put("/record", AttendanceController.updateRecord);
 /* OTHERS */
 router.get("/students", AttendanceController.getStudents);
 router.get("/summary", AttendanceController.getSummary);
+
+/* STUDENT HISTORY */
+router.get("/student/:studentId", AttendanceController.getStudentHistory);
+router.get("/my-history", authMiddleware, AttendanceController.getMyHistory);
 
 export default router;

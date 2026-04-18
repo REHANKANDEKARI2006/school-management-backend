@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <%- include('../common/styles') %>
+    <style>
+        @page {
+            size: A4;
+            margin: 12mm 15mm; /* Narrower margins to save space for questions */
+            @bottom-center {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 8pt;
+                color: #666;
+            }
+        }
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            color: #1a1a1a;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+        }
+        .exam-meta-header {
+            text-align: center;
+            border-bottom: 1.5pt solid var(--primary-color);
+            padding-bottom: 8pt;
+            margin-bottom: 12pt;
+            margin-top: -15pt; /* Pull up closer to branding header */
+        }
+        .paper-title {
+            font-size: 14pt;
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            text-transform: uppercase;
+            margin: 0 0 4pt 0;
+            color: #0f172a;
+            letter-spacing: 0.5px;
+        }
+        .meta-grid {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 10pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: 8pt;
+        }
+        .instructions {
+            margin-bottom: 15pt;
+            font-size: 9pt;
+        }
+        .instructions h3 {
+            font-size: 10pt;
+            text-transform: uppercase;
+            border-bottom: 1pt solid #eee;
+            margin-bottom: 5pt;
+        }
+        .section-header {
+            background-color: #f1f5f9;
+            border-top: 1.5pt solid var(--text-main);
+            border-bottom: 1.5pt solid var(--text-main);
+            padding: 4pt 10pt;
+            margin: 15pt 0 8pt 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            page-break-after: avoid;
+        }
+        .section-title {
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 11pt;
+            margin: 0;
+            font-family: 'Outfit', sans-serif;
+            color: var(--primary-color);
+        }
+        .section-marks {
+            font-size: 9pt;
+            font-style: italic;
+            color: #64748b;
+            font-weight: 600;
+        }
+        .question {
+            display: flex;
+            margin-bottom: 12pt;
+            page-break-inside: auto; /* Allow split if necessary */
+        }
+        .q-number {
+            width: 25pt;
+            font-weight: 700;
+            font-size: 10pt;
+        }
+        .q-body {
+            flex: 1;
+        }
+        .q-text {
+            font-size: 10pt;
+            font-weight: 700;
+            margin-bottom: 6pt;
+            page-break-after: avoid; /* Don't leave question text alone at bottom */
+        }
+        .q-marks {
+            width: 30pt;
+            text-align: right;
+            font-weight: 700;
+            font-size: 10pt;
+            white-space: nowrap;
+        }
+        .options-grid {
+            display: grid;
+            gap: 5pt;
+            page-break-inside: avoid;
+        }
+        .option {
+            display: flex;
+            align-items: flex-start;
+            font-size: 10pt;
+        }
+        .option-label {
+            font-weight: 700;
+            margin-right: 5pt;
+            min-width: 15pt;
+        }
+        .ar-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 4pt;
+        }
+        .ar-row {
+            font-size: 10pt;
+            page-break-inside: avoid;
+        }
+        .matching-wrapper {
+            page-break-inside: avoid; /* Keep matching pairs together */
+        }
+        .footer {
+            margin-top: 30pt;
+            text-align: center;
+            border-top: 1pt solid #eee;
+            padding-top: 10pt;
+            font-weight: 900;
+            letter-spacing: 5pt;
+            color: #ccc;
+            page-break-inside: avoid;
+        }
+        .answer-key {
+            page-break-before: always;
+            padding-top: 20pt;
+        }
+        .answer-key h2 {
+            text-align: center;
+            text-transform: uppercase;
+            border-bottom: 2pt solid #000;
+            padding-bottom: 10pt;
+        }
+    </style>
+</head>
+<body>
+    <div class="doc-container" style="border: none;">
+        <% if (school.show_watermark) { %>
+            <div class="watermark" style="font-size: 80px; opacity: 0.03;"><%= school.school_name ? school.school_name.split(' ')[0] : 'SCHOOL' %></div>
+        <% } %>
+        
+        <% if (config && config.header) { %>
+            <%- include('../common/branding_header') %>
+        <% } %>
+
+        <div class="exam-meta-header" style="<%= !(config && config.header) ? 'margin-top: 15pt; border-top: 1.5pt solid var(--primary-color); padding-top: 8pt;' : '' %>">
+            <div class="paper-title"><%= paper.title || 'ANNUAL EXAMINATION 2025' %></div>
+            <div style="font-size: 11pt; font-weight: 900; text-transform: uppercase;">CLASS - <%= paper.class_name %></div>
+            <div style="font-size: 10pt; font-weight: 600; color: #475569;">Subject: <%= paper.subject_name %></div>
+            
+            <div class="meta-grid">
+                <div>Time: <%= Math.floor(paper.duration_mins/60) %> hours</div>
+                <div>M.M: <%= paper.total_marks %></div>
+            </div>
+        </div>
+
+    <div class="instructions">
+        <div style="border: 1.5pt solid #000; padding: 10pt; font-weight: 700; font-size: 10pt;">
+            <span>Note: </span>
+            <div style="margin-left: 40pt; margin-top: 5pt; white-space: pre-wrap;"><%= paper.instructions %></div>
+        </div>
+    </div>
+
+    <% paper.sections.forEach(function(section) { %>
+        <% section.questions.forEach(function(q, qIdx) { %>
+            <div class="question">
+                <div class="q-number">Q.<%= qIdx + 1 %>.</div>
+                <div class="q-body">
+                    <div class="q-text" style="white-space: pre-wrap; font-weight: 700;"><%- q.question_text %></div>
+
+                    <% if (q.question_data && q.question_data.image_url) { %>
+                        <div style="margin-top: 10pt; margin-bottom: 15pt;">
+                            <img src="http://localhost:5000<%= q.question_data.image_url %>" style="max-height: 200pt; max-width: 100%; border-radius: 4pt;" />
+                        </div>
+                    <% } %>
+
+                    <% /* Render MCQ Text Options if they exist, regardless of Type enum */ %>
+                    <% if (q.question_data && q.question_data.options && q.question_data.options.length > 0) { %>
+                        <div class="options-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; margin-top: 5pt;">
+                            <% q.question_data.options.forEach(function(opt, optIdx) { %>
+                                <div class="option">
+                                    <span class="option-label">(<%= String.fromCharCode(97 + optIdx) %>)</span>
+                                    <%= opt %>
+                                </div>
+                            <% }); %>
+                        </div>
+                    <% } %>
+
+                    <% /* Render MCQ Picture Options if they exist */ %>
+                    <% if (q.question_type === 'MCQ_PICTURE' && q.question_data && q.question_data.options_images) { %>
+                        <div style="display: flex; justify-content: space-between; gap: 15pt; margin-top: 15pt; page-break-inside: avoid;">
+                            <% q.question_data.options_images.forEach(function(img, optIdx) { %>
+                                <div style="text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center;">
+                                    <div style="border: 1pt solid #eee; height: 90pt; width: 100%; display: flex; align-items: center; justify-content: center; margin-bottom: 6pt; background: #fafafa; border-radius: 4pt;">
+                                        <% if (img) { %><img src="http://localhost:5000<%= img %>" style="max-height: 80pt; max-width: 90%;" /><% } else { %><div style="color: #ddd; font-size: 8pt;">No Image</div><% } %>
+                                    </div>
+                                    <span style="font-weight: 700; font-size: 10pt;">(<%= String.fromCharCode(97 + optIdx) %>)</span>
+                                </div>
+                            <% }); %>
+                        </div>
+                    <% } %>
+
+                    <% if (q.question_type === 'ASSERTION_REASON' && q.question_data) { %>
+                        <div class="ar-grid" style="margin-top: 8pt; border-left: 2pt solid #eee; padding-left: 10pt;">
+                            <div class="ar-row"><strong>(A):</strong> <%= q.question_data.assertion %></div>
+                            <div class="ar-row"><strong>(R):</strong> <%= q.question_data.reason %></div>
+                        </div>
+                    <% } %>
+
+                    <% if (q.question_type === 'MATCH_FOLLOWING' && q.question_data && q.question_data.pairs) { %>
+                        <div class="matching-wrapper" style="margin-top: 10pt; margin-bottom: 5pt; width: 100%; display: flex; justify-content: center;">
+                            <div style="width: 70%; display: flex; flex-direction: column;">
+                                <div style="display: flex; margin-bottom: 5pt;">
+                                    <div style="width: 50%; font-weight: 900; font-size: 11pt; padding-left: 30pt;">A</div>
+                                    <div style="width: 50%; font-weight: 900; font-size: 11pt; padding-left: 30pt;">B</div>
+                                </div>
+                                <% q.question_data.pairs.forEach(function(pair, pIdx) { %>
+                                    <div style="display: flex; margin-bottom: 6pt;">
+                                        <div style="width: 50%; font-size: 10pt; font-weight: 500; display: flex; gap: 0;">
+                                            <span style="min-width: 30pt;"><%= pIdx + 1 %>)</span>
+                                            <div style="display: flex; flex-direction: column;">
+                                                <% if (pair.img_a) { %><img src="http://localhost:5000<%= pair.img_a %>" style="max-height: 45pt; max-width: 70pt; object-fit: contain; margin-bottom: 2pt;" /><% } %>
+                                                <span><%= pair.a %></span>
+                                            </div>
+                                        </div>
+                                        <div style="width: 50%; font-size: 10pt; font-weight: 500; display: flex; gap: 0;">
+                                            <span style="min-width: 30pt;"><%= String.fromCharCode(97 + pIdx) %>)</span>
+                                            <div style="display: flex; flex-direction: column;">
+                                                <% if (pair.img_b) { %><img src="http://localhost:5000<%= pair.img_b %>" style="max-height: 45pt; max-width: 70pt; object-fit: contain; margin-bottom: 2pt;" /><% } %>
+                                                <span><%= pair.b %></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <% }); %>
+                            </div>
+                        </div>
+                    <% } %>
+                </div>
+                <div class="q-marks">[<%= q.marks %>]</div>
+            </div>
+        <% }); %>
+    <% }); %>
+
+    <div class="footer">
+        *** END OF PAPER ***
+    </div>
+
+    <% if (generateAnswerKey) { %>
+        <div class="answer-key">
+            <h2>Answer Key</h2>
+            <% paper.sections.forEach(function(section) { %>
+                <h4 style="text-transform: uppercase;"><%= section.section_name %></h4>
+                <div style="margin-bottom: 20pt; font-size: 10pt;">
+                    <% section.questions.forEach(function(q, qIdx) { %>
+                        <div style="margin-bottom: 8pt;">
+                            <strong>Q<%= qIdx + 1 %>:</strong>
+                            <% if (q.question_type === 'MCQ_TEXT' || q.question_type === 'MCQ_PICTURE') { %>
+                                Option (<%= String.fromCharCode(97 + q.question_data.correct_option) %>)
+                            <% } else if (q.question_type === 'TRUE_FALSE' || q.question_type === 'YES_NO') { %>
+                                <%= q.question_data.answer === 'true' ? (q.question_type === 'TRUE_FALSE' ? 'True' : 'Yes') : (q.question_type === 'TRUE_FALSE' ? 'False' : 'No') %>
+                            <% } else if (q.question_type === 'MATCH_FOLLOWING') { %>
+                                Correct matches provided in paper.
+                            <% } else { %>
+                                [Subjective - Check Manual Marking Scheme]
+                            <% } %>
+                        </div>
+                    <% }); %>
+                </div>
+            <% }); %>
+        </div>
+    <% } %>
+    
+    <% if (config && config.footer) { %>
+        <%- include('../common/branding_footer') %>
+    <% } %>    
+
+    </div>
+</body>
+</html>

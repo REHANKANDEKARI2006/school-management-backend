@@ -14,12 +14,14 @@ export const FacultyModel = {
         s.user_status_id,
         s.joining_date,
         s.qualification,
+        s.profile_url,
         d.dept_name,
-        sub.subject_name
+        sub.subject_name,
+        ust.status_name
       FROM staff s
       LEFT JOIN department d ON d.dept_id = s.dept_id
       LEFT JOIN subject sub ON sub.subject_id = s.subject_id
-      WHERE s.user_status_id = 1
+      LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
       ORDER BY s.staff_id DESC;
     `;
     const { rows } = await pool.query(sql);
@@ -33,10 +35,12 @@ export const FacultyModel = {
       SELECT
         s.*,
         d.dept_name,
-        sub.subject_name
+        sub.subject_name,
+        ust.status_name
       FROM staff s
       LEFT JOIN department d ON d.dept_id = s.dept_id
       LEFT JOIN subject sub ON sub.subject_id = s.subject_id
+      LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
       WHERE s.staff_id = $1
       LIMIT 1
       `,
@@ -62,7 +66,11 @@ export const FacultyModel = {
         joining_date,
         user_status_id,
         qualification,
+        profile_url,
+        avatar, // Fallback
       } = data;
+
+      const finalProfileUrl = profile_url || avatar;
 
       let userId;
 
@@ -111,9 +119,10 @@ export const FacultyModel = {
           subject_id,
           qualification,
           joining_date,
-          user_status_id
+          user_status_id,
+          profile_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         RETURNING *;
         `,
         [
@@ -128,6 +137,7 @@ export const FacultyModel = {
           qualification || null,
           joining_date || new Date(),
           user_status_id || 1,
+          finalProfileUrl || null,
         ]
       );
 
@@ -147,12 +157,31 @@ export const FacultyModel = {
     return rows[0] || null;
   },
 
-  // ✅ SOFT DELETE (already correct)
+  // ✅ HARD DELETE (REPLACING SOFT DELETE)
   async softDelete(id) {
-    const { rows } = await pool.query(
-      `UPDATE staff SET user_status_id = 2 WHERE staff_id = $1 RETURNING *`,
-      [id]
-    );
-    return rows[0] || null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Detach from classes
+      await client.query("UPDATE class SET staff_id = NULL WHERE staff_id = $1", [id]);
+      
+      // Delete from schedule
+      await client.query("DELETE FROM schedule WHERE staff_id = $1", [id]);
+
+      // Delete the staff record and its associated user
+      const { rows } = await client.query("DELETE FROM staff WHERE staff_id = $1 RETURNING user_id", [id]);
+      if (rows.length > 0 && rows[0].user_id) {
+        await client.query("DELETE FROM \"user\" WHERE user_id = $1", [rows[0].user_id]);
+      }
+
+      await client.query("COMMIT");
+      return rows[0] || null;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 };

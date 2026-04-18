@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .timetable-container {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .timetable-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Inter', sans-serif;
+            table-layout: fixed;
+        }
+        .timetable-table th, .timetable-table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 9px;
+            vertical-align: middle;
+            word-wrap: break-word;
+        }
+        .timetable-table th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .time-cell {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            width: 15%;
+            text-align: left !important;
+        }
+        .subject-name {
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 1px;
+            display: block;
+            font-size: 10px;
+        }
+        .staff-name {
+            color: #64748b;
+            font-size: 8px;
+            display: block;
+        }
+        .break-row {
+            background-color: #fff7ed;
+        }
+        .break-text {
+            color: #ea580c;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }
+        .empty-cell {
+            color: #cbd5e1;
+        }
+        .period-label {
+            font-size: 9px;
+            color: #94a3b8;
+            font-weight: normal;
+            display: block;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="timetable-container">
+        <h2 style="text-align: center; color: #1e293b; margin-bottom: 15px;">CLASS TIMETABLE: <%= className %></h2>
+        
+        <table class="timetable-table">
+            <thead>
+                <tr>
+                    <th class="time-cell">TIME / PERIOD</th>
+                    <th>MON</th>
+                    <th>TUE</th>
+                    <th>WED</th>
+                    <th>THU</th>
+                    <th>FRI</th>
+                    <th>SAT</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% 
+                let displayPeriod = 1;
+                periods.forEach(p => { 
+                %>
+                    <tr class="<%= p.isLunchBreak ? 'break-row' : '' %>">
+                        <td class="time-cell">
+                            <strong><%= p.timeRange %></strong>
+                            <% if (!p.isLunchBreak) { %>
+                                <span class="period-label">Period <%= displayPeriod++ %></span>
+                            <% } %>
+                        </td>
+                        
+                        <% if (p.isLunchBreak) { %>
+                            <td colspan="6" class="break-text">LUNCH BREAK</td>
+                        <% } else { %>
+                            <% [1,2,3,4,5,6].forEach(dayId => { 
+                                const cell = p.cells.find(c => c.day_of_week === dayId);
+                            %>
+                                <td>
+                                    <% if (cell) { %>
+                                        <% if (cell.is_break) { %>
+                                            <span class="break-text" style="font-size: 9px;">BREAK</span>
+                                        <% } else { %>
+                                            <span class="subject-name"><%= cell.subject_name %></span>
+                                            <span class="staff-name"><%= cell.staff_first_name %> <%= cell.staff_last_name %></span>
+                                        <% } %>
+                                    <% } else { %>
+                                        <span class="empty-cell">—</span>
+                                    <% } %>
+                                </td>
+                            <% }) %>
+                        <% } %>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

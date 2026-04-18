@@ -17,8 +17,8 @@ const MaterialsModel = {
   },
 
   // Get All Materials
-  async findAll() {
-    const query = `
+  async findAll(class_id = null) {
+    let query = `
       SELECT 
         m.material_id, 
         m.material_name, 
@@ -26,21 +26,37 @@ const MaterialsModel = {
         sub.subject_name,
         m.class_id, 
         c.class_name,
+        s.section_name,
         m.file_path, 
         m.upload_date, 
         m.updated_at
       FROM materials m
       JOIN class c ON c.class_id = m.class_id
+      LEFT JOIN section s ON s.section_id = c.section_id
       JOIN subject sub ON sub.subject_id = m.subject_id
-      ORDER BY m.material_id DESC;
     `;
-    const { rows } = await pool.query(query);
+    
+    const values = [];
+    if (class_id) {
+      query += ` WHERE m.class_id = $1 `;
+      values.push(class_id);
+    }
+    
+    query += ` ORDER BY m.material_id DESC; `;
+    
+    const { rows } = await pool.query(query, values);
     return rows;
   },
 
   // Get Material By ID
   async findById(id) {
-    const query = `SELECT * FROM materials WHERE material_id = $1`;
+    const query = `
+      SELECT m.*, c.class_name, s.section_name 
+      FROM materials m
+      JOIN class c ON c.class_id = m.class_id
+      LEFT JOIN section s ON s.section_id = c.section_id
+      WHERE m.material_id = $1
+    `;
     const { rows } = await pool.query(query, [id]);
     return rows[0];
   },

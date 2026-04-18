@@ -41,8 +41,8 @@ const ExamsModel = {
     return rows[0];
   },
 
-  async getAllExams() {
-    const query = `
+  async getAllExams(class_id = null) {
+    let query = `
       SELECT
         e.exam_id,
         e.exam_name,
@@ -60,7 +60,15 @@ const ExamsModel = {
         c.class_name,
         s.section_name,
         sub.subject_name,
-        es.exam_status_name
+        es.exam_status_name,
+        (
+          SELECT st.email
+          FROM schedule sch
+          JOIN staff st ON st.staff_id = sch.staff_id
+          WHERE sch.class_id = e.class_id AND sch.subject_id = e.subject_id
+          AND sch.is_break = false
+          LIMIT 1
+        ) AS subject_teacher_email
       FROM exam e
       LEFT JOIN exam_type et ON et.exam_type_id = e.exam_type_id
       LEFT JOIN class c ON c.class_id = e.class_id
@@ -68,9 +76,17 @@ const ExamsModel = {
       LEFT JOIN subject sub ON sub.subject_id = e.subject_id
       LEFT JOIN exam_status es ON es.exam_status_id = e.exam_status_id
       WHERE e.is_deleted = false
-      ORDER BY e.created_at DESC
     `;
-    const { rows } = await pool.query(query);
+
+    const values = [];
+    if (class_id) {
+      query += ` AND e.class_id = $1 `;
+      values.push(class_id);
+    }
+
+    query += ` ORDER BY e.created_at DESC `;
+    
+    const { rows } = await pool.query(query, values);
     return rows;
   },
 
@@ -82,7 +98,15 @@ const ExamsModel = {
         c.class_name,
         s.section_name,
         sub.subject_name,
-        es.exam_status_name
+        es.exam_status_name,
+        (
+          SELECT st.email
+          FROM schedule sch
+          JOIN staff st ON st.staff_id = sch.staff_id
+          WHERE sch.class_id = e.class_id AND sch.subject_id = e.subject_id
+          AND sch.is_break = false
+          LIMIT 1
+        ) AS subject_teacher_email
       FROM exam e
       LEFT JOIN exam_type et ON et.exam_type_id = e.exam_type_id
       LEFT JOIN class c ON c.class_id = e.class_id
@@ -125,10 +149,24 @@ const ExamsModel = {
   },
 
   async deleteExam(id) {
-    // Soft delete the exam
-    const query = `UPDATE exam SET is_deleted = true, updated_at = now() WHERE exam_id = $1`;
-    await pool.query(query, [id]);
-    return true;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      
+      // Delete child records first
+      await client.query("DELETE FROM exam_grades WHERE exam_id = $1", [id]);
+      
+      // Hard delete the exam
+      await client.query("DELETE FROM exam WHERE exam_id = $1", [id]);
+      
+      await client.query("COMMIT");
+      return true;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 
   async getExamTypes() {
@@ -207,6 +245,23 @@ const ExamsModel = {
     } finally {
       client.release();
     }
+  },
+
+  async getStudentFullReport(student_id) {
+    const query = `
+      SELECT
+        sub.subject_name,
+        e.max_marks,
+        eg.marks_obtained,
+        eg.grade
+      FROM exam_grades eg
+      JOIN exam e ON e.exam_id = eg.exam_id
+      JOIN subject sub ON sub.subject_id = e.subject_id
+      WHERE eg.student_id = $1
+      ORDER BY sub.subject_name
+    `;
+    const { rows } = await pool.query(query, [student_id]);
+    return rows;
   }
 
 };

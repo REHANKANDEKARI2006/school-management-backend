@@ -1,0 +1,86 @@
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+    :root {
+        --primary-color: <%= school ? (school.primary_color || '#437ef1') : '#437ef1' %>;
+        --secondary-color: #64748b;
+        --accent-color: #3b82f6;
+        --text-main: #0f172a;
+        --text-muted: #475569;
+        --bg-white: #ffffff;
+        --border-color: #e2e8f0;
+    }
+
+    * {
+        box-sizing: border-box;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    html, body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        color: var(--text-main);
+        background: var(--bg-white);
+        width: 100%;
+        height: 100%;
+    }
+
+    .premium-heading {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 700;
+        color: var(--primary-color);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--secondary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .value {
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: var(--text-main);
+    }
+
+    /* Standard Card Border */
+    .doc-container {
+        border: 1px solid var(--border-color);
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+        width: 100%;
+    }
+
+    /* Watermark Effect (Subtle) */
+    .watermark {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 5rem;
+        opacity: 0.03;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* Print utility to avoid page breaks in bulk */
+    .page-break {
+        page-break-after: always;
+    }
+
+    @media print {
+        @page {
+            margin: 0;
+        }
+    }
+</style>

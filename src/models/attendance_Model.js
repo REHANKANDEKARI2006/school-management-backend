@@ -176,6 +176,74 @@ export const AttendanceModel = {
     `;
     const { rows } = await pool.query(sql, [session_id, student_id, status_id, remarks || null]);
     return rows[0];
+  },
+
+  async getStudentHistory(studentId) {
+    const sql = `
+      SELECT
+        ats.attendance_date as date,
+        sub.subject_name as "subjectName",
+        CASE
+          WHEN ar.status_id = 1 THEN 'present'
+          WHEN ar.status_id = 2 THEN 'absent'
+          ELSE 'pending'
+        END as status
+      FROM attendance_record ar
+      JOIN attendance_session ats ON ats.session_id = ar.session_id
+      JOIN subject sub ON sub.subject_id = ats.subject_id
+      WHERE ar.student_id = $1
+      ORDER BY ats.attendance_date DESC
+    `;
+    const { rows } = await pool.query(sql, [studentId]);
+    return rows;
+  },
+
+  async getStudentDailyAttendanceWithSchedule(studentId, date) {
+    const sql = `
+      WITH student_class AS (
+        SELECT ce.class_id, c.section_id
+        FROM class_enrollment ce
+        JOIN class c ON c.class_id = ce.class_id
+        WHERE ce.student_id = $1
+        LIMIT 1
+      ),
+      day_schedule AS (
+        SELECT 
+          sch.subject_id,
+          sub.subject_name,
+          sch.start_time,
+          sch.end_time,
+          sch.period_number
+        FROM schedule sch
+        JOIN subject sub ON sub.subject_id = sch.subject_id
+        WHERE sch.class_id = (SELECT class_id FROM student_class)
+          AND sch.day_of_week = EXTRACT(ISODOW FROM $2::DATE)
+          AND sch.is_break = false
+      )
+      SELECT 
+        ds.subject_name as "subjectName",
+        ds.start_time,
+        ds.end_time,
+        ds.period_number,
+        $2::DATE as date,
+        CASE 
+          WHEN ar.status_id = 1 THEN 'present'
+          WHEN ar.status_id = 2 THEN 'absent'
+          WHEN ats.session_id IS NOT NULL THEN 'pending'
+          ELSE 'not_taken'
+        END as status
+      FROM day_schedule ds
+      LEFT JOIN attendance_session ats 
+        ON ats.subject_id = ds.subject_id 
+        AND ats.class_id = (SELECT class_id FROM student_class)
+        AND ats.attendance_date = $2::DATE
+      LEFT JOIN attendance_record ar 
+        ON ar.session_id = ats.session_id 
+        AND ar.student_id = $1
+      ORDER BY ds.period_number, ds.start_time;
+    `;
+    const { rows } = await pool.query(sql, [studentId, date]);
+    return rows;
   }
 
 };

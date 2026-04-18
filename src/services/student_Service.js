@@ -49,4 +49,8 @@ export const StudentService = {
 
     return { message: "Student removed (soft delete)" };
   },
+
+  async getStudentByUserId(userId) {
+    return await StudentModel.findByUserId(userId);
+  },
 };

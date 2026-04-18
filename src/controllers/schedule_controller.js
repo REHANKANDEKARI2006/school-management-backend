@@ -14,8 +14,8 @@ const ScheduleController = {
 
   async getMySchedule(req, res) {
     try {
-      const { staff_id, class_id } = req.query;
-      const data = await ScheduleService.getMySchedule({ staff_id, class_id });
+      const { staff_id, class_id, week_start } = req.query;
+      const data = await ScheduleService.getMySchedule({ staff_id, class_id, week_start });
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });

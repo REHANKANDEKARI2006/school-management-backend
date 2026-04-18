@@ -1,0 +1,102 @@
+<head>
+    <meta charset="utf-8">
+    <title>Bonafide Certificate - Template 4</title>
+    <%- include('../common/styles') %>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        .contemporary-cert {
+            width: 210mm;
+            height: 297mm;
+            background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+            position: relative;
+            padding: 80px;
+            box-sizing: border-box;
+            border-left: 20px solid var(--primary-color);
+        }
+        .contemp-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 80px;
+        }
+        .contemp-logo {
+            width: 80px;
+        }
+        .contemp-title {
+            margin-bottom: 60px;
+        }
+        .contemp-title h1 {
+            font-size: 56px;
+            color: var(--text-main);
+            margin: 0;
+            line-height: 1;
+        }
+        .contemp-title p {
+            font-size: 18px;
+            color: var(--primary-color);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+        .contemp-body {
+            font-size: 22px;
+            line-height: 1.8;
+            color: #475569;
+        }
+        .contemp-highlight {
+            color: var(--text-main);
+            font-weight: 700;
+            border-bottom: 3px solid var(--primary-color);
+        }
+        .contemp-footer {
+            position: absolute;
+            bottom: 80px;
+            left: 80px;
+            right: 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .contemp-sign {
+            text-align: right;
+            border-top: 1px solid var(--text-main);
+            padding-top: 10px;
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="contemporary-cert doc-container">
+        <div class="contemp-header">
+            <img src="<%= logoUrl %>" class="contemp-logo">
+            <h1 class="premium-heading"><%= school.school_name %></h1>
+        </div>
+
+        <div class="contemp-title">
+            <p>Institutional Record</p>
+            <h1>Bonafide Status</h1>
+        </div>
+
+        <div class="contemp-body">
+            This document confirms that <span class="contemp-highlight"><%= student.stu_first_name %> <%= student.stu_last_name %></span> 
+            is currently pursuing their academic studies at <span class="contemp-highlight"><%= school.school_name %></span>.
+            <br><br>
+            As per our verified records, the student is positioned in <span class="contemp-highlight">Class <%= student.class_name %></span> 
+            for the academic session <span class="contemp-highlight"><%= school.academic_year %></span>.
+            <br><br>
+            Official Date of Birth: <%= new Date(student.date_of_birth).toLocaleDateString() %>
+        </div>
+
+        <div class="contemp-footer">
+            <div style="font-size: 14px;">Verification Ref: <%= student.student_id %>/<%= new Date().getTime() %></div>
+            <div class="contemp-sign">
+                <img src="<%= signatureUrl %>" style="height: 40px;"><br>
+                <span>Principal</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

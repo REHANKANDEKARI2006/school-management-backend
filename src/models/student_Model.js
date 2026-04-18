@@ -22,15 +22,18 @@ export const StudentModel = {
         s.email,
         s.joined_date,
         s.user_status_id,
+        s.profile_url,
         c.class_id,
         c.class_name,
-        sec.section_name
+        sec.section_name,
+        ust.status_name
       FROM student s
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id
         AND ce.status_id = 1
       LEFT JOIN class c ON c.class_id = ce.class_id
       LEFT JOIN section sec ON sec.section_id = c.section_id
+      LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
       WHERE s.is_deleted = FALSE
       ORDER BY s.student_id DESC
     `);
@@ -45,10 +48,12 @@ export const StudentModel = {
     const { rows } = await pool.query(`
       SELECT
         s.student_id,
+        s.student_user_id,
         s.stu_first_name,
         s.stu_last_name,
         s.email,
-        s.user_status_id
+        s.user_status_id,
+        s.profile_url
       FROM student s
       INNER JOIN class_enrollment ce
         ON ce.student_id = s.student_id
@@ -76,24 +81,49 @@ export const StudentModel = {
         s.date_of_birth,
         s.joined_date,
         s.user_status_id,
+        s.profile_url,
         bg.blood_group AS blood_group,
         g.grdn_first_name AS father_name,
         g.grdn_last_name  AS mother_name,
         g.phone           AS primary_contact,
         g.email           AS parent_email,
+        c.class_id,
         c.class_name,
-        sec.section_name
+        sec.section_name,
+        ust.status_name
       FROM student s
       LEFT JOIN blood_group bg ON bg.bg_id = s.bg_id
       LEFT JOIN guardian g ON g.student_id = s.student_id
-      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id
+      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
       LEFT JOIN class c ON c.class_id = ce.class_id
       LEFT JOIN section sec ON sec.section_id = c.section_id
+      LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
       WHERE s.student_id = $1
         AND s.is_deleted = FALSE
       
       `,
       [id]
+    );
+    return rows[0] || null;
+  },
+
+  /* =========================
+     FIND BY USER ID
+  ========================= */
+  async findByUserId(userId) {
+    const { rows } = await pool.query(
+      `
+      SELECT
+        s.student_id,
+        ce.class_id,
+        c.section_id
+      FROM student s
+      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+      LEFT JOIN class c ON c.class_id = ce.class_id
+      WHERE s.student_user_id = $1
+        AND s.is_deleted = FALSE
+      `,
+      [userId]
     );
     return rows[0] || null;
   },
@@ -120,7 +150,11 @@ export const StudentModel = {
         primaryContact,
         parentEmail,
         class_id,
+        profile_url,
+        avatar, // Fallback for frontend
       } = data;
+
+      const finalProfileUrl = profile_url || avatar;
 
       const safeStudentEmail = email || `student_${Date.now()}@temp.com`;
       const safeGuardianEmail =
@@ -163,9 +197,10 @@ export const StudentModel = {
           date_of_birth,
           bg_id,
           user_status_id,
-          joined_date
+          joined_date,
+          profile_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         RETURNING student_id
         `,
         [
@@ -178,6 +213,7 @@ export const StudentModel = {
           bg_id,
           user_status_id,
           joined_date,
+          finalProfileUrl,
         ]
       );
 
@@ -278,7 +314,12 @@ export const StudentModel = {
         motherName,
         primaryContact,
         parentEmail,
+        class_id,
+        profile_url,
+        avatar, // Handle 'avatar' from frontend
       } = data;
+
+      const finalProfileUrl = profile_url || avatar;
 
       await client.query(
         `
@@ -290,8 +331,9 @@ export const StudentModel = {
           date_of_birth  = $4,
           bg_id          = $5,
           user_status_id = $6,
+          profile_url    = COALESCE($7, profile_url),
           updated_at     = NOW()
-        WHERE student_id = $7
+        WHERE student_id = $8
           AND is_deleted = FALSE
         `,
         [
@@ -301,6 +343,7 @@ export const StudentModel = {
           date_of_birth,
           bg_id,
           user_status_id,
+          finalProfileUrl,
           id,
         ]
       );
@@ -325,6 +368,28 @@ export const StudentModel = {
         ]
       );
 
+      /* ==================================================
+         ✅ NEW: UPDATE CLASS ENROLLMENT
+      ================================================== */
+      if (class_id) {
+        // Soft-delete or hard-delete old active enrollment
+        await client.query(
+          `
+          DELETE FROM class_enrollment 
+          WHERE student_id = $1 AND status_id = 1
+          `,
+          [id]
+        );
+        // Insert new active enrollment
+        await client.query(
+          `
+          INSERT INTO class_enrollment (student_id, class_id, status_id)
+          VALUES ($1, $2, 1)
+          `,
+          [id, class_id]
+        );
+      }
+
       await client.query("COMMIT");
       return { success: true };
     } catch (err) {
@@ -336,19 +401,38 @@ export const StudentModel = {
   },
 
   /* =========================
-     SOFT DELETE
+     HARD DELETE (REPLACING SOFT DELETE)
   ========================= */
   async softDeleteById(id) {
-    const result = await pool.query(
-      `
-      UPDATE student
-      SET is_deleted = TRUE,
-          updated_at = NOW()
-      WHERE student_id = $1
-        AND is_deleted = FALSE
-      `,
-      [id]
-    );
-    return result.rowCount > 0;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Delete child records for student
+      await client.query("DELETE FROM class_enrollment WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM attendance WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM exam_grades WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM fee_collection WHERE student_id = $1", [id]);
+      
+      // Delete guardian and its related user record
+      const { rows } = await client.query("DELETE FROM guardian WHERE student_id = $1 RETURNING guardian_user_id", [id]);
+      if (rows.length > 0 && rows[0].guardian_user_id) {
+        await client.query("DELETE FROM \"user\" WHERE user_id = $1", [rows[0].guardian_user_id]);
+      }
+
+      // Delete student and its related user record
+      const stuRes = await client.query("DELETE FROM student WHERE student_id = $1 RETURNING student_user_id", [id]);
+      if (stuRes.rows.length > 0 && stuRes.rows[0].student_user_id) {
+        await client.query("DELETE FROM \"user\" WHERE user_id = $1", [stuRes.rows[0].student_user_id]);
+      }
+
+      await client.query("COMMIT");
+      return true;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 };

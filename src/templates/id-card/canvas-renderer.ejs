@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ID Card</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;600;700;800&family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@300;400;600;700&family=Lato:wght@300;400;700&family=Raleway:wght@400;600;700&family=Oswald:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: <%- cardWidth %>; height: <%- cardHeight %>; overflow: hidden; background: transparent; }
+
+  #card {
+    position: relative;
+    width: <%- cardWidth %>;
+    height: <%- cardHeight %>;
+    overflow: hidden;
+    background-color: <%- bgColor %>;
+  }
+
+  .el {
+    position: absolute;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .el-text {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+  }
+
+  .el-image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .el-image img {
+    width: 100%;
+    height: 100%;
+  }
+
+  .el-barcode {
+    display: flex;
+    align-items: stretch;
+    padding: 2px;
+    background: white;
+    gap: 0.5px;
+  }
+
+  .el-barcode-bar {
+    background: #1e293b;
+    border-radius: 0.5px;
+  }
+
+  .photo-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+  }
+
+  .logo-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    font-size: 7px;
+    font-weight: bold;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+<div id="card">
+  <% elements.forEach(function(el) { %>
+    <% 
+      var justifyContent = el.textAlign === 'center' ? 'center' : el.textAlign === 'right' ? 'flex-end' : 'flex-start';
+      var paddingLeft = el.textAlign === 'left' ? '2px' : '0';
+      var paddingRight = el.textAlign === 'right' ? '2px' : '0';
+      var borderStyle = (el.borderWidth && el.borderColor) ? el.borderWidth + 'px solid ' + el.borderColor : 'none';
+      var borderRadiusVal = (el.borderRadius || 0) + 'px';
+    %>
+
+    <% if (el.type === 'rectangle' || el.type === 'line') { %>
+      <div class="el" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        background:<%- el.bgColor || 'transparent' %>;
+        border-radius:<%- borderRadiusVal %>;
+        border:<%- borderStyle %>;
+        opacity:<%- el.opacity != null ? el.opacity : 1 %>;
+        z-index:<%- el.zIndex || 1 %>;
+        <% if (el.rotation) { %>transform:rotate(<%- el.rotation %>deg);<% } %>
+      "></div>
+
+    <% } else if (el.type === 'circle') { %>
+      <div class="el" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        background:<%- el.bgColor || 'transparent' %>;
+        border-radius:50%;
+        border:<%- borderStyle %>;
+        opacity:<%- el.opacity != null ? el.opacity : 1 %>;
+        z-index:<%- el.zIndex || 1 %>;
+      "></div>
+
+    <% } else if (el.type === 'school_logo') { %>
+      <div class="el el-image" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        border-radius:<%- borderRadiusVal %>;
+        border:<%- borderStyle %>;
+        opacity:<%- el.opacity != null ? el.opacity : 1 %>;
+        z-index:<%- el.zIndex || 1 %>;
+        background:#f8fafc;
+      ">
+        <% if (school.logo_url) { %>
+          <img src="<%- school.logo_url %>" alt="Logo" style="object-fit:<%- el.objectFit || 'contain' %>;" />
+        <% } else { %>
+          <div class="logo-placeholder">LOGO</div>
+        <% } %>
+      </div>
+
+    <% } else if (el.type === 'student_photo') { %>
+      <div class="el el-image" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        border-radius:<%- borderRadiusVal %>;
+        border:<%- borderStyle %>;
+        opacity:<%- el.opacity != null ? el.opacity : 1 %>;
+        z-index:<%- el.zIndex || 1 %>;
+        background:#e2e8f0;
+      ">
+        <% if (student.profile_url || student.profile_photo_url) { %>
+          <img src="<%- student.profile_url || student.profile_photo_url %>" alt="Photo" style="object-fit:cover;" />
+        <% } else { %>
+          <div class="photo-placeholder">
+            <svg viewBox="0 0 24 24" fill="#94a3b8" style="width:50%;height:50%">
+              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+            </svg>
+          </div>
+        <% } %>
+      </div>
+
+    <% } else if (el.type === 'signature') { %>
+      <div class="el el-image" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        opacity:<%- el.opacity != null ? el.opacity : 1 %>;
+        z-index:<%- el.zIndex || 1 %>;
+      ">
+        <% if (school.signature_url) { %>
+          <img src="<%- school.signature_url %>" alt="Signature" style="width:100%;height:100%;object-fit:contain;" />
+        <% } else { %>
+          <div style="width:90%;border-bottom:1px solid #64748b;"></div>
+        <% } %>
+      </div>
+
+    <% } else if (el.type === 'stamp') { %>
+      <div class="el el-image" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        opacity:<%- el.opacity != null ? el.opacity : 1 %>;
+        z-index:<%- el.zIndex || 1 %>;
+      ">
+        <% if (school.stamp_url) { %>
+          <img src="<%- school.stamp_url %>" alt="Stamp" style="width:100%;height:100%;object-fit:contain;" />
+        <% } %>
+      </div>
+
+    <% } else if (el.type === 'qr_code') { %>
+      <div class="el" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        padding:2px; background:white;
+        display:flex; align-items:center; justify-content:center;
+        z-index:<%- el.zIndex || 1 %>;
+      ">
+        <img src="<%- qrDataUrl %>" alt="QR" style="width:100%;height:100%;object-fit:contain;" />
+      </div>
+
+    <% } else if (el.type === 'barcode') { %>
+      <div class="el el-barcode" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        z-index:<%- el.zIndex || 1 %>;
+      ">
+        <% var bars = [2,1,1,2,1,1,2,1,2,1,1,1,2,1,1,2,1,2,1,1,2,1,1,1,2,1,1,2]; %>
+        <% bars.forEach(function(w) { %>
+          <div class="el-barcode-bar" style="flex:<%- w %>;"></div>
+        <% }); %>
+      </div>
+
+    <% } else { %>
+      <%
+        // Text-based elements — resolve value
+        var displayText = el.text || '';
+        if (el.type === 'student_name') displayText = (student.stu_first_name || '') + ' ' + (student.stu_last_name || '');
+        else if (el.type === 'father_name') displayText = student.father_name || '';
+        else if (el.type === 'mother_name') displayText = student.mother_name || '';
+        else if (el.type === 'class_section') displayText = 'Class ' + (student.class_name || '') + ' - ' + (student.section_name || '');
+        else if (el.type === 'admission_number') displayText = student.admission_no || student.student_id || '';
+        else if (el.type === 'dob') {
+          var dobStr = student.date_of_birth || student.dob || '';
+          if (dobStr) {
+            var dobDate = new Date(dobStr);
+            var now = new Date();
+            if (!isNaN(dobDate) && dobDate < now) {
+              displayText = dobDate.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            } else {
+              displayText = '';
+            }
+          }
+        }
+        else if (el.type === 'blood_group') displayText = student.blood_group || '';
+        else if (el.type === 'contact_number') displayText = student.primary_contact || student.contact || '';
+        else if (el.type === 'address') displayText = student.address || '';
+        else if (el.type === 'academic_year') displayText = school.academic_year || '';
+        
+        // Certificate Specific
+        else if (el.type === 'certificate_title') displayText = student.certificate_title || (school.document_config && school.document_config.certificate_title) || 'CERTIFICATE';
+        else if (el.type === 'certificate_description') displayText = student.certificate_description || (school.document_config && school.document_config.certificate_description) || '';
+        else if (el.type === 'achievement_rank') displayText = student.achievement_rank || '1st Rank';
+        else if (el.type === 'event_name') displayText = student.event_name || 'Annual Achievement';
+        else if (el.type === 'issue_date') displayText = student.issue_date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+        // Resolve {{tokens}} in text_box type
+        displayText = displayText
+          .replace('{{school_name}}', school.school_name || '')
+          .replace('{{school_address}}', school.address || '')
+          .replace('{{school_phone}}', school.phone || '')
+          .replace('{{academic_year}}', school.academic_year || '')
+          .replace('{{admission_number}}', student.admission_no || student.student_id || '')
+          .replace('{{student_name}}', (student.stu_first_name || '') + ' ' + (student.stu_last_name || ''))
+          .replace('{{title}}', student.certificate_title || '')
+          .replace('{{desc}}', student.certificate_description || '')
+          .replace('{{rank}}', student.achievement_rank || '')
+          .replace('{{event}}', student.event_name || '')
+          .replace('{{date}}', student.issue_date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }));
+
+        // Skip rendering if empty (hide empty dynamic fields)
+        var isDynamic = ['student_name','father_name','mother_name','class_section','admission_number','dob','blood_group','contact_number','address','academic_year','certificate_title','certificate_description','achievement_rank','event_name','issue_date'].indexOf(el.type) !== -1;
+      %>
+      <% if (!isDynamic || displayText.trim()) { %>
+      <div class="el el-text" style="
+        left:<%- el.x %>px; top:<%- el.y %>px;
+        width:<%- el.width %>px; height:<%- el.height %>px;
+        font-size:<%- (el.fontSize || 8) %>px;
+        font-family:'<%- el.fontFamily || 'Inter' %>',sans-serif;
+        font-weight:<%- el.fontWeight || 'normal' %>;
+        font-style:<%- el.fontStyle || 'normal' %>;
+        text-align:<%- el.textAlign || 'left' %>;
+        color:<%- el.textColor || '#1e293b' %>;
+        background:<%- el.bgColor || 'transparent' %>;
+        border-radius:<%- borderRadiusVal %>;
+        justify-content:<%- justifyContent %>;
+        padding-left:<%- paddingLeft %>;
+        padding-right:<%- paddingRight %>;
+        opacity:<%- el.opacity != null ? el.opacity : 1 %>;
+        z-index:<%- el.zIndex || 1 %>;
+        <% if (el.rotation) { %>transform:rotate(<%- el.rotation %>deg);<% } %>
+      "><%- displayText %></div>
+      <% } %>
+    <% } %>
+  <% }); %>
+</div>
+</body>
+</html>
