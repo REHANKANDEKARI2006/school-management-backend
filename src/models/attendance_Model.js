@@ -244,6 +244,39 @@ export const AttendanceModel = {
     `;
     const { rows } = await pool.query(sql, [studentId, date]);
     return rows;
+  },
+
+  async getMonthlyAttendanceReport(classId, month, year) {
+    // 1. Fetch Students in Class
+    const studentSql = `
+      SELECT 
+        s.student_id,
+        s.stu_first_name || ' ' || s.stu_last_name as name,
+        s.gender_id,
+        ce.class_id
+      FROM student s
+      JOIN class_enrollment ce ON ce.student_id = s.student_id
+      WHERE ce.class_id = $1 AND ce.status_id = 1
+      ORDER BY s.stu_first_name, s.stu_last_name;
+    `;
+    const { rows: students } = await pool.query(studentSql, [classId]);
+
+    // 2. Fetch Attendance Records for the Month
+    const reportSql = `
+      SELECT 
+        ar.student_id,
+        ats.attendance_date,
+        ar.status_id
+      FROM attendance_record ar
+      JOIN attendance_session ats ON ats.session_id = ar.session_id
+      WHERE ats.class_id = $1
+        AND EXTRACT(MONTH FROM ats.attendance_date) = $2
+        AND EXTRACT(YEAR FROM ats.attendance_date) = $3
+      ORDER BY ats.attendance_date ASC;
+    `;
+    const { rows: records } = await pool.query(reportSql, [classId, month, year]);
+
+    return { students, records };
   }
 
 };

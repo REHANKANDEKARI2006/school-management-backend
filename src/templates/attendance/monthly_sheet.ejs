@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Monthly Attendance Sheet</title>
+    <%- include('../common/styles') %>
+    <style>
+        @page {
+            size: A3 landscape;
+            margin: 1cm;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #fff;
+            color: #1e293b;
+            padding: 0;
+            width: 100%;
+        }
+
+        .report-header {
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+        }
+
+        .report-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .report-title {
+            font-size: 18pt;
+            font-weight: 800;
+            color: var(--primary-color);
+            text-transform: uppercase;
+        }
+
+        .meta-group {
+            display: flex;
+            gap: 20px;
+        }
+
+        .meta-item {
+            font-size: 10pt;
+            font-weight: 600;
+        }
+
+        .meta-label {
+            color: #64748b;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 8pt;
+        }
+
+        table.attendance-grid {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8pt;
+            table-layout: fixed;
+        }
+
+        table.attendance-grid th, 
+        table.attendance-grid td {
+            border: 1px solid #cbd5e1;
+            text-align: center;
+            padding: 4px 2px;
+            height: 25px;
+            overflow: hidden;
+        }
+
+        table.attendance-grid th {
+            background-color: #f8fafc;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            font-size: 7pt;
+        }
+
+        /* Column widths */
+        .col-sn { width: 25px; }
+        .col-roll { width: 40px; }
+        .col-std { width: 50px; }
+        .col-name { width: 150px; text-align: left !important; padding-left: 8px !important; }
+        .col-gender { width: 25px; }
+        .col-day { width: 22px; }
+        .col-total { width: 35px; background-color: #f1f5f9; font-weight: 800; }
+
+        .status-p { color: #059669; font-weight: bold; }
+        .status-a { color: #dc2626; font-weight: bold; }
+
+        .bg-sunday { background-color: #fee2e2 !important; } /* Light Red */
+        .bg-holiday { background-color: #fef3c7 !important; } /* Light Amber */
+
+        .footer-summary {
+            margin-top: 20px;
+            page-break-inside: avoid;
+        }
+
+        .summary-title {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 10pt;
+            margin-bottom: 10px;
+            color: #334155;
+        }
+
+        .signature-section {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 50px;
+        }
+
+        .signature-block {
+            text-align: center;
+            border-top: 1px solid #475569;
+            padding-top: 8px;
+            width: 200px;
+            font-size: 9pt;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="report-wrapper">
+        <%- include('../common/branding_header', { school: school }) %>
+
+        <div class="report-info">
+            <div class="report-title">Monthly Attendance Sheet</div>
+            <div class="meta-group">
+                <div class="meta-item">
+                    <div class="meta-label">Class & Section</div>
+                    <div><%= className %></div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Month & Year</div>
+                    <div><%= monthName %> <%= year %></div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Generation Date</div>
+                    <div><%= new Date().toLocaleDateString('en-GB') %></div>
+                </div>
+            </div>
+        </div>
+
+        <table class="attendance-grid">
+            <thead>
+                <tr>
+                    <th class="col-sn">S.N</th>
+                    <th class="col-roll">Roll No</th>
+                    <th class="col-std">Std</th>
+                    <th class="col-name">Student Name</th>
+                    <th class="col-gender">G</th>
+                    <% for(let d = 1; d <= daysInMonth; d++) { 
+                        const date = new Date(year, month - 1, d);
+                        const isSunday = date.getDay() === 0;
+                        const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                    %>
+                        <th class="col-day <%= isSunday ? 'bg-sunday' : (holiday ? 'bg-holiday' : '') %>">
+                            <%= d %>
+                        </th>
+                    <% } %>
+                    <th class="col-total">P</th>
+                    <th class="col-total">A</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% reportData.forEach((student, index) => { 
+                    let totalP = 0;
+                    let totalA = 0;
+                %>
+                    <tr>
+                        <td class="col-sn"><%= index + 1 %></td>
+                        <td class="col-roll"><%= student.student_id %></td>
+                        <td class="col-std"><%= className.split(' ')[0] %></td> <!-- Assuming "1-A" -> "1" -->
+                        <td class="col-name"><%= student.name %></td>
+                        <td class="col-gender"><%= student.gender_id === 1 ? 'M' : 'F' %></td>
+                        
+                        <% for(let d = 1; d <= daysInMonth; d++) { 
+                            const date = new Date(year, month - 1, d);
+                            const isSunday = date.getDay() === 0;
+                            const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                            const status = student.attendance[d];
+                            
+                            if (status === 1 && !isSunday && !holiday) totalP++;
+                            if (status === 2 && !isSunday && !holiday) totalA++;
+                        %>
+                            <td class="col-day <%= isSunday ? 'bg-sunday' : (holiday ? 'bg-holiday' : '') %>">
+                                <% if (isSunday) { %>
+                                    <span style="color: #ef4444; font-size: 6pt;">SUN</span>
+                                <% } else if (holiday) { %>
+                                    <span style="color: #b45309; font-size: 6pt;">HOL</span>
+                                <% } else if (status === 1) { %>
+                                    <span class="status-p">P</span>
+                                <% } else if (status === 2) { %>
+                                    <span class="status-a">A</span>
+                                <% } else { %>
+                                    -
+                                <% } %>
+                            </td>
+                        <% } %>
+
+                        <td class="col-total"><%= totalP %></td>
+                        <td class="col-total"><%= totalA %></td>
+                    </tr>
+                <% }) %>
+                
+                <!-- Footer Summary Row (Total Present) -->
+                <tr style="background-color: #f8fafc; font-weight: bold;">
+                    <td colspan="5" style="text-align: right; padding-right: 10px;">Total Present Today</td>
+                    <% for(let d = 1; d <= daysInMonth; d++) { 
+                        const date = new Date(year, month - 1, d);
+                        const isSunday = date.getDay() === 0;
+                        const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                        
+                        let dailyP = 0;
+                        if (!isSunday && !holiday) {
+                            reportData.forEach(s => { if(s.attendance[d] === 1) dailyP++; });
+                        }
+                    %>
+                        <td class="col-day <%= isSunday ? 'bg-sunday' : (holiday ? 'bg-holiday' : '') %>">
+                            <%= (isSunday || holiday) ? '' : dailyP %>
+                        </td>
+                    <% } %>
+                    <td colspan="2"></td>
+                </tr>
+
+                <!-- Footer Summary Row (Total Absent) -->
+                <tr style="background-color: #f8fafc; font-weight: bold;">
+                    <td colspan="5" style="text-align: right; padding-right: 10px;">Total Absent Today</td>
+                    <% for(let d = 1; d <= daysInMonth; d++) { 
+                        const date = new Date(year, month - 1, d);
+                        const isSunday = date.getDay() === 0;
+                        const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                        
+                        let dailyA = 0;
+                        if (!isSunday && !holiday) {
+                            reportData.forEach(s => { if(s.attendance[d] === 2) dailyA++; });
+                        }
+                    %>
+                        <td class="col-day <%= isSunday ? 'bg-sunday' : (holiday ? 'bg-holiday' : '') %>">
+                            <%= (isSunday || holiday) ? '' : dailyA %>
+                        </td>
+                    <% } %>
+                    <td colspan="2"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="footer-summary">
+            <div class="summary-title">Reporting Officer Observations</div>
+            <div style="height: 60px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; font-size: 8pt; color: #94a3b8;">
+                Notes:
+            </div>
+        </div>
+
+        <div class="signature-section">
+            <div class="signature-block">Class Teacher</div>
+            <div class="signature-block">Attendance In-charge</div>
+            <div class="signature-block">Principal / Headmaster</div>
+        </div>
+    </div>
+</body>
+</html>

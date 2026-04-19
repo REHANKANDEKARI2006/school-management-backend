@@ -10,6 +10,7 @@ router.get('/bonafide/:studentId', authMiddleware, DocumentController.generateBo
 router.get('/mark-sheet/:studentId', authMiddleware, DocumentController.generateMarkSheet);
 router.get('/general-certificate/:studentId', authMiddleware, DocumentController.generateGeneralCertificate);
 router.get('/timetable/:classId', authMiddleware, DocumentController.generateTimetable);
+router.get('/attendance-report/:classId/:year/:month', authMiddleware, DocumentController.generateMonthlyAttendancePDF);
 
 // POST Bulk generation endpoints
 router.post('/id-card/bulk', authMiddleware, DocumentController.generateBulkIdCards);

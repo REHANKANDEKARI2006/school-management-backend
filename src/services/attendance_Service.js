@@ -1,4 +1,5 @@
 import { AttendanceModel } from "../models/attendance_Model.js";
+import { HolidayService } from "./holiday_service.js";
 
 export const AttendanceService = {
 
@@ -36,6 +37,37 @@ export const AttendanceService = {
 
   async getStudentDailyAttendanceWithSchedule(studentId, date) {
     return await AttendanceModel.getStudentDailyAttendanceWithSchedule(studentId, date);
+  },
+
+  async getMonthlyReport(classId, month, year) {
+    const { students, records } = await AttendanceModel.getMonthlyAttendanceReport(classId, month, year);
+    const holidays = await HolidayService.getHolidaysByMonth(year, month);
+
+    // Group records by student and day
+    const reportData = students.map(student => {
+      const studentRecords = records.filter(r => r.student_id === student.student_id);
+      const days = {};
+      
+      studentRecords.forEach(r => {
+        const day = new Date(r.attendance_date).getDate();
+        // If multiple sessions, 'Present' (status_id 1) takes priority
+        if (!days[day] || r.status_id === 1) {
+          days[day] = r.status_id;
+        }
+      });
+
+      return {
+        ...student,
+        attendance: days
+      };
+    });
+
+    return {
+      reportData,
+      holidays,
+      month: parseInt(month),
+      year: parseInt(year)
+    };
   }
 
 };

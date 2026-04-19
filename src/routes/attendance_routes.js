@@ -23,4 +23,7 @@ router.get("/summary", AttendanceController.getSummary);
 router.get("/student/:studentId", AttendanceController.getStudentHistory);
 router.get("/my-history", authMiddleware, AttendanceController.getMyHistory);
 
+/* REPORTS */
+router.get("/monthly-report", authMiddleware, AttendanceController.getMonthlyReport);
+
 export default router;

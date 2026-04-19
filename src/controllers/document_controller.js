@@ -233,5 +233,40 @@ export const DocumentController = {
       console.error(err);
       res.status(500).json({ success: false, message: "Error generating Timetable PDF" });
     }
+  },
+
+  async generateMonthlyAttendancePDF(req, res) {
+    try {
+      const { classId, year, month } = req.params;
+      const { user_id, role_id } = req.user;
+
+      // Access control: Teachers can only download their own class report
+      if ([3, 4, 15, 16].includes(role_id)) {
+        const staffRes = await pool.query(
+          `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
+          [user_id]
+        );
+        const assignedClassId = staffRes.rows[0]?.class_id;
+        
+        if (!assignedClassId || parseInt(assignedClassId) !== parseInt(classId)) {
+          return res.status(403).json({ success: false, message: "Unauthorized: You can only access your own class report" });
+        }
+      }
+
+      const pdfBuffer = await DocumentService.generateMonthlyAttendancePDF(classId, month, year, user_id);
+
+      const sql = `SELECT class_name FROM class WHERE class_id = $1`;
+      const classRes = await pool.query(sql, [classId]);
+      const className = classRes.rows[0]?.class_name || 'Class';
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const monthLabel = monthNames[parseInt(month) - 1];
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Attendance_${className}_${monthLabel}${year}.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (err) {
+      console.error("Monthly PDF error:", err);
+      res.status(500).json({ success: false, message: "Error generating Monthly Attendance PDF" });
+    }
   }
 };

@@ -1,5 +1,6 @@
 import { AttendanceService } from "../services/attendance_Service.js";
 import { StudentService } from "../services/student_Service.js";
+import pool from "../config/db.js";
 
 export const AttendanceController = {
 
@@ -116,6 +117,32 @@ export const AttendanceController = {
       res.status(200).json({ success: true, data });
     } catch (err) {
       console.error("getMyHistory Error:", err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async getMonthlyReport(req, res) {
+    try {
+      const { classId, month, year } = req.query;
+      const { user_id, role_id } = req.user;
+
+      // Access control: Teachers can only view their own class
+      if ([3, 4, 15, 16].includes(role_id)) { // Assuming these are teaching roles
+        const staffRes = await pool.query(
+          `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
+          [user_id]
+        );
+        const assignedClassId = staffRes.rows[0]?.class_id;
+        
+        if (!assignedClassId || parseInt(assignedClassId) !== parseInt(classId)) {
+          return res.status(403).json({ success: false, message: "Unauthorized: You can only access your own class report" });
+        }
+      }
+
+      const data = await AttendanceService.getMonthlyReport(classId, month, year);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      console.error("getMonthlyReport Error:", err);
       res.status(500).json({ success: false, message: err.message });
     }
   }

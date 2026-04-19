@@ -9,6 +9,7 @@ import { SchoolProfileModel } from '../models/school_profile_model.js';
 import { StudentModel } from '../models/student_Model.js';
 import ScheduleModel from '../models/schedule_model.js';
 import ExamsModel from '../models/exams_model.js';
+import { AttendanceService } from './attendance_Service.js';
 import pool from '../config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -528,6 +529,79 @@ export const DocumentService = {
     } catch (err) {
       console.error("Error fetching document history:", err);
       throw err;
+    }
+  },
+
+  async generateMonthlyAttendancePDF(classId, month, year, userId) {
+    let browser = null;
+    try {
+      const yearInt = parseInt(year);
+      const monthInt = parseInt(month);
+
+      const school = await SchoolProfileModel.getProfile();
+      const report = await AttendanceService.getMonthlyReport(classId, monthInt, yearInt);
+      
+      const sql = `
+        SELECT 
+          c.class_name,
+          s.section_name
+        FROM class c
+        JOIN section s ON s.section_id = c.section_id
+        WHERE c.class_id = $1
+      `;
+      const classRes = await pool.query(sql, [classId]);
+      const classInfo = classRes.rows[0];
+
+      const daysInMonth = new Date(yearInt, monthInt, 0).getDate();
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"];
+      const monthName = monthNames[monthInt - 1];
+
+      const templatePath = path.join(__dirname, '../templates/attendance/monthly_sheet.ejs');
+      const templateContent = fs.readFileSync(templatePath, 'utf-8');
+      
+      const html = ejs.render(templateContent, {
+        school,
+        ...report,
+        className: classInfo ? `${classInfo.class_name} ${classInfo.section_name}` : 'N/A',
+        monthName,
+        daysInMonth
+      }, {
+        filename: templatePath // CRITICAL: Required for relative includes in EJS
+      });
+
+      browser = await puppeteer.launch({
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        headless: "new"
+      });
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A3',
+        landscape: true,
+        printBackground: true,
+        margin: { top: '5mm', right: '5mm', bottom: '5mm', left: '5mm' }
+      });
+
+      // Log activity if userId provided
+      if (userId) {
+        try {
+          const { DashboardService } = await import("./dashboard_service.js");
+          await DashboardService.addActivityEntry(
+            userId,
+            'attendance_report_download',
+            `Downloaded Monthly Attendance: ${classInfo ? classInfo.class_name + ' ' + classInfo.section_name : 'N/A'} - ${monthName} ${yearInt}`
+          );
+        } catch (e) { console.error("Logging error:", e); }
+      }
+
+      return pdfBuffer;
+    } catch (error) {
+      console.error('generateMonthlyAttendancePDF error:', error);
+      throw error;
+    } finally {
+      if (browser) await browser.close();
     }
   }
 };
