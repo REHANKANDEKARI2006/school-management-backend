@@ -472,6 +472,56 @@ const EventsModel = {
       WHERE event_id = $1 AND class_id = $2
     `, [eventId, classId]);
     return res.rows;
+  },
+
+  // ───────────── EVENT PHOTOS ─────────────
+
+  /**
+   * Bulk insert event photos
+   */
+  async saveEventPhotos(eventId, photos) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const results = [];
+      for (const p of photos) {
+        const res = await client.query(`
+          INSERT INTO event_photos (event_id, photo_url, public_id)
+          VALUES ($1, $2, $3)
+          RETURNING *
+        `, [eventId, p.photo_url, p.public_id]);
+        results.push(res.rows[0]);
+      }
+      await client.query("COMMIT");
+      return results;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  /**
+   * Get all photos for an event
+   */
+  async getEventPhotos(eventId) {
+    const res = await pool.query(
+      `SELECT * FROM event_photos WHERE event_id = $1 ORDER BY created_at DESC`,
+      [eventId]
+    );
+    return res.rows;
+  },
+
+  /**
+   * Delete a specific photo record
+   */
+  async deleteEventPhoto(photoId) {
+    const res = await pool.query(
+      `DELETE FROM event_photos WHERE id = $1 RETURNING *`,
+      [photoId]
+    );
+    return res.rows[0];
   }
 };
 

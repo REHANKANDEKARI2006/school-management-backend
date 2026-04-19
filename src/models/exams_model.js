@@ -252,7 +252,7 @@ const ExamsModel = {
       SELECT
         sub.subject_name,
         e.max_marks,
-        eg.marks_obtained,
+        eg.marks_obtained AS obtained_marks,
         eg.grade
       FROM exam_grades eg
       JOIN exam e ON e.exam_id = eg.exam_id

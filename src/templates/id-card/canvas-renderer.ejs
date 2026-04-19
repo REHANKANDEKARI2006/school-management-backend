@@ -8,14 +8,15 @@
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@400;600;700;800&family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@300;400;600;700&family=Lato:wght@300;400;700&family=Raleway:wght@400;600;700&family=Oswald:wght@400;500;600&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: <%- cardWidth %>; height: <%- cardHeight %>; overflow: hidden; background: transparent; }
+  html, body { width: <%- cardWidth %>; height: <%- cardHeight %>; overflow: hidden; background: transparent; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
   #card {
     position: relative;
-    width: <%- cardWidth %>;
-    height: <%- cardHeight %>;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
     background-color: <%- bgColor %>;
+    display: block;
   }
 
   .el {
@@ -26,8 +27,6 @@
 
   .el-text {
     display: flex;
-    align-items: center;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.25;
@@ -95,9 +94,9 @@
       <div class="el" style="
         left:<%- el.x %>px; top:<%- el.y %>px;
         width:<%- el.width %>px; height:<%- el.height %>px;
-        background:<%- el.bgColor || 'transparent' %>;
+        background-color:<%- el.bgColor || 'transparent' %> !important;
         border-radius:<%- borderRadiusVal %>;
-        border:<%- borderStyle %>;
+        border:<%- borderStyle %> !important;
         opacity:<%- el.opacity != null ? el.opacity : 1 %>;
         z-index:<%- el.zIndex || 1 %>;
         <% if (el.rotation) { %>transform:rotate(<%- el.rotation %>deg);<% } %>
@@ -205,51 +204,66 @@
       <%
         // Text-based elements — resolve value
         var displayText = el.text || '';
-        if (el.type === 'student_name') displayText = (student.stu_first_name || '') + ' ' + (student.stu_last_name || '');
-        else if (el.type === 'father_name') displayText = student.father_name || '';
-        else if (el.type === 'mother_name') displayText = student.mother_name || '';
-        else if (el.type === 'class_section') displayText = 'Class ' + (student.class_name || '') + ' - ' + (student.section_name || '');
-        else if (el.type === 'admission_number') displayText = student.admission_no || student.student_id || '';
-        else if (el.type === 'dob') {
-          var dobStr = student.date_of_birth || student.dob || '';
-          if (dobStr) {
-            var dobDate = new Date(dobStr);
-            var now = new Date();
-            if (!isNaN(dobDate) && dobDate < now) {
-              displayText = dobDate.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            } else {
-              displayText = '';
+        
+        // Only fetch from DB/Mocks if el.text is ABSENT
+        if (!displayText) {
+          if (el.type === 'student_name') displayText = (student.stu_first_name || '') + ' ' + (student.stu_last_name || '');
+          else if (el.type === 'father_name') displayText = student.father_name || '';
+          else if (el.type === 'mother_name') displayText = student.mother_name || '';
+          else if (el.type === 'class_section') displayText = 'Class ' + (student.class_name || '') + ' - ' + (student.section_name || '');
+          else if (el.type === 'admission_number') displayText = student.admission_no || student.student_id || '';
+          else if (el.type === 'dob') {
+            var dobStr = student.date_of_birth || student.dob || '';
+            if (dobStr) {
+              var dobDate = new Date(dobStr);
+              var now = new Date();
+              if (!isNaN(dobDate) && dobDate < now) {
+                displayText = dobDate.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+              } else {
+                displayText = '';
+              }
             }
           }
+          else if (el.type === 'blood_group') displayText = student.blood_group || '';
+          else if (el.type === 'contact_number') displayText = student.primary_contact || student.contact || '';
+          else if (el.type === 'address') displayText = student.address || '';
+          else if (el.type === 'academic_year') displayText = school.academic_year || '';
+          
+          // Certificate Specific
+          else if (el.type === 'certificate_title') displayText = student.certificate_title || (school.document_config && school.document_config.certificate_title) || 'CERTIFICATE';
+          else if (el.type === 'certificate_description') displayText = student.certificate_description || (school.document_config && school.document_config.certificate_description) || '';
+          else if (el.type === 'achievement_rank') displayText = student.achievement_rank || '1st Rank';
+          else if (el.type === 'event_name') displayText = student.event_name || 'Annual Achievement';
+          else if (el.type === 'issue_date') displayText = student.issue_date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
         }
-        else if (el.type === 'blood_group') displayText = student.blood_group || '';
-        else if (el.type === 'contact_number') displayText = student.primary_contact || student.contact || '';
-        else if (el.type === 'address') displayText = student.address || '';
-        else if (el.type === 'academic_year') displayText = school.academic_year || '';
-        
-        // Certificate Specific
-        else if (el.type === 'certificate_title') displayText = student.certificate_title || (school.document_config && school.document_config.certificate_title) || 'CERTIFICATE';
-        else if (el.type === 'certificate_description') displayText = student.certificate_description || (school.document_config && school.document_config.certificate_description) || '';
-        else if (el.type === 'achievement_rank') displayText = student.achievement_rank || '1st Rank';
-        else if (el.type === 'event_name') displayText = student.event_name || 'Annual Achievement';
-        else if (el.type === 'issue_date') displayText = student.issue_date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
         // Resolve {{tokens}} in text_box type
+        var dobStr = '';
+        if (student.date_of_birth) {
+           var d = new Date(student.date_of_birth);
+           if (!isNaN(d)) dobStr = d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
         displayText = displayText
-          .replace('{{school_name}}', school.school_name || '')
-          .replace('{{school_address}}', school.address || '')
-          .replace('{{school_phone}}', school.phone || '')
-          .replace('{{academic_year}}', school.academic_year || '')
-          .replace('{{admission_number}}', student.admission_no || student.student_id || '')
-          .replace('{{student_name}}', (student.stu_first_name || '') + ' ' + (student.stu_last_name || ''))
-          .replace('{{title}}', student.certificate_title || '')
-          .replace('{{desc}}', student.certificate_description || '')
-          .replace('{{rank}}', student.achievement_rank || '')
-          .replace('{{event}}', student.event_name || '')
-          .replace('{{date}}', student.issue_date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }));
+          .replace(/\{\{school_name\}\}/g, school.school_name || '')
+          .replace(/\{\{school_address\}\}/g, school.address || '')
+          .replace(/\{\{school_phone\}\}/g, school.phone || '')
+          .replace(/\{\{academic_year\}\}/g, school.academic_year || '')
+          .replace(/\{\{admission_number\}\}/g, student.admission_no || student.student_id || '')
+          .replace(/\{\{student_name\}\}/g, ((student.stu_first_name || '') + ' ' + (student.stu_last_name || '')).trim())
+          .replace(/\{\{father_name\}\}/g, student.father_name || '')
+          .replace(/\{\{mother_name\}\}/g, student.mother_name || '')
+          .replace(/\{\{class_section\}\}/g, (student.class_name ? 'Class ' + student.class_name + (student.section_name ? ' - ' + student.section_name : '') : ''))
+          .replace(/\{\{dob\}\}/g, dobStr)
+          .replace(/\{\{title\}\}/g, student.certificate_title || '')
+          .replace(/\{\{desc\}\}/g, student.certificate_description || '')
+          .replace(/\{\{rank\}\}/g, student.achievement_rank || '')
+          .replace(/\{\{event\}\}/g, student.event_name || '')
+          .replace(/\{\{date\}\}/g, student.issue_date || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }));
 
         // Skip rendering if empty (hide empty dynamic fields)
         var isDynamic = ['student_name','father_name','mother_name','class_section','admission_number','dob','blood_group','contact_number','address','academic_year','certificate_title','certificate_description','achievement_rank','event_name','issue_date'].indexOf(el.type) !== -1;
+        var isMultiline = el.type === 'certificate_description' || el.type === 'address' || el.type === 'text_box';
       %>
       <% if (!isDynamic || displayText.trim()) { %>
       <div class="el el-text" style="
@@ -264,8 +278,12 @@
         background:<%- el.bgColor || 'transparent' %>;
         border-radius:<%- borderRadiusVal %>;
         justify-content:<%- justifyContent %>;
+        align-items:<%- isMultiline ? 'flex-start' : 'center' %>;
+        white-space:<%- isMultiline ? 'normal' : 'nowrap' %>;
+        word-break:<%- isMultiline ? 'break-word' : 'normal' %>;
         padding-left:<%- paddingLeft %>;
         padding-right:<%- paddingRight %>;
+        padding-top:<%- isMultiline ? '4px' : '0' %>;
         opacity:<%- el.opacity != null ? el.opacity : 1 %>;
         z-index:<%- el.zIndex || 1 %>;
         <% if (el.rotation) { %>transform:rotate(<%- el.rotation %>deg);<% } %>

@@ -1,18 +1,8 @@
-<head>
-    <meta charset="utf-8">
-    <title>Academic Mark Sheet</title>
-    <%- include('../common/styles') %>
     <style>
-        body {
-            padding: 40px;
+        .marksheet-inner-container {
+            padding: 10px;
             font-family: 'Inter', sans-serif;
             color: var(--text-main);
-        }
-        .marksheet-container {
-            border: 2px solid var(--border-color);
-            padding: 30px;
-            min-height: 1000px;
-            background: white;
         }
         .ms-header {
             display: flex;
@@ -58,40 +48,15 @@
             font-weight: 700;
             margin-top: 20px;
         }
-        .ms-footer {
-            margin-top: 80px;
-            display: flex;
-            justify-content: space-between;
-        }
-        .ms-sign {
-            text-align: center;
-            width: 150px;
-        }
-        .ms-sign img { height: 40px; }
-        .ms-sign-label {
-            display: block;
-            border-top: 1px solid var(--text-main);
-            padding-top: 5px;
-            font-size: 14px;
-        }
         .grade-a { color: #10b981; }
         .grade-b { color: #3b82f6; }
         .grade-c { color: #f59e0b; }
         .grade-f { color: #ef4444; }
     </style>
-</head>
-<body>
-    <div class="marksheet-container doc-container">
-        <div class="ms-header">
-            <div class="ms-school-info">
-                <h1 class="premium-heading"><%= school.school_name %></h1>
-                <p><%= school.address %></p>
-            </div>
-            <img src="<%= logoUrl %>" style="height: 60px;">
-        </div>
 
+    <div class="marksheet-inner-container">
         <div style="text-align: center; margin-bottom: 30px;">
-            <h2 style="text-transform: uppercase; letter-spacing: 2px;">Progress Report Card</h2>
+            <h2 style="text-transform: uppercase; letter-spacing: 2px; color: var(--primary-color);">Progress Report Card</h2>
             <p>Academic Year: <%= school.academic_year %></p>
         </div>
 
@@ -125,7 +90,7 @@
                             <td><%= m.subject_name %></td>
                             <td><%= m.max_marks %></td>
                             <td><%= m.obtained_marks %></td>
-                            <td class="grade-<%= m.grade.toLowerCase() %>"><%= m.grade %></td>
+                            <td class="grade-<%= (m.grade || 'F').toLowerCase() %>"><%= m.grade || 'F' %></td>
                             <td><%= m.obtained_marks >= (m.max_marks * 0.35) ? 'PASS' : 'FAIL' %></td>
                         </tr>
                     <% }); %>
@@ -140,19 +105,6 @@
         <div class="ms-summary">
             <div>Total: <%= typeof totalMarks !== 'undefined' ? totalMarks : '-' %> / <%= typeof maxTotal !== 'undefined' ? maxTotal : '-' %></div>
             <div>Percentage: <%= typeof percentage !== 'undefined' ? percentage + '%' : '-' %></div>
-            <div>Result: <span class="grade-a">PROMOTED</span></div>
-        </div>
-
-        <div class="ms-footer">
-            <div class="ms-sign">
-                <span style="height: 40px; display: block;"></span>
-                <span class="ms-sign-label">Class Teacher</span>
-            </div>
-            <div class="ms-sign">
-                <img src="<%= signatureUrl %>" alt="Principal">
-                <span class="ms-sign-label">Principal</span>
-            </div>
+            <div style="margin-left: 20px;">Result: <span class="grade-a">PROMOTED</span></div>
         </div>
     </div>
-</body>
-</html>

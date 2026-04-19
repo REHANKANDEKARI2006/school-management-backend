@@ -276,6 +276,48 @@ const EventsService = {
 
   async getDisplacedPeriods(eventId) {
     return await EventsModel.getPeriodExchanges(eventId);
+  },
+
+  // ───────────── EVENT PHOTOS ─────────────
+
+  /**
+   * Upload multiple photos to an event
+   */
+  async uploadEventPhotos(eventId, files) {
+    if (!files || files.length === 0) throw new Error("No files provided");
+
+    const cleanEventId = parseInt(eventId);
+    if (isNaN(cleanEventId)) throw new Error("Invalid Event ID");
+
+    const photoData = files.map(f => ({
+      photo_url: f.path || f.secure_url, // Prefer standard Multer 'path' provided by Cloudinary storage
+      public_id: f.filename || f.public_id
+    }));
+
+    return await EventsModel.saveEventPhotos(cleanEventId, photoData);
+  },
+
+  /**
+   * Retrieve photos for an event
+   */
+  async getEventPhotos(eventId) {
+    return await EventsModel.getEventPhotos(eventId);
+  },
+
+  /**
+   * Delete a photo from Cloudinary and DB
+   */
+  async deleteEventPhoto(photoId, publicId) {
+    // 1. Delete from Cloudinary
+    if (publicId) {
+      const { deleteFromCloudinary } = await import("../config/cloudinary.js");
+      // Since these are images, we don't need { resource_type: "raw" } if configured as image
+      // But let's check config/cloudinary.js for the delete function.
+      await deleteFromCloudinary(publicId); 
+    }
+
+    // 2. Delete from DB
+    return await EventsModel.deleteEventPhoto(photoId);
   }
 };
 

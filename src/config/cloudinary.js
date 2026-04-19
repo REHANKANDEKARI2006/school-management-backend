@@ -13,9 +13,17 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: async (req, file) => {
+        // Determine folder based on route
+        let folder = "school_materials";
+        if (req.originalUrl && req.originalUrl.includes("/events/")) {
+            folder = "event_photos";
+        } else if (req.originalUrl && req.originalUrl.includes("/faculty/")) {
+            folder = "faculty_profiles";
+        }
+
         return {
-            folder: "school_materials",
-            resource_type: "raw", // To support any file type (PDF, docx, etc.)
+            folder: folder,
+            resource_type: "auto", // "auto" allows Cloudinary to detect image, video, or raw (PDF/docs)
             public_id: `${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_")}`,
             type: "upload",
             access_mode: "public",

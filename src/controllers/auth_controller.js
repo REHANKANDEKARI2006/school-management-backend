@@ -161,32 +161,40 @@ export const refreshToken = (req, res) => {
         });
       }
 
-      // 🔍 Fetch user's current role and institute to ensure token is complete
-      const userRes = await pool.query(
-        'SELECT role_id, institute_id FROM "user" WHERE user_id = $1',
-        [decoded.user_id]
-      );
+      try {
+        // 🔍 Fetch user's current role and institute to ensure token is complete
+        const userRes = await pool.query(
+          'SELECT role_id, institute_id FROM "user" WHERE user_id = $1',
+          [decoded.user_id]
+        );
 
-      if (userRes.rows.length === 0) {
-        return res.status(401).json({ success: false, message: "User not found" });
+        if (userRes.rows.length === 0) {
+          return res.status(401).json({ success: false, message: "User not found" });
+        }
+
+        const { role_id, institute_id } = userRes.rows[0];
+
+        const newAccessToken = jwt.sign(
+          { 
+            user_id: decoded.user_id,
+            role_id: Number(role_id),
+            institute_id: institute_id
+          },
+          process.env.JWT_SECRET,
+          { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
+        );
+
+        return res.json({
+          success: true,
+          accessToken: newAccessToken,
+        });
+      } catch (dbError) {
+        console.error("❌ Refresh token DB error:", dbError);
+        return res.status(500).json({
+          success: false,
+          message: "Database connection error during token refresh",
+        });
       }
-
-      const { role_id, institute_id } = userRes.rows[0];
-
-      const newAccessToken = jwt.sign(
-        { 
-          user_id: decoded.user_id,
-          role_id: Number(role_id),
-          institute_id: institute_id
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
-      );
-
-      return res.json({
-        success: true,
-        accessToken: newAccessToken,
-      });
     });
   } catch (error) {
     return res.status(500).json({

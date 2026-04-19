@@ -39,15 +39,17 @@ export const ClassService = {
       );
     }
 
-    // ✅ 1. PREVENT DUPLICATE CLASSES (NEW - STRICT UNIQUENESS)
+    // ✅ 1. PREVENT DUPLICATE CLASSES (Name + Section combination)
     const allClasses = await ClassModel.getAll();
 
-    const isClassNameDuplicate = allClasses.some(
-      (c) => c.class_name.toLowerCase() === classData.class_name.toLowerCase()
+    const isDuplicate = allClasses.some(
+      (c) => 
+        c.class_name.toLowerCase() === classData.class_name.toLowerCase() && 
+        c.section_id === Number(classData.section_id)
     );
 
-    if (isClassNameDuplicate) {
-      throw Object.assign(new Error("Class Name Already Exists"), { status: 409 });
+    if (isDuplicate) {
+      throw Object.assign(new Error("Class with this name and section already exists"), { status: 409 });
     }
 
     if (classData.staff_id) {
@@ -92,25 +94,30 @@ export const ClassService = {
 
     const allClasses = await ClassModel.getAll();
 
-    if (newValues.class_name) {
-      const isClassNameDuplicate = allClasses.some(
+    if (newValues.class_name || newValues.section_id) {
+      const existing = await ClassModel.findById(id);
+      const nameToCheck = (newValues.class_name || existing.class_name).trim().toLowerCase();
+      const sectionToCheck = Number(newValues.section_id || existing.section_id);
+
+      const isDuplicate = allClasses.some(
         (c) =>
-          c.class_name.toLowerCase() === newValues.class_name.trim().toLowerCase() &&
+          c.class_name.toLowerCase() === nameToCheck &&
+          Number(c.section_id) === sectionToCheck &&
           c.class_id !== id
       );
 
-      if (isClassNameDuplicate) {
-        throw Object.assign(new Error("Class Name Already Exists"), { status: 409 });
+      if (isDuplicate) {
+        throw Object.assign(new Error("Class with this name and section already exists"), { status: 409 });
       }
     }
 
     if (newValues.staff_id) {
       const isTeacherAssigned = allClasses.some(
-        (c) => c.staff_id === Number(newValues.staff_id) && c.class_id !== id
+        (c) => Number(c.staff_id) === Number(newValues.staff_id) && c.class_id !== id
       );
 
       if (isTeacherAssigned) {
-        throw Object.assign(new Error("Class Teacher Already Exists"), { status: 409 });
+        throw Object.assign(new Error("Class Teacher is already assigned to another class"), { status: 409 });
       }
     }
 

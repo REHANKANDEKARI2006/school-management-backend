@@ -64,16 +64,37 @@ export const DocumentService = {
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
         });
       }
+      
+      const vWidth = parseInt(cardWidth);
+      const vHeight = parseInt(cardHeight);
 
       const page = await currentBrowser.newPage();
+      
+      // Set viewport to match canvas precisely
+      await page.setViewport({
+        width: vWidth,
+        height: vHeight,
+        deviceScaleFactor: 2 // High quality
+      });
+
       await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
 
-      const pdfBuffer = await page.pdf({
-        width: pdfWidth,
-        height: pdfHeight,
+      const pdfOptions = {
         printBackground: true,
-        margin: { top: 0, right: 0, bottom: 0, left: 0 }
-      });
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+        preferCSSPageSize: true
+      };
+
+      if (isA4) {
+        pdfOptions.format = 'A4';
+        pdfOptions.landscape = isLandscape;
+        pdfOptions.scale = 1.33333333; // Fill 72DPI page with 96DPI CSS pixels
+      } else {
+        pdfOptions.width = pdfWidth;
+        pdfOptions.height = pdfHeight;
+      }
+
+      const pdfBuffer = await page.pdf(pdfOptions);
 
       await page.close();
       if (shouldCloseBrowser) await currentBrowser.close();
@@ -193,6 +214,14 @@ export const DocumentService = {
       }
 
       // Re-implementing a simple render for marksheets since we refactored renderWithBranding away
+      const marksheetConfig = (school.document_config && school.document_config['MARK_SHEET']) || { 
+        header: true, 
+        footer: true, 
+        border: true, 
+        stamp: true, 
+        signature: true 
+      };
+
       const bodyHtml = await ejs.renderFile(templatePath, {
         student,
         marks,
@@ -200,14 +229,14 @@ export const DocumentService = {
         maxTotal,
         percentage,
         school,
-        config: (school.document_config && school.document_config['MARK_SHEET']) || { header: true, footer: true }
+        config: marksheetConfig
       });
 
       const layoutPath = path.join(__dirname, '..', 'templates', 'common', 'branding_layout.ejs');
       const html = await ejs.renderFile(layoutPath, {
         body: bodyHtml,
         school,
-        config: (school.document_config && school.document_config['MARK_SHEET']) || { header: true, footer: true },
+        config: marksheetConfig,
         docType: 'MARK_SHEET'
       });
 
