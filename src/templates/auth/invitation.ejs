@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f7f6; }
+        .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background-color: <%= branding.primaryColor %>; padding: 40px 20px; text-align: center; color: white; }
+        .header img { max-width: 150px; margin-bottom: 20px; }
+        .content { padding: 40px 30px; }
+        .footer { background: #f8fafc; padding: 20px 30px; text-align: center; font-size: 12px; color: #64748b; }
+        .button { display: inline-block; padding: 14px 30px; background-color: <%= branding.primaryColor %>; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 25px; }
+        .social-links { margin-top: 15px; }
+        .social-links a { margin: 0 10px; color: #64748b; text-decoration: none; }
+        h1 { margin: 0; font-size: 24px; }
+        p { margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="<%= branding.logoUrl %>" alt="<%= branding.schoolName %> Logo">
+            <h1>Welcome to <%= branding.schoolName %></h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong><%= name %></strong>,</p>
+            <p>You have been added as <strong><%= role %></strong> to <strong><%= branding.schoolName %></strong> School Management System.</p>
+            <p>To access your account, please click the button below to set your password:</p>
+            <div style="text-align: center;">
+                <a href="<%= setPasswordUrl %>" class="button">SET YOUR PASSWORD</a>
+            </div>
+            <p style="margin-top: 30px; color: #e11d48; font-size: 14px;"><strong>Note:</strong> This link will expire in 24 hours.</p>
+            <p>If you did not expect this email, please ignore it. This link will become invalid automatically.</p>
+        </div>
+        <div class="footer">
+            <p>© <%= new Date().getFullYear() %> <%= branding.schoolName %>. All rights reserved.</p>
+            <p>Powered by CampusConnect</p>
+        </div>
+    </div>
+</body>
+</html>

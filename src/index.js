@@ -24,6 +24,7 @@ import noticeRoutes from "./routes/notice_routes.js";
 import authRoutes from "./routes/auth_routes.js";
 import holidayRoutes from "./routes/holiday_routes.js";
 import { HolidayService } from "./services/holiday_service.js";
+import { seedMasterAdmin } from "./scripts/seed_master_admin.js";
 
 // Cron Jobs
 import { startCronJobs } from "./cron/status_tracker.js";
@@ -87,6 +88,7 @@ app.use("/api/notifications", notificationRoutes);
 app.listen(PORT, () => {
    console.log(`✅ Backend server running on http://localhost:${PORT}`);
    startCronJobs();
+   seedMasterAdmin();
    
    // Prime Holiday Cache on Startup
    const currentYear = new Date().getFullYear();

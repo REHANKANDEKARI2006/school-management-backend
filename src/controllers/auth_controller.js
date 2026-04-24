@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import pool from "../config/db.js";
+import crypto from "crypto";
+import { emailService } from "../services/email_service.js";
 
 import { StudentModel } from "../models/student_Model.js";
 
@@ -10,6 +12,7 @@ import { StudentModel } from "../models/student_Model.js";
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -18,15 +21,31 @@ export const login = async (req, res) => {
       });
     }
 
+    // 1. Rate Limiting Check
+    const attemptRes = await pool.query('SELECT attempts, last_attempt FROM login_attempts WHERE ip_address = $1', [ip]);
+    if (attemptRes.rows.length > 0) {
+      const { attempts, last_attempt } = attemptRes.rows[0];
+      const lockoutTime = 15 * 60 * 1000; // 15 mins
+      if (attempts >= 5 && (new Date() - new Date(last_attempt)) < lockoutTime) {
+        const remainingTime = Math.ceil((lockoutTime - (new Date() - new Date(last_attempt))) / (60 * 1000));
+        return res.status(429).json({
+          success: false,
+          message: `Too many failed attempts. Please try again in ${remainingTime} minutes.`,
+        });
+      }
+    }
+
     const result = await pool.query(
       `
       SELECT 
         user_id,
+        user_name,
         email,
         password_hash,
         role_id,
         institute_id,
-        is_active
+        is_active,
+        status
       FROM "user"
       WHERE LOWER(email) = LOWER($1)
       LIMIT 1
@@ -43,13 +62,39 @@ export const login = async (req, res) => {
 
     const user = result.rows[0];
 
-    // Check base activity
-    if (!user.is_active) {
+    // Check status
+    if (user.status === "pending") {
       return res.status(403).json({
         success: false,
-        message: "Account is disabled",
+        message: "Your invitation is pending. Please set your password using the link sent to your email.",
       });
     }
+    if (user.status === "deactivated" || !user.is_active) {
+      return res.status(403).json({
+        success: false,
+        message: "Account is disabled. Please contact administrator.",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      // 2. Log Failed Attempt
+      await pool.query(
+        `INSERT INTO login_attempts (ip_address, attempts, last_attempt) 
+         VALUES ($1, 1, now())
+         ON CONFLICT (ip_address) 
+         DO UPDATE SET attempts = login_attempts.attempts + 1, last_attempt = now()`,
+        [ip]
+      );
+
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
+    // 3. Success -> Reset Attempts
+    await pool.query('DELETE FROM login_attempts WHERE ip_address = $1', [ip]);
 
     // Role-based status check
     let statusId = 1; // Default to Active
@@ -93,32 +138,24 @@ export const login = async (req, res) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
-    }
-
     const accessToken = jwt.sign(
       {
         user_id: user.user_id,
         role_id: user.role_id,
-        institute_id: user.institute_id, // ✅ FIX
+        institute_id: user.institute_id,
       },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
+      { expiresIn: "1h" }
     );
 
     const refreshToken = jwt.sign(
       { user_id: user.user_id },
       process.env.JWT_REFRESH_SECRET,
-      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "7d" }
+      { expiresIn: "7d" }
     );
 
     let studentDetails = null;
-    if (user.role_id === 18) { // Student Role ID
+    if (Number(user.role_id) === 18) {
       studentDetails = await StudentModel.findByUserId(user.user_id);
     }
 
@@ -127,6 +164,8 @@ export const login = async (req, res) => {
       accessToken,
       refreshToken,
       role_id: user.role_id,
+      email: user.email,
+      name: user.user_name,
       student_details: studentDetails
     });
   } catch (error) {
@@ -181,7 +220,7 @@ export const refreshToken = (req, res) => {
             institute_id: institute_id
           },
           process.env.JWT_SECRET,
-          { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
+          { expiresIn: "1h" }
         );
 
         return res.json({
@@ -576,3 +615,386 @@ export const uploadAvatar = async (req, res) => {
     });
   }
 };
+
+/* =========================
+   INVITE USER (Admin/Teacher/Staff)
+========================= */
+export const inviteUser = async (req, res) => {
+  try {
+    const { name, email, phone, role_code, designation } = req.body;
+    const inviter_id = req.user.user_id;
+    const inviter_role = Number(req.user.role_id);
+
+    if (!name || !email || !role_code) {
+      return res.status(400).json({ success: false, message: "Name, email, and role are required" });
+    }
+
+    // 1. RBAC Check
+    // Master Admin (1) can create Institute Admin
+    // Institute Admin (2) can create Teachers, Staff, Students
+    if (inviter_role === 1 && role_code !== "INSTITUTE_ADMIN") {
+      return res.status(403).json({ success: false, message: "Master Admin can only invite Institute Admins" });
+    }
+    if (inviter_role === 2 && !["TEACHER", "OFFICE_STAFF", "STUDENT"].includes(role_code)) {
+      return res.status(403).json({ success: false, message: "Admins can only invite Teachers, Staff, and Students" });
+    }
+
+    // 2. Check if user already exists
+    const existing = await pool.query('SELECT user_id FROM "user" WHERE LOWER(email) = LOWER($1)', [email]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ success: false, message: "User with this email already exists" });
+    }
+
+    // 3. Get Role ID
+    const roleRes = await pool.query("SELECT role_id FROM user_role WHERE role_code = $1", [role_code]);
+    if (roleRes.rows.length === 0) {
+      return res.status(400).json({ success: false, message: "Invalid role code" });
+    }
+    const role_id = roleRes.rows[0].role_id;
+
+    // 4. Generate Token
+    const invite_token = crypto.randomBytes(32).toString("hex");
+    const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // 5. Create User Record
+    const userRes = await pool.query(
+      `INSERT INTO "user" (
+        user_name, email, phone, role_id, 
+        institute_id, status, is_active,
+        invite_token, invite_token_expiry, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING user_id`,
+      [
+        name, email, phone || null, role_id, 
+        req.user.institute_id, "pending", false,
+        invite_token, invite_token_expiry, inviter_id
+      ]
+    );
+
+    const userId = userRes.rows[0].user_id;
+
+    // 6. Create Role-Specific Record (Staff/Admin/Student)
+    // For now we assume they go into their respective tables
+    if (role_code === "INSTITUTE_ADMIN") {
+      await pool.query(
+        `INSERT INTO admin (user_id, admin_first_name, email, contact, user_status_id) VALUES ($1, $2, $3, $4, 13)`,
+        [userId, name, email, phone || "", 13] // 13 = Pending Approval
+      );
+    } else if (role_code === "TEACHER" || role_code === "OFFICE_STAFF") {
+      await pool.query(
+        `INSERT INTO staff (user_id, staff_first_name, email, contact, designation, user_status_id) VALUES ($1, $2, $3, $4, $5, 13)`,
+        [userId, name, email, phone || "", designation || role_code, 13]
+      );
+    } else if (role_code === "STUDENT") {
+      await pool.query(
+        `INSERT INTO student (student_user_id, stu_first_name, email, user_status_id) VALUES ($1, $2, $3, 13)`,
+        [userId, name, email, 13]
+      );
+    }
+
+    // 7. Send Invitation Email
+    await emailService.sendInvitation({
+      to: email,
+      name: name,
+      role: role_code.replace("_", " "),
+      token: invite_token,
+    });
+
+    return res.json({
+      success: true,
+      message: `Invitation sent successfully to ${email}`,
+    });
+  } catch (error) {
+    console.error("❌ INVITE USER ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   RESEND INVITATION
+========================= */
+export const resendInvitation = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "Email required" });
+
+    const userRes = await pool.query(
+      'SELECT user_id, user_name, role_id, status FROM "user" WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const user = userRes.rows[0];
+    if (user.status !== "pending") {
+      return res.status(400).json({ success: false, message: "User is already active or deactivated" });
+    }
+
+    // Generate new token
+    const invite_token = crypto.randomBytes(32).toString("hex");
+    const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await pool.query(
+      'UPDATE "user" SET invite_token = $1, invite_token_expiry = $2 WHERE user_id = $3',
+      [invite_token, invite_token_expiry, user.user_id]
+    );
+
+    // Get Role Code for email
+    const roleRes = await pool.query("SELECT role_code FROM user_role WHERE role_id = $1", [user.role_id]);
+    const role_code = roleRes.rows[0].role_code;
+
+    await emailService.sendInvitation({
+      to: email,
+      name: user.user_name,
+      role: role_code.replace("_", " "),
+      token: invite_token,
+    });
+
+    return res.json({ success: true, message: "Invitation resent successfully" });
+  } catch (error) {
+    console.error("❌ RESEND INVITATION ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   VERIFY INVITE TOKEN
+========================= */
+export const verifyInviteToken = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ success: false, message: "Token required" });
+
+    const userRes = await pool.query(
+      'SELECT user_id, user_name, invite_token_expiry FROM "user" WHERE invite_token = $1',
+      [token]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "This invitation link is invalid. Please contact your administrator." });
+    }
+
+    const user = userRes.rows[0];
+    if (new Date() > new Date(user.invite_token_expiry)) {
+      return res.status(400).json({ success: false, message: "This invitation link has expired. Please contact your administrator." });
+    }
+
+    return res.json({ success: true, name: user.user_name });
+  } catch (error) {
+    console.error("❌ VERIFY TOKEN ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   SET PASSWORD
+========================= */
+export const setPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: "Token and password are required" });
+    }
+
+    const userRes = await pool.query(
+      'SELECT user_id, user_name, email, invite_token_expiry FROM "user" WHERE invite_token = $1',
+      [token]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Invalid or expired token" });
+    }
+
+    const user = userRes.rows[0];
+    if (new Date() > new Date(user.invite_token_expiry)) {
+      return res.status(400).json({ success: false, message: "Token has expired" });
+    }
+
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    await pool.query(
+      'UPDATE "user" SET password_hash = $1, status = $2, is_active = $3, invite_token = NULL, invite_token_expiry = NULL WHERE user_id = $4',
+      [hashedPassword, "active", true, user.user_id]
+    );
+
+    // Update role-specific status if needed (Active = 1)
+    await pool.query('UPDATE admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
+    await pool.query('UPDATE staff SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
+    await pool.query('UPDATE student SET user_status_id = 1 WHERE student_user_id = $1', [user.user_id]);
+
+    // Send confirmation email
+    await emailService.sendPasswordChangedConfirmation({
+      to: user.email,
+      name: user.user_name,
+    });
+
+    return res.json({ success: true, message: "Password set successfully. You can now login." });
+  } catch (error) {
+    console.error("❌ SET PASSWORD ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   FORGOT PASSWORD
+========================= */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "Email required" });
+
+    // Success response for security even if email doesn't exist
+    const successMsg = "If this email exists, a reset link has been sent.";
+
+    const userRes = await pool.query(
+      'SELECT user_id, user_name FROM "user" WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.json({ success: true, message: successMsg });
+    }
+
+    const user = userRes.rows[0];
+    const reset_token = crypto.randomBytes(32).toString("hex");
+    const reset_token_expiry = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
+
+    await pool.query(
+      'UPDATE "user" SET reset_token = $1, reset_token_expiry = $2 WHERE user_id = $3',
+      [reset_token, reset_token_expiry, user.user_id]
+    );
+
+    await emailService.sendForgotPassword({
+      to: email,
+      name: user.user_name,
+      token: reset_token,
+    });
+
+    return res.json({ success: true, message: successMsg });
+  } catch (error) {
+    console.error("❌ FORGOT PASSWORD ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   RESET PASSWORD
+========================= */
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: "Token and password are required" });
+    }
+
+    const userRes = await pool.query(
+      'SELECT user_id, user_name, email, reset_token_expiry FROM "user" WHERE reset_token = $1',
+      [token]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Invalid or expired token" });
+    }
+
+    const user = userRes.rows[0];
+    if (new Date() > new Date(user.reset_token_expiry)) {
+      return res.status(400).json({ success: false, message: "Token has expired" });
+    }
+
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    await pool.query(
+      'UPDATE "user" SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2',
+      [hashedPassword, user.user_id]
+    );
+
+    // Send confirmation
+    await emailService.sendPasswordChangedConfirmation({
+      to: user.email,
+      name: user.user_name,
+    });
+
+    return res.json({ success: true, message: "Password reset successfully. You can now login." });
+  } catch (error) {
+    console.error("❌ RESET PASSWORD ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   GET USERS (For Management)
+========================= */
+export const getUsers = async (req, res) => {
+  try {
+    const { role_code } = req.query;
+    const inviter_role = Number(req.user.role_id);
+
+    let query = `
+      SELECT 
+        u.user_id, u.user_name, u.email, u.phone, u.status, u.is_active, 
+        u.invite_token, u.invite_token_expiry, r.role_name, r.role_code
+      FROM "user" u
+      JOIN user_role r ON u.role_id = r.role_id
+      WHERE u.institute_id = $1
+    `;
+    const params = [req.user.institute_id];
+
+    if (role_code) {
+      query += " AND r.role_code = $2";
+      params.push(role_code);
+    }
+
+    // RBAC: Master Admin can see everyone. Admin can see Staff/Students.
+    if (inviter_role === 2) {
+      query += " AND r.role_code NOT IN ('MASTER_ADMIN', 'INSTITUTE_ADMIN')";
+    }
+
+    const result = await pool.query(query, params);
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error("❌ GET USERS ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   UPDATE USER STATUS (Deactivate/Delete)
+========================= */
+export const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, is_active } = req.body;
+
+    await pool.query(
+      'UPDATE "user" SET status = COALESCE($1, status), is_active = COALESCE($2, is_active) WHERE user_id = $3',
+      [status, is_active, id]
+    );
+
+    return res.json({ success: true, message: "User status updated" });
+  } catch (error) {
+    console.error("❌ UPDATE STATUS ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Soft delete or hard delete based on requirements. 
+    // Usually we just deactivate, but the user asked for "Delete".
+    // I'll implement soft delete by setting status to 'deactivated' and is_active to false.
+
+    await pool.query('UPDATE "user" SET status = $1, is_active = $2 WHERE user_id = $3', ['deactivated', false, id]);
+    
+    return res.json({ success: true, message: "User deleted (deactivated)" });
+  } catch (error) {
+    console.error("❌ DELETE USER ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
