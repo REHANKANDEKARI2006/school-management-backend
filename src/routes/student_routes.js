@@ -6,11 +6,11 @@ import upload from "../middlewares/upload.js";
 
 const router = Router();
 
-// 📸 Upload photo (Admin)
+// 📸 Upload photo (Admin + Teacher + Principal)
 router.post(
   "/upload-photo",
   authMiddleware,
-  allowRoles(1, 2),
+  allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
   (req, res, next) => {
     upload.single("file")(req, res, function (err) {
       if (err) {
@@ -22,11 +22,11 @@ router.post(
   StudentController.uploadPhoto
 );
 
-// 👀 View students (Admin + Teacher)
+// 👀 View students (Admin + Teacher + Principal)
 router.get(
   "/",
   authMiddleware,
-  allowRoles(1, 2, 3, 4), // MASTER, ADMIN, TEACHER
+  allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
   StudentController.getAllStudents
 );
 
@@ -34,31 +34,31 @@ router.get(
 router.get(
   "/:id",
   authMiddleware,
-  allowRoles(1, 2, 3, 4),
+  allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
   StudentController.getStudentById
 );
 
-// ➕ Create student (Admin only)
+// ➕ Create student (Admin + Class Teacher + Principal)
 router.post(
   "/",
   authMiddleware,
-  allowRoles(1, 2),
+  allowRoles(1, 2, 4, 10, 11),
   StudentController.createStudent
 );
 
-// ✏️ Update student (Admin + Teacher)
+// ✏️ Update student (Admin + Teacher + Mentor + Principal)
 router.put(
   "/:id",
   authMiddleware,
-  allowRoles(1, 2, 3, 4),
+  allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
   StudentController.updateStudent
 );
 
-// ❌ Soft delete (ONLY MASTER ADMIN)
+// ❌ Soft delete (Admin + Class Teacher + Principal)
 router.delete(
   "/:id",
   authMiddleware,
-  allowRoles(1, 4), // MASTER ADMIN + CLASS TEACHER
+  allowRoles(1, 2, 4, 10, 11),
   StudentController.deleteStudent
 );
 

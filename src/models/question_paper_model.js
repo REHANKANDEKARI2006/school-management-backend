@@ -21,7 +21,7 @@ const QuestionPaperModel = {
     const values = [];
     let i = 1;
 
-    const allowedFields = ['title', 'total_marks', 'duration_mins', 'instructions', 'status', 'is_template'];
+    const allowedFields = ['title', 'total_marks', 'duration_mins', 'instructions', 'status', 'is_template', 'passing_marks', 'difficulty_level', 'shuffle_questions', 'shuffle_options', 'show_marks', 'show_instructions', 'exam_id', 'class_id', 'subject_id'];
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
         fields.push(`${field} = $${i++}`);
@@ -45,7 +45,7 @@ const QuestionPaperModel = {
   // 3. Hierarchical Get
   async getById(paper_id) {
     const paperQuery = `
-      SELECT qp.*, c.class_name, s.subject_name, e.exam_name
+      SELECT qp.*, c.class_name, s.subject_name, e.exam_name, e.date_time
       FROM question_papers qp
       LEFT JOIN class c ON c.class_id = qp.class_id
       LEFT JOIN subject s ON s.subject_id = qp.subject_id
@@ -110,7 +110,7 @@ const QuestionPaperModel = {
   async getUpcomingExams() {
     const query = `
       SELECT 
-        e.exam_id, e.exam_name, e.total_score, e.date_time,
+        e.exam_id, e.exam_name, e.total_score, e.date_time, e.duration_mins,
         c.class_id, c.class_name,
         s.subject_id, s.subject_name
       FROM exam e
@@ -176,14 +176,21 @@ const QuestionPaperModel = {
     const isUpdate = question_id && !isNaN(parseInt(question_id)) && parseInt(question_id) > 0;
     if (isUpdate) {
       const { rows } = await pool.query(
-        `UPDATE questions SET question_type = $1, question_text = $2, question_data = $3, marks = $4, question_order = $5 WHERE question_id = $6::integer RETURNING *`,
-        [data.question_type, data.question_text, JSON.stringify(data.question_data), data.marks, data.question_order, question_id]
+        `UPDATE questions SET question_type = $1, question_text = $2, question_data = $3, marks = $4, question_order = $5, difficulty = $7, answer_key = $8, explanation = $9, blooms_taxonomy = $10 WHERE question_id = $6::integer RETURNING *`,
+        [data.question_type, data.question_text, JSON.stringify(data.question_data), data.marks, data.question_order, question_id, data.difficulty || 'Medium', data.answer_key || null, data.explanation || null, data.blooms_taxonomy || null]
       );
       return rows[0];
     } else {
+      // Shift all questions in the same section with order >= target_order up by 1
+      if (data.question_order !== undefined) {
+        await pool.query(
+          `UPDATE questions SET question_order = question_order + 1 WHERE section_id = $1::integer AND question_order >= $2`,
+          [section_id, data.question_order]
+        );
+      }
       const { rows } = await pool.query(
-        `INSERT INTO questions (section_id, question_type, question_text, question_data, marks, question_order) VALUES ($1::integer, $2, $3, $4, $5, $6) RETURNING *`,
-        [section_id, data.question_type, data.question_text, JSON.stringify(data.question_data), data.marks, data.question_order]
+        `INSERT INTO questions (section_id, question_type, question_text, question_data, marks, question_order, difficulty, answer_key, explanation, blooms_taxonomy) VALUES ($1::integer, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [section_id, data.question_type, data.question_text, JSON.stringify(data.question_data), data.marks, data.question_order, data.difficulty || 'Medium', data.answer_key || null, data.explanation || null, data.blooms_taxonomy || null]
       );
       return rows[0];
     }

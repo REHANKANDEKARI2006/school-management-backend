@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ID Card Landscape</title>
+<%- include('../common/theme_variables', { theme: school.document_theme, is_theme_enabled: school.is_document_theme_enabled }) %>
+<%
+  const pc = 'var(--primary-color)';
+  const sc = 'var(--secondary-color)';
+  const initials = ((student.stu_first_name||'').charAt(0) + (student.stu_last_name||'').charAt(0)).toUpperCase() || '?';
+  const dobStr = student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}) : null;
+  const photoSrc = photoDataUrl || student.profile_url || null;
+  const logoSrc  = logoDataUrl  || school.logo_url    || null;
+  const sigSrc   = signatureDataUrl || school.signature_url || null;
+  const sansthaName = (school.organization_name && school.organization_name.trim()) ? school.organization_name.trim() : null;
+  const rollNo = student.student_id;
+  const acadYear = school.academic_year || '2025-26';
+%>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width: 324px; height: 204px; overflow: hidden;
+  background: transparent;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+.card {
+  width: 324px; height: 204px;
+  display: flex; flex-direction: column;
+  overflow: hidden; border-radius: 8px;
+  background: #fff;
+}
+
+/* ── Main row ── */
+.main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+/* ──────────────────────────────────────────
+   LEFT PANEL
+────────────────────────────────────────── */
+.left {
+  width: 118px; flex-shrink: 0;
+  background: var(--primary-color);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 7px 6px 5px;
+  overflow: hidden;
+}
+
+/* Logo circle */
+.logo-wrap {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid #fff; background: #fff;
+  overflow: hidden; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
+  margin-bottom: 3px;
+}
+.logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+.logo-wrap .lt { font-size: 9px; font-weight: 800; color: var(--primary-color); }
+
+/* Org name — gold italic */
+.org-name {
+  font-size: 5px; font-weight: 700; font-style: italic;
+  color: #facc15; text-align: center; line-height: 1.2;
+  margin-bottom: 2px; padding: 0 2px;
+}
+
+/* School name — white bold */
+.school-name {
+  font-size: 8px; font-weight: 800; color: #fff;
+  text-align: center; line-height: 1.2;
+  margin-bottom: 3px; padding: 0 2px;
+}
+
+/* Gold dot divider */
+.gold-div {
+  display: flex; align-items: center; justify-content: center;
+  width: 55%; margin: 0 0 3px;
+}
+.gold-div::before, .gold-div::after {
+  content: ''; flex: 1; height: 1px; background: #facc15;
+}
+.gold-div .dot {
+  width: 3px; height: 3px; background: #facc15;
+  border-radius: 50%; margin: 0 2px;
+}
+
+/* Address */
+.school-addr {
+  font-size: 4.5px; color: rgba(255,255,255,0.85);
+  text-align: center; line-height: 1.3;
+  margin-bottom: 4px; padding: 0 2px;
+}
+
+/* Photo */
+.photo-wrap {
+  width: 66px; height: 72px;
+  border: 2.5px solid #fff; border-radius: 6px;
+  overflow: hidden; flex-shrink: 0;
+  background: #e2e8f0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  margin-top: auto;
+}
+.photo-wrap img { width: 100%; height: 100%; object-fit: cover; }
+.photo-wrap .ph-init { font-size: 20px; font-weight: 700; color: #475569; }
+
+/* ──────────────────────────────────────────
+   RIGHT PANEL
+────────────────────────────────────────── */
+.right {
+  flex: 1; display: flex; flex-direction: column;
+  padding: 8px 10px 5px 10px; overflow: hidden;
+  background: #fff;
+}
+
+/* Student name — large, always dark/black */
+.stu-name {
+  font-size: 17px; font-weight: 800; color: #1e293b;
+  line-height: 1; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+/* Class — theme color (design element, not data) */
+.stu-cls {
+  font-size: 7.5px; font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 3px;
+}
+
+/* ── Detail rows ── */
+.rows-container {
+  display: flex; flex-direction: column; width: 100%;
+  border-top: 0.8px dashed #cbd5e1;
+}
+.row {
+  display: flex; align-items: center;
+  padding: 2px 0;
+  border-bottom: 0.8px dashed #cbd5e1;
+}
+.row:last-child { border-bottom: none; }
+
+/* Icon — fixed black */
+.icon {
+  width: 7px; height: 7px; margin-right: 3px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.icon svg { width: 100%; height: 100%; fill: #1e293b; }
+
+/* Field label — fixed bold black */
+.rl {
+  font-size: 5px; font-weight: 800;
+  color: #1e293b;
+  width: 68px; flex-shrink: 0; line-height: 1.1;
+}
+
+/* Colon separator */
+.rc { font-size: 5px; font-weight: 800; color: #1e293b; margin-right: 3px; line-height: 1; }
+
+/* Value — ALWAYS BOLD BLACK, fixed, never changes with theme */
+.rv {
+  font-size: 5.5px; font-weight: 800; color: #1e293b;
+  flex: 1; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Multi-line address value */
+.rv-addr {
+  font-size: 5.5px; font-weight: 800; color: #1e293b;
+  flex: 1; line-height: 1.3; white-space: normal;
+}
+
+/* ── Bottom area ── */
+.bottom-area {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 3px;
+}
+.gold-line { height: 1.5px; background: #facc15; margin-bottom: 3px; }
+.sig-row {
+  display: flex; align-items: flex-end; justify-content: flex-end;
+}
+.sig-area { display: flex; flex-direction: column; align-items: center; }
+.sig-area img { height: 14px; max-width: 48px; object-fit: contain; }
+.sig-line { width: 48px; border-bottom: 0.8px solid #94a3b8; margin-bottom: 1px; }
+.sig-lbl {
+  font-size: 4.5px; font-weight: 800; letter-spacing: 0.03em;
+  color: #d4a017; text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="main">
+
+    <!-- ════════════ LEFT PANEL ════════════ -->
+    <div class="left">
+      <!-- School logo -->
+      <div class="logo-wrap">
+        <% if (logoSrc) { %><img src="<%= logoSrc %>" alt="Logo">
+        <% } else { %><span class="lt"><%= (school.school_name||'').charAt(0) %></span><% } %>
+      </div>
+
+      <!-- Org name in gold italic -->
+      <% if (sansthaName) { %>
+        <div class="org-name"><%= sansthaName %></div>
+      <% } %>
+
+      <!-- School name in white bold -->
+      <div class="school-name"><%= school.school_name %></div>
+
+      <!-- Gold dot divider -->
+      <div class="gold-div"><div class="dot"></div></div>
+
+      <!-- Address -->
+      <% if (school.address) { %>
+        <div class="school-addr"><%= school.address %></div>
+      <% } %>
+
+      <!-- Student photo -->
+      <div class="photo-wrap">
+        <% if (photoSrc) { %><img src="<%= photoSrc %>" alt="Photo">
+        <% } else { %><span class="ph-init"><%= initials %></span><% } %>
+      </div>
+    </div>
+
+    <!-- ════════════ RIGHT PANEL ════════════ -->
+    <div class="right">
+      <!-- Student name — always black -->
+      <div class="stu-name"><%= student.stu_first_name %> <%= student.stu_last_name %></div>
+
+      <!-- Class — theme color (it's a design label, not student data) -->
+      <div class="stu-cls">Class <%= student.class_name %><% if (student.section_name) { %>-<%= student.section_name %><% } %></div>
+
+      <!-- Data rows -->
+      <div class="rows-container">
+
+        <!-- ID / Roll Number -->
+        <div class="row">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zm0 2v12h16V6H4zm3 3h4v4H7V9zm5 0h5v1.5h-5V9zm0 2.5h5V13h-5v-1.5z"/></svg></div>
+          <span class="rl">ID Number / Roll Number</span><span class="rc">:</span>
+          <span class="rv"><%= rollNo %></span>
+        </div>
+
+        <% if (dobStr) { %>
+        <div class="row">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg></div>
+          <span class="rl">Date of Birth</span><span class="rc">:</span>
+          <span class="rv"><%= dobStr %></span>
+        </div>
+        <% } %>
+
+        <% if (student.blood_group) { %>
+        <div class="row">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg></div>
+          <span class="rl">Blood Group</span><span class="rc">:</span>
+          <span class="rv"><%= student.blood_group %></span>
+        </div>
+        <% } %>
+
+        <% if (student.primary_contact) { %>
+        <div class="row">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.15 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.25 1.12.37 2.32.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div>
+          <span class="rl">Parent Contact No.</span><span class="rc">:</span>
+          <span class="rv"><%= student.primary_contact %></span>
+        </div>
+        <% } %>
+
+        <% if (student.father_name) { %>
+        <div class="row">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>
+          <span class="rl">Father Name</span><span class="rc">:</span>
+          <span class="rv"><%= student.father_name %></span>
+        </div>
+        <% } %>
+
+        <% if (acadYear) { %>
+        <div class="row">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg></div>
+          <span class="rl">Academic Year</span><span class="rc">:</span>
+          <span class="rv"><%= acadYear %></span>
+        </div>
+        <% } %>
+
+        <% if (student.address) { %>
+        <div class="row" style="align-items:flex-start; padding:2px 0 1px;">
+          <div class="icon" style="margin-top:1px;"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+          <span class="rl" style="padding-top:0px;">Address</span><span class="rc" style="padding-top:0px;">:</span>
+          <span class="rv-addr"><%= student.address %></span>
+        </div>
+        <% } %>
+
+      </div>
+
+      <!-- Gold separator + signature -->
+      <div class="bottom-area">
+        <div class="gold-line"></div>
+        <div class="sig-row">
+          <div class="sig-area">
+            <% if (sigSrc) { %><img src="<%= sigSrc %>" alt="Sig">
+            <% } else { %><div class="sig-line"></div><% } %>
+            <span class="sig-lbl">Authorized Signatory</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════════ FOOTER ════════════ -->
+  <div style="flex-shrink:0; height:16px; background:var(--primary-color); display:flex; align-items:center; justify-content:center;">
+    <span style="font-size:5.5px; font-weight:600; color:#fff; letter-spacing:0.04em;">Valid for Academic Session <%= acadYear %></span>
+  </div>
+
+</div>
+</body>
+</html>

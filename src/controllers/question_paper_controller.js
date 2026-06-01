@@ -66,6 +66,16 @@ const QuestionPaperController = {
     }
   },
 
+  // POST /api/question-papers/:id/publish
+  async publishPaper(req, res) {
+    try {
+      const data = await QuestionPaperModel.updatePaper(req.params.id, { status: 'Published' });
+      res.json({ success: true, data });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
   // DELETE /api/question-papers/:id
   async deletePaper(req, res) {
     try {
@@ -138,20 +148,34 @@ const QuestionPaperController = {
       const generateAnswerKey = req.body.generateAnswerKey === true;
       const config = (school && school.document_config && school.document_config['EXAMINATION_PAPER']) || { header: true, footer: true };
 
-      const templatePath = path.join(__dirname, '..', 'templates', 'question-paper', 'revamped_paper.ejs');
-      const html = await ejs.renderFile(templatePath, { paper, school, generateAnswerKey, config });
+      let html = req.body.html;
+      if (!html) {
+        const templatePath = path.join(__dirname, '..', 'templates', 'question-paper', 'revamped_paper.ejs');
+        html = await ejs.renderFile(templatePath, { paper, school, generateAnswerKey, config });
+      }
 
       browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
-      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        displayHeaderFooter: false,
+        margin: req.body.html ? { top: '0', bottom: '0', left: '0', right: '0' } : {
+          top: '5mm',
+          bottom: '5mm',
+          left: '5mm',
+          right: '5mm'
+        },
+        preferCSSPageSize: true
+      });
       await browser.close();
 
       // Log activity
       try {
           const { DashboardService } = await import("../services/dashboard_service.js");
           await DashboardService.addActivityEntry(
-              req.user.user_id,
+              req.user?.user_id,
               'paper_generated',
               `Question paper generated: ${paper.title}`
           );
@@ -159,6 +183,7 @@ const QuestionPaperController = {
 
       res.send(pdfBuffer);
     } catch (err) {
+      console.error("PDF generation failed:", err);
       if (browser) await browser.close();
       res.status(500).json({ success: false, message: err.message });
     }

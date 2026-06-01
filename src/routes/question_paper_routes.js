@@ -12,6 +12,7 @@ router.get("/:id", QuestionPaperController.getById);
 router.patch("/:id", QuestionPaperController.updatePaper);
 router.delete("/:id", QuestionPaperController.deletePaper);
 router.post("/:id/duplicate", QuestionPaperController.duplicate);
+router.post("/:id/publish", QuestionPaperController.publishPaper);
 
 // Sections & Questions
 router.post("/:paper_id/sections", QuestionPaperController.upsertSection);

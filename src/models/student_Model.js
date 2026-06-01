@@ -1,5 +1,7 @@
 import { Pool } from "pg";
 import dotenv from "dotenv";
+import crypto from "crypto";
+import { emailService } from "../services/email_service.js";
 
 dotenv.config();
 
@@ -12,7 +14,7 @@ export const StudentModel = {
   /* =========================
      GET ALL
   ========================= */
-  async getAll() {
+  async getAll(instituteId) {
     const { rows } = await pool.query(`
       SELECT 
         s.student_id,
@@ -23,11 +25,14 @@ export const StudentModel = {
         s.joined_date,
         s.user_status_id,
         s.profile_url,
+        g.email AS parent_email,
         c.class_id,
         c.class_name,
         sec.section_name,
         ust.status_name
       FROM student s
+      INNER JOIN "user" u ON u.user_id = s.student_user_id
+      LEFT JOIN guardian g ON g.student_id = s.student_id
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id
         AND ce.status_id = 1
@@ -35,16 +40,17 @@ export const StudentModel = {
       LEFT JOIN section sec ON sec.section_id = c.section_id
       LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
       WHERE s.is_deleted = FALSE
+        AND u.institute_id = $1
       ORDER BY s.student_id DESC
-    `);
+    `, [instituteId]);
     return rows;
   },
 
   /* =========================
      GET BY CLASS ID (for grade entry)
   ========================= */
-  async getByClassId(classId) {
-    console.log(`StudentModel.getByClassId called with classId: ${classId}`);
+  async getByClassId(classId, instituteId) {
+    console.log(`StudentModel.getByClassId called with classId: ${classId}, instituteId: ${instituteId}`);
     const { rows } = await pool.query(`
       SELECT
         s.student_id,
@@ -53,15 +59,23 @@ export const StudentModel = {
         s.stu_last_name,
         s.email,
         s.user_status_id,
-        s.profile_url
+        s.profile_url,
+        s.joined_date,
+        g.grdn_first_name AS father_name,
+        g.grdn_last_name  AS mother_name,
+        g.phone           AS primary_contact,
+        s.email           AS student_email
       FROM student s
+      INNER JOIN "user" u ON u.user_id = s.student_user_id
       INNER JOIN class_enrollment ce
         ON ce.student_id = s.student_id
         AND ce.class_id = $1
         AND ce.status_id = 1
+      LEFT JOIN guardian g ON g.student_id = s.student_id
       WHERE s.is_deleted = FALSE
+        AND u.institute_id = $2
       ORDER BY s.stu_first_name, s.stu_last_name
-    `, [classId]);
+    `, [classId, instituteId]);
     console.log(`StudentModel.getByClassId returned ${rows.length} rows`);
     return rows;
   },
@@ -82,6 +96,7 @@ export const StudentModel = {
         s.joined_date,
         s.user_status_id,
         s.profile_url,
+        s.gender_id,
         bg.blood_group AS blood_group,
         g.grdn_first_name AS father_name,
         g.grdn_last_name  AS mother_name,
@@ -152,13 +167,17 @@ export const StudentModel = {
         class_id,
         profile_url,
         avatar, // Fallback for frontend
+        gender_id,
       } = data;
 
       const finalProfileUrl = profile_url || avatar;
 
-      const safeStudentEmail = email || `student_${Date.now()}@temp.com`;
+      const safeStudentEmail = email || `${stu_first_name.toLowerCase().replace(/\s/g, '')}${Date.now().toString().slice(-4)}@student.com`;
       const safeGuardianEmail =
         parentEmail || `guardian_${Date.now()}@temp.com`;
+
+      const inviteToken = crypto.randomBytes(32).toString("hex");
+      const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       /* ---------- CREATE STUDENT USER ---------- */
       const studentUserRes = await client.query(
@@ -169,17 +188,23 @@ export const StudentModel = {
           email,
           password_hash,
           role_id,
-          is_active
+          is_active,
+          status,
+          invite_token,
+          invite_token_expiry
         )
-        VALUES ($1,$2,$3,$4,$5,true)
+        VALUES ($1,$2,$3,$4,$5,false,$6,$7,$8)
         RETURNING user_id
         `,
         [
           safeStudentEmail,
           authUser.institute_id,
           safeStudentEmail,
-          "TEMP_PASSWORD",
+          "PENDING",
           18,
+          "pending",
+          inviteToken,
+          inviteTokenExpiry
         ]
       );
 
@@ -198,9 +223,10 @@ export const StudentModel = {
           bg_id,
           user_status_id,
           joined_date,
-          profile_url
+          profile_url,
+          gender_id
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         RETURNING student_id
         `,
         [
@@ -214,6 +240,7 @@ export const StudentModel = {
           user_status_id,
           joined_date,
           finalProfileUrl,
+          gender_id ? Number(gender_id) : null,
         ]
       );
 
@@ -285,7 +312,41 @@ export const StudentModel = {
       );
 
       await client.query("COMMIT");
-      return { student_id: studentId };
+
+      let emailSent = false;
+      let emailError = null;
+
+      try {
+        // 1. Send Invitation to Student via Guardian's Email
+        await emailService.sendInvitation({
+          to: safeGuardianEmail,
+          name: `${stu_first_name} ${stu_last_name}`,
+          role: "Student",
+          token: inviteToken,
+          loginEmail: safeGuardianEmail
+        });
+
+        // 2. Send Confirmation to Guardian
+        let className = "Assigned Class";
+        if (class_id) {
+          const classRes = await pool.query('SELECT class_name FROM class WHERE class_id = $1', [class_id]);
+          if (classRes.rows.length > 0) className = classRes.rows[0].class_name;
+        }
+
+        await emailService.sendStudentEnrollmentConfirmation({
+          to: safeGuardianEmail,
+          guardianName: fatherName || "Guardian",
+          studentName: `${stu_first_name} ${stu_last_name}`,
+          className: className,
+          enrollmentDate: new Date(joined_date || Date.now()).toLocaleDateString(),
+        });
+        emailSent = true;
+      } catch (emailErr) {
+        console.error("❌ Student Creation Emails Failed:", emailErr.message);
+        emailError = emailErr.message;
+      }
+
+      return { student_id: studentId, email_sent: emailSent, email_error: emailError };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -317,9 +378,17 @@ export const StudentModel = {
         class_id,
         profile_url,
         avatar, // Handle 'avatar' from frontend
+        gender_id,
       } = data;
 
       const finalProfileUrl = profile_url || avatar;
+
+      // Fetch old status
+      const oldStudentRes = await client.query(
+        'SELECT user_status_id FROM student WHERE student_id = $1',
+        [id]
+      );
+      const oldStatusId = oldStudentRes.rows[0]?.user_status_id;
 
       await client.query(
         `
@@ -332,8 +401,9 @@ export const StudentModel = {
           bg_id          = $5,
           user_status_id = $6,
           profile_url    = COALESCE($7, profile_url),
+          gender_id      = $8,
           updated_at     = NOW()
-        WHERE student_id = $8
+        WHERE student_id = $9
           AND is_deleted = FALSE
         `,
         [
@@ -344,6 +414,7 @@ export const StudentModel = {
           bg_id,
           user_status_id,
           finalProfileUrl,
+          gender_id ? Number(gender_id) : null,
           id,
         ]
       );
@@ -391,6 +462,27 @@ export const StudentModel = {
       }
 
       await client.query("COMMIT");
+
+      // Send notification if status changed and valid parent email is provided
+      if (oldStatusId !== undefined && Number(oldStatusId) !== Number(user_status_id) && parentEmail) {
+        try {
+          const statusNameRes = await pool.query(
+            'SELECT status_name FROM user_status WHERE user_status_id = $1',
+            [user_status_id]
+          );
+          const statusName = statusNameRes.rows[0]?.status_name || `Status #${user_status_id}`;
+          const studentName = `${stu_first_name} ${stu_last_name}`;
+
+          await emailService.sendStudentStatusUpdateNotification({
+            to: parentEmail,
+            studentName,
+            statusName
+          });
+        } catch (emailErr) {
+          console.error("❌ Failed to send student status update email:", emailErr.message);
+        }
+      }
+
       return { success: true };
     } catch (err) {
       await client.query("ROLLBACK");
@@ -410,9 +502,12 @@ export const StudentModel = {
 
       // Delete child records for student
       await client.query("DELETE FROM class_enrollment WHERE student_id = $1", [id]);
-      await client.query("DELETE FROM attendance WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM attendance_record WHERE student_id = $1", [id]);
       await client.query("DELETE FROM exam_grades WHERE student_id = $1", [id]);
       await client.query("DELETE FROM fee_collection WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM event_attendance WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM promotion WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM generated_documents WHERE student_id = $1", [id]);
       
       // Delete guardian and its related user record
       const { rows } = await client.query("DELETE FROM guardian WHERE student_id = $1 RETURNING guardian_user_id", [id]);

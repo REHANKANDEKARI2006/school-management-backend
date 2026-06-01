@@ -218,5 +218,23 @@ export const LeaveController = {
       console.error('getCalendarData error:', err);
       res.status(500).json({ success: false, error: err.message });
     }
+  },
+
+  // GET /api/leaves/available-teachers?date=2026-06-01&period_number=3&leave_application_id=5
+  async getAvailableTeachers(req, res) {
+    try {
+      const { date, period_number, leave_application_id } = req.query;
+      if (!date || !period_number) {
+        return res.status(400).json({ success: false, error: 'date and period_number are required' });
+      }
+      const teachers = await LeaveService.getAvailableTeachersForPeriod(
+        date, parseInt(period_number), leave_application_id ? parseInt(leave_application_id) : null
+      );
+      res.json({ success: true, data: teachers });
+    } catch (err) {
+      console.error('getAvailableTeachers error:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   }
 };
+

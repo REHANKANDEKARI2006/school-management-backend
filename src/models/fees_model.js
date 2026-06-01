@@ -111,7 +111,7 @@ export const FeesModel = {
       receipt_no
     } = data;
 
-    const res = await pool.query(
+    const insertRes = await pool.query(
       `
       INSERT INTO fee_collection
         (student_id, fee_struct_id, amount_paid, payment_date, installment_no, receipt_no)
@@ -127,7 +127,21 @@ export const FeesModel = {
         receipt_no ?? null
       ]
     );
-    return res.rows[0];
+    const row = insertRes.rows[0];
+
+    // Auto-generate receipt number if it doesn't exist
+    if (!row.receipt_no) {
+      const year = new Date(row.payment_date).getFullYear();
+      const generatedReceiptNo = `REC-${year}-${String(row.collection_id).padStart(4, '0')}`;
+      
+      const updateRes = await pool.query(
+        `UPDATE fee_collection SET receipt_no = $1 WHERE collection_id = $2 RETURNING *`,
+        [generatedReceiptNo, row.collection_id]
+      );
+      return updateRes.rows[0];
+    }
+
+    return row;
   },
 
   async getStudentFeeCollection(studentId) {
@@ -135,10 +149,13 @@ export const FeesModel = {
       `
       SELECT
         fc.*,
-        fs.amount AS total_amount
+        fs.amount AS total_amount,
+        fc_cat.category_name
       FROM fee_collection fc
       JOIN fee_structure fs ON fs.fee_struct_id = fc.fee_struct_id
+      JOIN fee_category fc_cat ON fs.fee_cat_id = fc_cat.fee_category_id
       WHERE fc.student_id = $1
+      ORDER BY fc.payment_date DESC, fc.collection_id DESC
       `,
       [studentId]
     );

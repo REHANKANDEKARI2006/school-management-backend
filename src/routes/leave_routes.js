@@ -31,6 +31,9 @@ router.post('/reject/:id',          authMiddleware, LeaveController.rejectLeave)
 router.get('/my-duties',            authMiddleware, LeaveController.getMySubstituteDuties);
 router.patch('/duties/respond',     authMiddleware, LeaveController.respondToSubstituteDuty);
 
+// Available teachers for manual substitute selection (must be before /:id)
+router.get('/available-teachers',     authMiddleware, LeaveController.getAvailableTeachers);
+
 // Individual application
 router.get('/:id',                  authMiddleware, LeaveController.getApplicationById);
 

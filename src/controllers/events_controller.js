@@ -6,6 +6,14 @@ import { computeStatus } from "../utils/computeStatus.js";
 // Create Event (enhanced with class assignments + period exchange)
 export const createEvent = async (req, res) => {
   try {
+    const { role_id } = req.user;
+    const isTeacher = [3, 4, 5].includes(Number(role_id));
+    if (isTeacher) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Teachers are not permitted to perform this action."
+      });
+    }
     const data = await EventsService.createEventWithExchange(req.body);
     res.status(201).json({
       success: true,
@@ -81,6 +89,14 @@ export const getEventDetail = async (req, res) => {
 // Update Event
 export const updateEvent = async (req, res) => {
   try {
+    const { role_id } = req.user;
+    const isTeacher = [3, 4, 5].includes(Number(role_id));
+    if (isTeacher) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Teachers are not permitted to perform this action."
+      });
+    }
     const data = await EventsService.updateEvent(req.params.id, req.body);
     res.json({
       success: true,
@@ -98,6 +114,14 @@ export const updateEvent = async (req, res) => {
 // Delete Event
 export const deleteEvent = async (req, res) => {
   try {
+    const { role_id } = req.user;
+    const isTeacher = [3, 4, 5].includes(Number(role_id));
+    if (isTeacher) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Teachers are not permitted to perform this action."
+      });
+    }
     await EventsService.deleteEvent(req.params.id);
     res.json({
       success: true,
@@ -248,6 +272,22 @@ export const getPhotos = async (req, res) => {
       data
     });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Delete a specific photo (admin only)
+export const deletePhoto = async (req, res) => {
+  try {
+    const { photoId } = req.params;
+    const data = await EventsService.deleteEventPhoto(photoId, null);
+    res.json({
+      success: true,
+      message: "Photo deleted successfully",
+      data
+    });
+  } catch (error) {
+    console.error("EVENT_PHOTO_DELETE_ERROR:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

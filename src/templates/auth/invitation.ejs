@@ -3,40 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're invited to CampusConnect</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f7f6; }
-        .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .header { background-color: <%= branding.primaryColor %>; padding: 40px 20px; text-align: center; color: white; }
-        .header img { max-width: 150px; margin-bottom: 20px; }
-        .content { padding: 40px 30px; }
-        .footer { background: #f8fafc; padding: 20px 30px; text-align: center; font-size: 12px; color: #64748b; }
-        .button { display: inline-block; padding: 14px 30px; background-color: <%= branding.primaryColor %>; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 25px; }
-        .social-links { margin-top: 15px; }
-        .social-links a { margin: 0 10px; color: #64748b; text-decoration: none; }
-        h1 { margin: 0; font-size: 24px; }
-        p { margin: 15px 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
+            color: #334155;
+            padding: 30px 16px;
+        }
+        .wrapper {
+            max-width: 580px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+        }
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, <%= branding.primaryColor %> 0%, #1d4ed8 100%);
+            padding: 40px 32px 36px;
+            text-align: center;
+        }
+        .header img {
+            max-width: 100px;
+            max-height: 60px;
+            object-fit: contain;
+            margin-bottom: 16px;
+            filter: brightness(0) invert(1);
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.3px;
+        }
+        .header p {
+            font-size: 14px;
+            color: rgba(255,255,255,0.8);
+            margin-top: 6px;
+        }
+        /* Body */
+        .body {
+            padding: 36px 32px;
+        }
+        .greeting {
+            font-size: 16px;
+            color: #1e293b;
+            margin-bottom: 12px;
+        }
+        .greeting strong {
+            color: #0f172a;
+        }
+        .message {
+            font-size: 15px;
+            color: #475569;
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+        /* Role badge */
+        .role-badge {
+            display: inline-block;
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 28px;
+        }
+        /* CTA Button */
+        .cta-wrapper {
+            text-align: center;
+            margin: 28px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 14px 36px;
+            background: <%= branding.primaryColor %>;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+        }
+        /* Divider */
+        .divider {
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 28px 0;
+        }
+        /* Expiry warning */
+        .expiry-box {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .expiry-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+        .expiry-text { font-size: 13px; color: #92400e; line-height: 1.5; }
+        .expiry-text strong { color: #78350f; }
+        /* Fallback URL */
+        .url-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-size: 11px;
+            color: #64748b;
+            word-break: break-all;
+        }
+        .url-box a { color: #3b82f6; }
+        /* Footer */
+        .footer {
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 20px 32px;
+            text-align: center;
+        }
+        .footer p { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+        .footer strong { color: #64748b; }
     </style>
 </head>
 <body>
-    <div class="container">
+<div class="wrapper">
+    <div class="card">
+
+        <!-- HEADER -->
         <div class="header">
-            <img src="<%= branding.logoUrl %>" alt="<%= branding.schoolName %> Logo">
-            <h1>Welcome to <%= branding.schoolName %></h1>
+            <img src="<%= branding.logoUrl %>" alt="<%= branding.schoolName %> Logo" onerror="this.style.display='none'">
+            <h1><%= branding.schoolName %></h1>
+            <p>School Management System</p>
         </div>
-        <div class="content">
-            <p>Hello <strong><%= name %></strong>,</p>
-            <p>You have been added as <strong><%= role %></strong> to <strong><%= branding.schoolName %></strong> School Management System.</p>
-            <p>To access your account, please click the button below to set your password:</p>
-            <div style="text-align: center;">
-                <a href="<%= setPasswordUrl %>" class="button">SET YOUR PASSWORD</a>
+
+        <!-- BODY -->
+        <div class="body">
+            <p class="greeting">Hello, <strong><%= name %></strong> 👋</p>
+            <p class="message">
+                You have been invited to join <strong><%= branding.schoolName %></strong>'s
+                school management platform — CampusConnect.
+            </p>
+
+            <p class="message">Your assigned role is:</p>
+            <span class="role-badge"><%= role %></span>
+
+            <p class="message" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 24px;">
+                <strong>Your Login Username/Email:</strong> <br/>
+                <span style="color: #2563eb; font-weight: 600;"><%= loginEmail %></span>
+            </p>
+
+            <p class="message">
+                Click the button below to set your password and activate your account.
+                You'll be able to log in immediately after.
+            </p>
+
+            <div class="cta-wrapper">
+                <a href="<%= setPasswordUrl %>" class="cta-button">Set Your Password &rarr;</a>
             </div>
-            <p style="margin-top: 30px; color: #e11d48; font-size: 14px;"><strong>Note:</strong> This link will expire in 24 hours.</p>
-            <p>If you did not expect this email, please ignore it. This link will become invalid automatically.</p>
+
+            <hr class="divider">
+
+            <!-- Expiry Notice -->
+            <div class="expiry-box">
+                <span class="expiry-icon">⏰</span>
+                <div class="expiry-text">
+                    <strong>This link expires in 24 hours.</strong><br>
+                    If it expires, contact your administrator to resend the invitation.
+                </div>
+            </div>
+
+            <!-- Fallback URL in case button doesn't render -->
+            <p style="font-size:13px; color:#94a3b8; margin-bottom:8px;">
+                If the button above doesn't work, copy and paste this link into your browser:
+            </p>
+            <div class="url-box">
+                <a href="<%= setPasswordUrl %>"><%= setPasswordUrl %></a>
+            </div>
+
+            <p style="font-size:13px; color:#94a3b8; margin-top:20px;">
+                If you didn't expect this invitation, you can safely ignore this email.
+                The link will expire automatically.
+            </p>
         </div>
+
+        <!-- FOOTER -->
         <div class="footer">
-            <p>© <%= new Date().getFullYear() %> <%= branding.schoolName %>. All rights reserved.</p>
-            <p>Powered by CampusConnect</p>
+            <p>
+                &copy; <%= new Date().getFullYear() %> <strong><%= branding.schoolName %></strong>. All rights reserved.<br>
+                Powered by <strong>CampusConnect</strong>
+            </p>
         </div>
+
     </div>
+</div>
 </body>
 </html>

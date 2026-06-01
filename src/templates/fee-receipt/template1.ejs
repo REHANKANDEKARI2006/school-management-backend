@@ -1,0 +1,398 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    color: #111827;
+    background: #fff;
+}
+.receipt-wrapper {
+    width: 297mm; /* A4 Landscape */
+    height: 210mm;
+    padding: 5mm 10mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    background: white;
+}
+.receipt-half {
+    width: 48%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+.divider {
+    width: 1px;
+    border-left: 2px dashed #9ca3af;
+    margin: 0 5mm;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 6px;
+}
+.school-name {
+    font-size: 20px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 0 0 5px 0;
+}
+.school-address {
+    font-size: 11px;
+    margin: 0 0 3px 0;
+}
+.school-contact {
+    font-size: 11px;
+    margin: 0;
+}
+
+/* Receipt Banner */
+.receipt-banner {
+    border: 1px solid #111827;
+    text-align: center;
+    padding: 4px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    background: #f9fafb;
+}
+
+/* Common Table Styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+table, th, td {
+    border: 1px solid #111827;
+}
+th {
+    background: #f9fafb;
+    font-weight: 700;
+    text-align: center;
+    padding: 4px 8px;
+}
+td {
+    padding: 4px 8px;
+    font-weight: 600;
+}
+
+/* Info Table */
+.info-table td:nth-child(odd) {
+    width: 20%;
+    background: #f9fafb;
+}
+.info-table td:nth-child(even) {
+    width: 30%;
+}
+
+/* Particulars Table */
+.particulars-table th {
+    padding: 8px;
+}
+.particulars-table td.col-sr {
+    text-align: center;
+    width: 10%;
+}
+.particulars-table td.col-particular {
+    width: 60%;
+}
+.particulars-table td.col-amount {
+    text-align: right;
+    width: 30%;
+}
+
+.totals-row td {
+    text-align: right;
+    font-weight: 700;
+}
+
+/* Footer Info */
+.footer-info {
+    border: 1px solid #111827;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.footer-info-row {
+    display: flex;
+    border-bottom: 1px solid #111827;
+}
+.footer-info-row:last-child {
+    border-bottom: none;
+}
+.footer-label {
+    width: 25%;
+    padding: 6px 10px;
+    background: #f9fafb;
+    border-right: 1px solid #111827;
+}
+.footer-value {
+    width: 75%;
+    padding: 6px 10px;
+}
+
+/* Signatures */
+.signatures {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: auto;
+    padding: 0 10px;
+}
+.sig-line {
+    border-top: 1px solid #111827;
+    padding-top: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    width: 150px;
+    text-align: center;
+}
+.thank-you {
+    text-align: center;
+    font-weight: 700;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+</style>
+
+<% 
+// Helper to convert number to words
+function numberToWords(num) {
+    const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
+    const b = ['', '', 'Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
+    if ((num = num.toString()).length > 9) return 'overflow';
+    let n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+    if (!n) return;
+    let str = '';
+    str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
+    str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
+    str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
+    str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
+    str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) + 'Only' : 'Only';
+    return str;
+}
+const amtWords = numberToWords(amount || payment.amount_paid || 0);
+%>
+
+<div class="receipt-wrapper">
+    <!-- Student Copy -->
+    <div class="receipt-half">
+        <div class="header">
+            <h1 class="school-name"><%= school.organization_name || school.school_name %></h1>
+            <p class="school-address"><%= school.address %></p>
+            <p class="school-contact">Phone: <%= school.phone %></p>
+        </div>
+        
+        <div class="receipt-banner">FEES RECEIPT</div>
+
+        <table class="info-table">
+            <tr>
+                <td>Receipt No.</td>
+                <td><%= payment.receipt_no || '-' %></td>
+                <td>Date</td>
+                <td><%= new Date(payment.payment_date || new Date()).toLocaleDateString('en-GB') %></td>
+            </tr>
+            <tr>
+                <td>Student ID</td>
+                <td><%= student.student_id %></td>
+                <td>Academic Year</td>
+                <td><%= school.academic_year || '2025-26' %></td>
+            </tr>
+            <tr>
+                <td>Student Name</td>
+                <td><%= student.stu_first_name %> <%= student.stu_last_name %></td>
+                <td>Class / Standard</td>
+                <td><%= student.class_name || '-' %></td>
+            </tr>
+            <tr>
+                <td>Father's Name</td>
+                <td><%= student.father_name || '-' %></td>
+                <td>Section</td>
+                <td><%= student.section_name || '-' %></td>
+            </tr>
+        </table>
+
+        <table class="particulars-table">
+            <thead>
+                <tr>
+                    <th class="col-sr">Sr. No.</th>
+                    <th class="col-particular">Fee Particulars</th>
+                    <th class="col-amount">Amount (₹)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- If itemized fees exist -->
+                <% if (payment.particulars && payment.particulars.length > 0) { %>
+                    <% payment.particulars.forEach((item, idx) => { %>
+                        <tr>
+                            <td class="col-sr"><%= idx + 1 %></td>
+                            <td class="col-particular"><%= item.name %></td>
+                            <td class="col-amount"><%= Number(item.amount).toFixed(2) %></td>
+                        </tr>
+                    <% }) %>
+                    <!-- Fill empty rows to match design height -->
+                    <% for(let i=payment.particulars.length; i<5; i++) { %>
+                        <tr><td class="col-sr">&nbsp;</td><td></td><td></td></tr>
+                    <% } %>
+                <% } else { %>
+                    <!-- Default fallback -->
+                    <tr>
+                        <td class="col-sr">1</td>
+                        <td class="col-particular">School Fees</td>
+                        <td class="col-amount"><%= Number(amount).toFixed(2) %></td>
+                    </tr>
+                    <% for(let i=2; i<=5; i++) { %>
+                        <tr><td class="col-sr"><%= i %></td><td></td><td></td></tr>
+                    <% } %>
+                <% } %>
+                <tr class="totals-row">
+                    <td colspan="2">Total Amount</td>
+                    <td><%= Number(amount).toFixed(2) %></td>
+                </tr>
+                <tr class="totals-row">
+                    <td colspan="2">Paid Amount</td>
+                    <td><%= Number(amount).toFixed(2) %></td>
+                </tr>
+                <tr class="totals-row">
+                    <td colspan="2">Balance Amount</td>
+                    <td>0.00</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="footer-info">
+            <div class="footer-info-row">
+                <div class="footer-label">Amount in Words</div>
+                <div class="footer-value">: Rupees <%= amtWords %></div>
+            </div>
+            <div class="footer-info-row">
+                <div class="footer-label">Payment Mode</div>
+                <div class="footer-value">: <%= payment.payment_mode || 'Cash' %></div>
+            </div>
+        </div>
+
+        <div class="signatures">
+            <div class="sig-line">Receiver's Signature</div>
+            <div class="thank-you">Thank You!</div>
+            <div class="sig-line">Authorized Signature</div>
+        </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="divider"></div>
+
+    <!-- School Copy (Identical to Student Copy) -->
+    <div class="receipt-half">
+        <div class="header">
+            <h1 class="school-name"><%= school.organization_name || school.school_name %></h1>
+            <p class="school-address"><%= school.address %></p>
+            <p class="school-contact">Phone: <%= school.phone %></p>
+        </div>
+        
+        <div class="receipt-banner">FEES RECEIPT</div>
+
+        <table class="info-table">
+            <tr>
+                <td>Receipt No.</td>
+                <td><%= payment.receipt_no || '-' %></td>
+                <td>Date</td>
+                <td><%= new Date(payment.payment_date || new Date()).toLocaleDateString('en-GB') %></td>
+            </tr>
+            <tr>
+                <td>Student ID</td>
+                <td><%= student.student_id %></td>
+                <td>Academic Year</td>
+                <td><%= school.academic_year || '2025-26' %></td>
+            </tr>
+            <tr>
+                <td>Student Name</td>
+                <td><%= student.stu_first_name %> <%= student.stu_last_name %></td>
+                <td>Class / Standard</td>
+                <td><%= student.class_name || '-' %></td>
+            </tr>
+            <tr>
+                <td>Father's Name</td>
+                <td><%= student.father_name || '-' %></td>
+                <td>Section</td>
+                <td><%= student.section_name || '-' %></td>
+            </tr>
+        </table>
+
+        <table class="particulars-table">
+            <thead>
+                <tr>
+                    <th class="col-sr">Sr. No.</th>
+                    <th class="col-particular">Fee Particulars</th>
+                    <th class="col-amount">Amount (₹)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- If itemized fees exist -->
+                <% if (payment.particulars && payment.particulars.length > 0) { %>
+                    <% payment.particulars.forEach((item, idx) => { %>
+                        <tr>
+                            <td class="col-sr"><%= idx + 1 %></td>
+                            <td class="col-particular"><%= item.name %></td>
+                            <td class="col-amount"><%= Number(item.amount).toFixed(2) %></td>
+                        </tr>
+                    <% }) %>
+                    <!-- Fill empty rows to match design height -->
+                    <% for(let i=payment.particulars.length; i<5; i++) { %>
+                        <tr><td class="col-sr">&nbsp;</td><td></td><td></td></tr>
+                    <% } %>
+                <% } else { %>
+                    <!-- Default fallback -->
+                    <tr>
+                        <td class="col-sr">1</td>
+                        <td class="col-particular">School Fees</td>
+                        <td class="col-amount"><%= Number(amount).toFixed(2) %></td>
+                    </tr>
+                    <% for(let i=2; i<=5; i++) { %>
+                        <tr><td class="col-sr"><%= i %></td><td></td><td></td></tr>
+                    <% } %>
+                <% } %>
+                <tr class="totals-row">
+                    <td colspan="2">Total Amount</td>
+                    <td><%= Number(amount).toFixed(2) %></td>
+                </tr>
+                <tr class="totals-row">
+                    <td colspan="2">Paid Amount</td>
+                    <td><%= Number(amount).toFixed(2) %></td>
+                </tr>
+                <tr class="totals-row">
+                    <td colspan="2">Balance Amount</td>
+                    <td>0.00</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="footer-info">
+            <div class="footer-info-row">
+                <div class="footer-label">Amount in Words</div>
+                <div class="footer-value">: Rupees <%= amtWords %></div>
+            </div>
+            <div class="footer-info-row">
+                <div class="footer-label">Payment Mode</div>
+                <div class="footer-value">: <%= payment.payment_mode || 'Cash' %></div>
+            </div>
+        </div>
+
+        <div class="signatures">
+            <div class="sig-line">Receiver's Signature</div>
+            <div class="thank-you">Thank You!</div>
+            <div class="sig-line">Authorized Signature</div>
+        </div>
+    </div>
+
+</div>

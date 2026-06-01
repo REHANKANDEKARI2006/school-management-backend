@@ -10,6 +10,7 @@ import { StudentModel } from "../models/student_Model.js";
    LOGIN CONTROLLER
 ========================= */
 export const login = async (req, res) => {
+  console.log(`🔑 Login attempt for: ${req.body.email}`);
   try {
     const { email, password } = req.body;
     const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -72,7 +73,8 @@ export const login = async (req, res) => {
     if (user.status === "deactivated" || !user.is_active) {
       return res.status(403).json({
         success: false,
-        message: "Account is disabled. Please contact administrator.",
+        deactivated: true,
+        message: "Your account is deactivated!",
       });
     }
 
@@ -201,9 +203,9 @@ export const refreshToken = (req, res) => {
       }
 
       try {
-        // 🔍 Fetch user's current role and institute to ensure token is complete
+        // 🔍 Fetch user's current role, institute, status, and is_active to ensure token is complete
         const userRes = await pool.query(
-          'SELECT role_id, institute_id FROM "user" WHERE user_id = $1',
+          'SELECT role_id, institute_id, status, is_active FROM "user" WHERE user_id = $1',
           [decoded.user_id]
         );
 
@@ -211,7 +213,15 @@ export const refreshToken = (req, res) => {
           return res.status(401).json({ success: false, message: "User not found" });
         }
 
-        const { role_id, institute_id } = userRes.rows[0];
+        const { role_id, institute_id, status, is_active } = userRes.rows[0];
+
+        if (status === "deactivated" || !is_active) {
+          return res.status(401).json({
+            success: false,
+            deactivated: true,
+            message: "Your account is deactivated!",
+          });
+        }
 
         const newAccessToken = jwt.sign(
           { 
@@ -278,20 +288,65 @@ export const getProfile = async (req, res) => {
 
     if (role_id === 18) { // STUDENT
       const studentResult = await pool.query(
-        `SELECT stu_first_name, stu_last_name, email, profile_url, address FROM student WHERE student_user_id = $1 OR LOWER(email) = LOWER($2)`,
-        [user_id, userEmail]
+        `SELECT 
+          s.student_id,
+          s.stu_first_name, 
+          s.stu_last_name, 
+          s.email, 
+          s.profile_url, 
+          s.address, 
+          s.bg_id, 
+          bg.blood_group as blood_group_name,
+          c.class_name,
+          sec.section_name,
+          ce.class_id
+         FROM student s
+         LEFT JOIN blood_group bg ON s.bg_id = bg.bg_id
+         LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+         LEFT JOIN class c ON c.class_id = ce.class_id
+         LEFT JOIN section sec ON sec.section_id = c.section_id
+         WHERE s.student_user_id = $1 AND s.is_deleted = FALSE`,
+        [user_id]
       );
       if (studentResult.rows.length > 0) {
         const s = studentResult.rows[0];
         profile.name = `${s.stu_first_name || ""} ${s.stu_last_name || ""}`.trim() || profile.name;
         profile.email = s.email;
         profile.profile_url = s.profile_url;
+        profile.photo = s.profile_url || "/avatars/default.png";
         profile.address = s.address;
+        profile.bg_id = s.bg_id;
+        profile.blood_group_name = s.blood_group_name || "";
+        profile.class = s.class_name || "";
+        profile.section = s.section_name || "";
+        
+        let rollNo = "N/A";
+        if (s.class_id) {
+          const rollRes = await pool.query(
+            `WITH enrolled_students AS (
+              SELECT 
+                st.student_id,
+                ROW_NUMBER() OVER (ORDER BY st.stu_first_name, st.stu_last_name) as roll_number
+              FROM student st
+              JOIN class_enrollment ce ON ce.student_id = st.student_id AND ce.status_id = 1
+              WHERE ce.class_id = $1 AND st.is_deleted = FALSE
+            )
+            SELECT roll_number FROM enrolled_students WHERE student_id = $2`,
+            [s.class_id, s.student_id]
+          );
+          if (rollRes.rows.length > 0) {
+            rollNo = String(rollRes.rows[0].roll_number);
+          }
+        }
+        profile.rollNo = rollNo;
       }
     } else if (role_id === 20) { // GUARDIAN
       const guardianResult = await pool.query(
-        `SELECT grdn_first_name, grdn_last_name, email, address, phone, profile_url FROM guardian WHERE guardian_user_id = $1 OR LOWER(email) = LOWER($2)`,
-        [user_id, userEmail]
+        `SELECT g.grdn_first_name, g.grdn_last_name, g.email, g.address, g.phone, g.profile_url, g.bg_id, bg.blood_group as blood_group_name 
+         FROM guardian g
+         LEFT JOIN blood_group bg ON g.bg_id = bg.bg_id
+         WHERE g.guardian_user_id = $1`,
+        [user_id]
       );
       if (guardianResult.rows.length > 0) {
         const g = guardianResult.rows[0];
@@ -299,12 +354,17 @@ export const getProfile = async (req, res) => {
         profile.email = g.email;
         profile.address = g.address;
         profile.phone = g.phone || profile.phone;
+        profile.bg_id = g.bg_id;
+        profile.blood_group_name = g.blood_group_name || "";
         if (g.profile_url) profile.profile_url = g.profile_url;
       }
     } else if (role_id === 2) { // INSTITUTE_ADMIN
       const adminResult = await pool.query(
-        `SELECT admin_first_name, admin_last_name, email, contact, profile_url FROM admin WHERE user_id = $1 OR LOWER(email) = LOWER($2)`,
-        [user_id, userEmail]
+        `SELECT a.admin_first_name, a.admin_last_name, a.email, a.contact, a.profile_url, a.bg_id, bg.blood_group as blood_group_name 
+         FROM admin a
+         LEFT JOIN blood_group bg ON a.bg_id = bg.bg_id
+         WHERE a.user_id = $1`,
+        [user_id]
       );
       if (adminResult.rows.length > 0) {
         const a = adminResult.rows[0];
@@ -312,11 +372,16 @@ export const getProfile = async (req, res) => {
         profile.email = a.email;
         profile.phone = a.contact || profile.phone;
         profile.profile_url = a.profile_url;
+        profile.bg_id = a.bg_id;
+        profile.blood_group_name = a.blood_group_name || "";
       }
     } else if (role_id === 1) { // MASTER_ADMIN
       const mAdminResult = await pool.query(
-        `SELECT m_admin_first_name, m_admin_last_name, email, phone, profile_url FROM master_admin WHERE user_id = $1 OR LOWER(email) = LOWER($2)`,
-        [user_id, userEmail]
+        `SELECT m.m_admin_first_name, m.m_admin_last_name, m.email, m.phone, m.profile_url, m.bg_id, bg.blood_group as blood_group_name 
+         FROM master_admin m
+         LEFT JOIN blood_group bg ON m.bg_id = bg.bg_id
+         WHERE m.user_id = $1`,
+        [user_id]
       );
       if (mAdminResult.rows.length > 0) {
         const m = mAdminResult.rows[0];
@@ -324,6 +389,8 @@ export const getProfile = async (req, res) => {
         profile.email = m.email;
         profile.phone = m.phone || profile.phone;
         profile.profile_url = m.profile_url;
+        profile.bg_id = m.bg_id;
+        profile.blood_group_name = m.blood_group_name || "";
       }
     } else {
       // Default Staff lookup
@@ -341,17 +408,20 @@ export const getProfile = async (req, res) => {
           s.bg_id,
           bg.blood_group as blood_group_name,
           s.user_status_id,
-          ust.status_name as status_name
+          ust.status_name as status_name,
+          c.class_id as assigned_class_id
         FROM staff s
         LEFT JOIN subject sub ON s.subject_id = sub.subject_id
         LEFT JOIN blood_group bg ON s.bg_id = bg.bg_id
         LEFT JOIN user_status ust ON s.user_status_id = ust.user_status_id
-        WHERE s.user_id = $1 OR LOWER(s.email) = LOWER($2)`,
-        [user_id, userEmail]
+        LEFT JOIN class c ON c.staff_id = s.staff_id
+        WHERE s.user_id = $1`,
+        [user_id]
       );
       if (staffResult.rows.length > 0) {
         const s = staffResult.rows[0];
         profile.staff_id = s.staff_id;
+        profile.assigned_class_id = s.assigned_class_id;
         profile.name = `${s.staff_first_name || ""} ${s.staff_last_name || ""}`.trim() || profile.name;
         profile.email = s.email;
         profile.profile_url = s.profile_url;
@@ -365,20 +435,25 @@ export const getProfile = async (req, res) => {
         profile.user_status_id = s.user_status_id;
         profile.status_name = s.status_name || "Active";
 
-        // Auto-Revert Logic: If status is 'On Leave' but no current leaves exist, set back to 'Active'
-        if (profile.user_status_id === 7) {
-          const leaveCheck = await pool.query(
-            `SELECT 1 FROM leave_applications 
-             WHERE teacher_id = $1 AND status = 'approved' 
-             AND CURRENT_DATE BETWEEN from_date AND to_date`,
-            [s.staff_id]
-          );
-          if (leaveCheck.rows.length === 0) {
-             console.log(`Auto-Reverting staff_id ${s.staff_id} to Active status.`);
-             await pool.query(`UPDATE staff SET user_status_id = 1 WHERE staff_id = $1`, [s.staff_id]);
-             profile.user_status_id = 1;
-             profile.status_name = 'Active';
-          }
+        // Dynamic "On Leave" Logic: Dynamically check if today is within an approved leave period
+        const leaveCheck = await pool.query(
+          `SELECT 1 FROM leave_applications 
+           WHERE teacher_id = $1 AND status = 'approved' 
+           AND CURRENT_DATE BETWEEN from_date::date AND to_date::date`,
+          [s.staff_id]
+        );
+        
+        if (leaveCheck.rows.length > 0) {
+           if (profile.user_status_id !== 7) {
+              await pool.query(`UPDATE staff SET user_status_id = 7 WHERE staff_id = $1`, [s.staff_id]);
+              profile.user_status_id = 7;
+           }
+           profile.status_name = 'On Leave';
+        } else if (profile.user_status_id === 7) {
+           console.log(`Auto-Reverting staff_id ${s.staff_id} to Active status as leave period ended.`);
+           await pool.query(`UPDATE staff SET user_status_id = 1 WHERE staff_id = $1`, [s.staff_id]);
+           profile.user_status_id = 1;
+           profile.status_name = 'Active';
         }
       }
     }
@@ -445,11 +520,10 @@ export const updateProfile = async (req, res) => {
     }
 
     // 2. Update role-specific table
-    // We use user_id primarily, but emails in some tables might need sync if changed (not implementing email change yet)
     if (role_id === 18) { // STUDENT
       await pool.query(
-        `UPDATE student SET stu_first_name = $1, stu_last_name = $2, address = $3, profile_url = $4 WHERE student_user_id = $5`,
-        [firstName, lastName, address, profileUrl, user_id]
+        `UPDATE student SET stu_first_name = $1, stu_last_name = $2, address = $3, profile_url = $4, bg_id = $5 WHERE student_user_id = $6`,
+        [firstName, lastName, address, profileUrl, bg_id, user_id]
       );
     } else if (role_id === 20) { // GUARDIAN
       await pool.query(
@@ -458,9 +532,10 @@ export const updateProfile = async (req, res) => {
              grdn_last_name = $2, 
              address = $3, 
              phone = $4,
-             profile_url = $5
-         WHERE guardian_user_id = $6`,
-        [firstName, lastName, address, phone, profileUrl, user_id]
+             profile_url = $5,
+             bg_id = $6
+         WHERE guardian_user_id = $7`,
+        [firstName, lastName, address, phone, profileUrl, bg_id, user_id]
       );
     } else if (role_id === 2) { // INSTITUTE_ADMIN
       await pool.query(
@@ -468,9 +543,10 @@ export const updateProfile = async (req, res) => {
          SET admin_first_name = $1, 
              admin_last_name = $2, 
              contact = $3,
-             profile_url = $4
-         WHERE user_id = $5`,
-        [firstName, lastName, phone, profileUrl, user_id]
+             profile_url = $4,
+             bg_id = $5
+         WHERE user_id = $6`,
+        [firstName, lastName, phone, profileUrl, bg_id, user_id]
       );
     } else if (role_id === 1) { // MASTER_ADMIN
       await pool.query(
@@ -478,9 +554,10 @@ export const updateProfile = async (req, res) => {
          SET m_admin_first_name = $1, 
              m_admin_last_name = $2, 
              phone = $3,
-             profile_url = $4
-         WHERE user_id = $5`,
-        [firstName, lastName, phone, profileUrl, user_id]
+             profile_url = $4,
+             bg_id = $5
+         WHERE user_id = $6`,
+        [firstName, lastName, phone, profileUrl, bg_id, user_id]
       );
     } else {
       // Default Staff lookup
@@ -620,92 +697,160 @@ export const uploadAvatar = async (req, res) => {
    INVITE USER (Admin/Teacher/Staff)
 ========================= */
 export const inviteUser = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { name, email, phone, role_code, designation } = req.body;
     const inviter_id = req.user.user_id;
     const inviter_role = Number(req.user.role_id);
+    const institute_id = req.user.institute_id;
 
     if (!name || !email || !role_code) {
       return res.status(400).json({ success: false, message: "Name, email, and role are required" });
     }
 
     // 1. RBAC Check
-    // Master Admin (1) can create Institute Admin
-    // Institute Admin (2) can create Teachers, Staff, Students
-    if (inviter_role === 1 && role_code !== "INSTITUTE_ADMIN") {
-      return res.status(403).json({ success: false, message: "Master Admin can only invite Institute Admins" });
+    // Master Admin (1) can invite anyone.
+    // Institute Admin (2) can invite anyone except Master Admin.
+    if (inviter_role === 2 && role_code === "MASTER_ADMIN") {
+      return res.status(403).json({ success: false, message: "Admins are not authorized to invite a Master Admin." });
     }
-    if (inviter_role === 2 && !["TEACHER", "OFFICE_STAFF", "STUDENT"].includes(role_code)) {
-      return res.status(403).json({ success: false, message: "Admins can only invite Teachers, Staff, and Students" });
-    }
-
-    // 2. Check if user already exists
-    const existing = await pool.query('SELECT user_id FROM "user" WHERE LOWER(email) = LOWER($1)', [email]);
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ success: false, message: "User with this email already exists" });
+    
+    if (inviter_role === 2 && !["TEACHER", "OFFICE_STAFF", "STUDENT", "PRINCIPAL", "VICE_PRINCIPAL", "CASHIER", "ACCOUNTANT", "ADMISSION_OFFICER", "MANAGEMENT_MEMBER", "HR_MANAGER", "IT_SUPPORT", "LIBRARIAN", "LAB_ASSISTANT", "SPORTS_MANAGER", "COUNSELLOR", "LIBRARY_ASSISTANT", "INSTITUTE_ADMIN"].includes(role_code)) {
+      return res.status(403).json({ success: false, message: "Admins are not authorized to invite this role type." });
     }
 
-    // 3. Get Role ID
-    const roleRes = await pool.query("SELECT role_id FROM user_role WHERE role_code = $1", [role_code]);
+    // 2. Lookup role_id
+    const roleRes = await client.query("SELECT role_id FROM user_role WHERE role_code = $1", [role_code]);
     if (roleRes.rows.length === 0) {
-      return res.status(400).json({ success: false, message: "Invalid role code" });
+      throw Object.assign(new Error("Invalid role code"), { status: 400 });
     }
     const role_id = roleRes.rows[0].role_id;
 
-    // 4. Generate Token
-    const invite_token = crypto.randomBytes(32).toString("hex");
-    const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await client.query("BEGIN");
 
-    // 5. Create User Record
-    const userRes = await pool.query(
-      `INSERT INTO "user" (
-        user_name, email, phone, role_id, 
-        institute_id, status, is_active,
-        invite_token, invite_token_expiry, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING user_id`,
-      [
-        name, email, phone || null, role_id, 
-        req.user.institute_id, "pending", false,
-        invite_token, invite_token_expiry, inviter_id
-      ]
-    );
+    // 3. Check if user already exists
+    const userCheck = await client.query('SELECT user_id, status FROM "user" WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    
+    let userId;
+    let invite_token = null;
+    let isNewUser = false;
 
-    const userId = userRes.rows[0].user_id;
+    if (userCheck.rows.length > 0) {
+      userId = userCheck.rows[0].user_id;
+      
+      // ── Check for Role-Specific Duplication ──
+      if (role_code === "INSTITUTE_ADMIN") {
+        const adminCheck = await client.query('SELECT admin_id FROM admin WHERE user_id = $1 LIMIT 1', [userId]);
+        if (adminCheck.rows.length > 0) {
+          throw Object.assign(new Error(`A user with the email ${email} is already an Admin in the system.`), { status: 409 });
+        }
+      } else if (role_code === "TEACHER" || role_code === "OFFICE_STAFF") {
+        const staffCheck = await client.query('SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1', [userId]);
+        if (staffCheck.rows.length > 0) {
+          throw Object.assign(new Error(`A user with the email ${email} is already a Faculty or Staff member.`), { status: 409 });
+        }
+      } else if (role_code === "STUDENT") {
+        const studentCheck = await client.query('SELECT student_id FROM student WHERE student_user_id = $1 LIMIT 1', [userId]);
+        if (studentCheck.rows.length > 0) {
+          throw Object.assign(new Error(`A user with the email ${email} is already registered as a Student.`), { status: 409 });
+        }
+      }
+    } else {
+      // 4. New User Account
+      invite_token = crypto.randomBytes(32).toString("hex");
+      const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // 6. Create Role-Specific Record (Staff/Admin/Student)
-    // For now we assume they go into their respective tables
+      const userRes = await client.query(
+        `INSERT INTO "user" (
+          user_name, email, phone, role_id, 
+          institute_id, status, is_active,
+          invite_token, invite_token_expiry, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING user_id`,
+        [
+          name, email, phone || null, role_id, 
+          institute_id, "pending", false,
+          invite_token, invite_token_expiry, inviter_id
+        ]
+      );
+      userId = userRes.rows[0].user_id;
+      isNewUser = true;
+    }
+
+    // 4. Create Role-Specific Record
     if (role_code === "INSTITUTE_ADMIN") {
-      await pool.query(
-        `INSERT INTO admin (user_id, admin_first_name, email, contact, user_status_id) VALUES ($1, $2, $3, $4, 13)`,
-        [userId, name, email, phone || "", 13] // 13 = Pending Approval
+      await client.query(
+        `INSERT INTO admin (user_id, admin_first_name, email, contact, user_status_id) VALUES ($1, $2, $3, $4, $5)`,
+        [userId, name, email, phone || "", 13]
       );
     } else if (role_code === "TEACHER" || role_code === "OFFICE_STAFF") {
-      await pool.query(
-        `INSERT INTO staff (user_id, staff_first_name, email, contact, designation, user_status_id) VALUES ($1, $2, $3, $4, $5, 13)`,
-        [userId, name, email, phone || "", designation || role_code, 13]
+      await client.query(
+        `INSERT INTO staff (user_id, staff_first_name, email, contact, role_id, title, user_status_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, name, email, phone || "", role_code === "TEACHER" ? 3 : 12, designation || role_code, 13]
       );
     } else if (role_code === "STUDENT") {
-      await pool.query(
-        `INSERT INTO student (student_user_id, stu_first_name, email, user_status_id) VALUES ($1, $2, $3, 13)`,
+      await client.query(
+        `INSERT INTO student (student_user_id, stu_first_name, email, user_status_id) VALUES ($1, $2, $3, $4)`,
         [userId, name, email, 13]
+      );
+    } else {
+      // Fallback for all other Staff/Admin roles
+      await client.query(
+        `INSERT INTO staff (user_id, staff_first_name, email, contact, role_id, title, user_status_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, name, email, phone || "", roleRes.rows[0].role_id, designation || role_code, 13]
       );
     }
 
-    // 7. Send Invitation Email
-    await emailService.sendInvitation({
-      to: email,
-      name: name,
-      role: role_code.replace("_", " "),
-      token: invite_token,
-    });
+    await client.query("COMMIT");
+
+    // 5. Send Invitation Email (non-blocking)
+    let emailSent = false;
+    let emailError = null;
+
+    // We only send invitation if it's a new user OR if they were already pending (re-invite)
+    const isPending = isNewUser || (userCheck.rows[0]?.status === "pending");
+    
+    // If user already exists and is active, we don't need a token, they can just login
+    // BUT usually the admin wants to notify them. For now, let's follow the token flow if pending.
+    if (isPending) {
+      // If they were already pending, we need a token. If we didn't generate one above (reuse case), generate it now.
+      if (!invite_token) {
+        invite_token = crypto.randomBytes(32).toString("hex");
+        const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await pool.query('UPDATE "user" SET invite_token = $1, invite_token_expiry = $2 WHERE user_id = $3', [invite_token, invite_token_expiry, userId]);
+      }
+
+      try {
+        await emailService.sendInvitation({
+          to: email,
+          name: name,
+          role: role_code.replace(/_/g, " "),
+          token: invite_token,
+        });
+        emailSent = true;
+      } catch (emailErr) {
+        emailError = emailErr.message;
+        console.error("❌ Invitation email failed:", emailErr.message);
+      }
+    }
 
     return res.json({
       success: true,
-      message: `Invitation sent successfully to ${email}`,
+      message: emailSent
+        ? `Invitation sent successfully to ${email}`
+        : isNewUser
+          ? `User created but email delivery failed. Error: ${emailError}`
+          : `User was already in the system. They have been added to ${role_code} and can log in with their existing credentials.`,
+      email_sent: emailSent,
     });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("❌ INVITE USER ERROR:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(error.status || 500).json({ 
+      success: false, 
+      message: error.message || "Server error" 
+    });
+  } finally {
+    client.release();
   }
 };
 
@@ -765,22 +910,28 @@ export const verifyInviteToken = async (req, res) => {
   try {
     const { token } = req.query;
     if (!token) return res.status(400).json({ success: false, message: "Token required" });
+    const cleanToken = token.trim();
 
     const userRes = await pool.query(
-      'SELECT user_id, user_name, invite_token_expiry FROM "user" WHERE invite_token = $1',
-      [token]
+      'SELECT user_id, user_name, email, invite_token_expiry FROM "user" WHERE invite_token = $1',
+      [cleanToken]
     );
 
     if (userRes.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "This invitation link is invalid. Please contact your administrator." });
+      // Check if it was already used
+      const usedRes = await pool.query('SELECT 1 FROM used_tokens WHERE token = $1 AND token_type = \'invite\'', [cleanToken]);
+      if (usedRes.rows.length > 0) {
+        return res.json({ success: false, message: "You have already set your password using this link. Please log in.", isExpired: false });
+      }
+      return res.json({ success: false, message: "This invitation link is invalid. Please contact your administrator.", isExpired: false });
     }
 
     const user = userRes.rows[0];
     if (new Date() > new Date(user.invite_token_expiry)) {
-      return res.status(400).json({ success: false, message: "This invitation link has expired. Please contact your administrator." });
+      return res.json({ success: false, message: "This invitation link has expired. Please contact your administrator.", isExpired: true });
     }
 
-    return res.json({ success: true, name: user.user_name });
+    return res.json({ success: true, name: user.user_name, email: user.email });
   } catch (error) {
     console.error("❌ VERIFY TOKEN ERROR:", error);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -796,10 +947,11 @@ export const setPassword = async (req, res) => {
     if (!token || !password) {
       return res.status(400).json({ success: false, message: "Token and password are required" });
     }
+    const cleanToken = token.trim();
 
     const userRes = await pool.query(
       'SELECT user_id, user_name, email, invite_token_expiry FROM "user" WHERE invite_token = $1',
-      [token]
+      [cleanToken]
     );
 
     if (userRes.rows.length === 0) {
@@ -813,6 +965,11 @@ export const setPassword = async (req, res) => {
 
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    await pool.query(
+      'INSERT INTO used_tokens (token, token_type, user_id) VALUES ($1, \'invite\', $2)',
+      [cleanToken, user.user_id]
+    );
 
     await pool.query(
       'UPDATE "user" SET password_hash = $1, status = $2, is_active = $3, invite_token = NULL, invite_token_expiry = NULL WHERE user_id = $4',
@@ -907,6 +1064,11 @@ export const resetPassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     await pool.query(
+      'INSERT INTO used_tokens (token, token_type, user_id) VALUES ($1, \'reset\', $2)',
+      [token, user.user_id]
+    );
+
+    await pool.query(
       'UPDATE "user" SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2',
       [hashedPassword, user.user_id]
     );
@@ -920,6 +1082,42 @@ export const resetPassword = async (req, res) => {
     return res.json({ success: true, message: "Password reset successfully. You can now login." });
   } catch (error) {
     console.error("❌ RESET PASSWORD ERROR:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+/* =========================
+   VERIFY RESET TOKEN
+ ========================= */
+export const verifyResetToken = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ success: false, message: "Token required" });
+
+    const userRes = await pool.query(
+      'SELECT user_id, user_name, email, reset_token_expiry FROM "user" WHERE reset_token = $1',
+      [token]
+    );
+
+    if (userRes.rows.length === 0) {
+      const usedRes = await pool.query('SELECT 1 FROM used_tokens WHERE token = $1 AND token_type = \'reset\'', [token]);
+      if (usedRes.rows.length > 0) {
+        return res.json({ success: false, message: "You have already reset your password using this link. Please log in." });
+      }
+      return res.json({ 
+        success: false, 
+        message: "This password reset link is invalid or has already been used." 
+      });
+    }
+
+    const user = userRes.rows[0];
+    if (new Date() > new Date(user.reset_token_expiry)) {
+      return res.json({ success: false, message: "This password reset link has expired." });
+    }
+
+    return res.json({ success: true, name: user.user_name, email: user.email });
+  } catch (error) {
+    console.error("❌ VERIFY RESET TOKEN ERROR:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -968,10 +1166,113 @@ export const updateUserStatus = async (req, res) => {
     const { id } = req.params;
     const { status, is_active } = req.body;
 
-    await pool.query(
-      'UPDATE "user" SET status = COALESCE($1, status), is_active = COALESCE($2, is_active) WHERE user_id = $3',
-      [status, is_active, id]
+    const userRes = await pool.query(
+      `SELECT u.email, u.user_name, u.role_id, r.role_code, u.status, u.is_active 
+       FROM "user" u
+       LEFT JOIN user_role r ON u.role_id = r.role_id
+       WHERE u.user_id = $1`,
+      [id]
     );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const oldUser = userRes.rows[0];
+    const isDeactivating = (status === 'deactivated' && oldUser.status !== 'deactivated') || 
+                           (is_active === false && oldUser.is_active !== false);
+
+    const isReactivating = (status === 'active' && oldUser.status === 'deactivated') || 
+                           (is_active === true && oldUser.is_active === false) ||
+                           (is_active === true && oldUser.status === 'deactivated');
+
+    if (isReactivating) {
+      const invite_token = crypto.randomBytes(32).toString("hex");
+      const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      
+      await pool.query(
+        'UPDATE "user" SET status = $1, is_active = $2, invite_token = $3, invite_token_expiry = $4 WHERE user_id = $5',
+        ['pending', false, invite_token, invite_token_expiry, id]
+      );
+
+      // Pending user status in sub-tables (13 = Pending)
+      await pool.query('UPDATE admin SET user_status_id = 13 WHERE user_id = $1', [id]);
+      await pool.query('UPDATE staff SET user_status_id = 13 WHERE user_id = $1', [id]);
+      await pool.query('UPDATE student SET user_status_id = 13 WHERE student_user_id = $1', [id]);
+
+      try {
+        await emailService.sendInvitation({
+          to: oldUser.email,
+          name: oldUser.user_name,
+          role: oldUser.role_code.replace(/_/g, " "),
+          token: invite_token,
+        });
+      } catch (emailErr) {
+        console.error("❌ Failed to send reactivation invitation email:", emailErr);
+      }
+    } else {
+      await pool.query(
+        'UPDATE "user" SET status = COALESCE($1, status), is_active = COALESCE($2, is_active) WHERE user_id = $3',
+        [status, is_active, id]
+      );
+
+      if (is_active !== undefined) {
+        const statusId = is_active ? 1 : 2;
+        await pool.query('UPDATE admin SET user_status_id = $1 WHERE user_id = $2', [statusId, id]);
+        await pool.query('UPDATE staff SET user_status_id = $1 WHERE user_id = $2', [statusId, id]);
+        await pool.query('UPDATE student SET user_status_id = $1 WHERE student_user_id = $2', [statusId, id]);
+      }
+
+      if (isDeactivating && oldUser.role_code === 'INSTITUTE_ADMIN') {
+        try {
+          await emailService.sendDeactivationNotification({
+            to: oldUser.email,
+            name: oldUser.user_name,
+          });
+        } catch (emailErr) {
+          console.error("❌ Failed to send deactivation email:", emailErr);
+        }
+      }
+    }
+
+    // Send status update notification if student's status was updated
+    if (oldUser.role_id === 18 || oldUser.role_code === 'STUDENT') {
+      let newStatusId = null;
+      if (isReactivating) {
+        newStatusId = 13; // Pending
+      } else if (is_active !== undefined) {
+        newStatusId = is_active ? 1 : 2; // Active or Suspended/Inactive
+      } else if (status === 'deactivated') {
+        newStatusId = 2; // Suspended/Inactive
+      }
+
+      if (newStatusId !== null) {
+        try {
+          const studentRes = await pool.query(
+            `SELECT s.stu_first_name, s.stu_last_name, g.email AS parent_email, ust.status_name
+             FROM student s
+             LEFT JOIN guardian g ON g.student_id = s.student_id
+             LEFT JOIN user_status ust ON ust.user_status_id = $1
+             WHERE s.student_user_id = $2`,
+            [newStatusId, id]
+          );
+          if (studentRes.rows.length > 0) {
+            const { stu_first_name, stu_last_name, parent_email, status_name } = studentRes.rows[0];
+            const recipientEmail = parent_email || oldUser.email;
+            if (recipientEmail) {
+              const studentName = `${stu_first_name} ${stu_last_name}`;
+              await emailService.sendStudentStatusUpdateNotification({
+                to: recipientEmail,
+                studentName,
+                statusName: status_name || `Status #${newStatusId}`
+              });
+            }
+          }
+        } catch (emailErr) {
+          console.error("❌ Failed to send student status update email via updateUserStatus:", emailErr.message);
+        }
+      }
+    }
 
     return res.json({ success: true, message: "User status updated" });
   } catch (error) {
@@ -981,18 +1282,45 @@ export const updateUserStatus = async (req, res) => {
 };
 
 export const deleteUser = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    // Soft delete or hard delete based on requirements. 
-    // Usually we just deactivate, but the user asked for "Delete".
-    // I'll implement soft delete by setting status to 'deactivated' and is_active to false.
+    const currentUserId = req.user.user_id;
 
-    await pool.query('UPDATE "user" SET status = $1, is_active = $2 WHERE user_id = $3', ['deactivated', false, id]);
+    if (Number(id) === Number(currentUserId)) {
+      return res.status(400).json({ success: false, message: "You cannot delete your own account" });
+    }
+
+    await client.query("BEGIN");
+
+    // 1. Delete from role-specific tables
+    await client.query('DELETE FROM admin WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM staff WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM student WHERE student_user_id = $1', [id]);
+    await client.query('DELETE FROM guardian WHERE guardian_user_id = $1', [id]);
     
-    return res.json({ success: true, message: "User deleted (deactivated)" });
+    // 2. Delete from login_attempts (cleanup)
+    const userEmailRes = await client.query('SELECT email FROM "user" WHERE user_id = $1', [id]);
+    if (userEmailRes.rows.length > 0) {
+       // We don't have IP here, but we can't easily delete by email from login_attempts anyway as it's IP based.
+    }
+
+    // 3. Delete from main user table
+    const result = await client.query('DELETE FROM "user" WHERE user_id = $1', [id]);
+
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    await client.query("COMMIT");
+    return res.json({ success: true, message: "User account permanently deleted" });
   } catch (error) {
+    await client.query("ROLLBACK");
     console.error("❌ DELETE USER ERROR:", error);
     return res.status(500).json({ success: false, message: "Server error" });
+  } finally {
+    client.release();
   }
 };
 

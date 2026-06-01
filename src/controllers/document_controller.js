@@ -6,10 +6,16 @@ export const DocumentController = {
     try {
       const studentId = req.params.studentId;
       const { user_id, role_id } = req.user;
+      const templateId = req.query.template || null;
 
       // Isolation Check
       if ([3, 4, 5].includes(role_id)) {
-        const studentRes = await pool.query(`SELECT class_id FROM student WHERE student_id = $1`, [studentId]);
+        const studentRes = await pool.query(
+          `SELECT ce.class_id FROM student s 
+           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+           WHERE s.student_id = $1`, 
+          [studentId]
+        );
         const staffRes = await pool.query(
           `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
           [user_id]
@@ -19,7 +25,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateIdCard(studentId, user_id);
+      const pdfBuffer = await DocumentService.generateIdCard(studentId, user_id, templateId);
 
       // Log activity
       try {
@@ -40,14 +46,21 @@ export const DocumentController = {
     }
   },
 
+
   async generateBonafide(req, res) {
     try {
       const studentId = req.params.studentId;
       const { user_id, role_id } = req.user;
+      const templateId = req.query.template || null;
 
       // Isolation Check
       if ([3, 4, 5].includes(role_id)) {
-        const studentRes = await pool.query(`SELECT class_id FROM student WHERE student_id = $1`, [studentId]);
+        const studentRes = await pool.query(
+          `SELECT ce.class_id FROM student s 
+           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+           WHERE s.student_id = $1`, 
+          [studentId]
+        );
         const staffRes = await pool.query(
           `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
           [user_id]
@@ -57,7 +70,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBonafide(studentId, user_id);
+      const pdfBuffer = await DocumentService.generateBonafide(studentId, user_id, templateId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bonafide_${studentId}.pdf"`);
@@ -67,10 +80,43 @@ export const DocumentController = {
       res.status(500).json({ success: false, message: "Error generating Bonafide PDF" });
     }
   },
-
-  async generateBulkIdCards(req, res) {
+  async generateLeavingCertificate(req, res) {
     try {
-      const { studentIds } = req.body;
+      const studentId = req.params.studentId;
+      const { user_id, role_id } = req.user;
+      const templateId = req.query.template || null;
+
+      // Isolation Check
+      if ([3, 4, 5].includes(role_id)) {
+        const studentRes = await pool.query(
+          `SELECT ce.class_id FROM student s 
+           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+           WHERE s.student_id = $1`, 
+          [studentId]
+        );
+        const staffRes = await pool.query(
+          `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
+          [user_id]
+        );
+        if (studentRes.rows[0]?.class_id !== staffRes.rows[0]?.class_id) {
+          return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+      }
+
+      const pdfBuffer = await DocumentService.generateLeavingCertificate(studentId, user_id, templateId);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Leaving_Certificate_${studentId}.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "Error generating Leaving Certificate PDF" });
+    }
+  },
+
+  async generateBulkLeavingCertificates(req, res) {
+    try {
+      const { studentIds, templateId } = req.body;
       const { user_id, role_id } = req.user;
 
       if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
@@ -86,7 +132,51 @@ export const DocumentController = {
         const assignedClassId = staffRes.rows[0]?.class_id;
         
         const countRes = await pool.query(
-          `SELECT COUNT(*) FROM student WHERE student_id = ANY($1) AND class_id != $2`,
+          `SELECT COUNT(*) FROM student s
+           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+           WHERE s.student_id = ANY($1) AND ce.class_id != $2`,
+          [studentIds, assignedClassId]
+        );
+        
+        if (parseInt(countRes.rows[0].count) > 0) {
+          return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+      }
+
+      const pdfBuffer = await DocumentService.generateBulkLeavingCertificates(studentIds, user_id, templateId || 'template1');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Bulk_Leaving_Certificates.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "Error generating bulk Leaving Certificates PDF" });
+    }
+  },
+
+  async generateBulkIdCards(req, res) {
+    try {
+      const { studentIds, templateId } = req.body;
+      const { user_id, role_id } = req.user;
+
+      if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({ success: false, message: "No student IDs provided" });
+      }
+
+      // Isolation Check
+      if ([3, 4, 5].includes(role_id)) {
+        const staffRes = await pool.query(
+          `SELECT c.class_id FROM class c 
+           JOIN staff st ON st.staff_id = c.staff_id
+           WHERE st.user_id = $1 LIMIT 1`,
+          [user_id]
+        );
+        const assignedClassId = staffRes.rows[0]?.class_id;
+        
+        const countRes = await pool.query(
+          `SELECT COUNT(*) FROM student s
+           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+           WHERE s.student_id = ANY($1) AND ce.class_id != $2`,
           [studentIds, assignedClassId]
         );
         
@@ -95,7 +185,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBulkIdCards(studentIds, user_id);
+      const pdfBuffer = await DocumentService.generateBulkIdCards(studentIds, user_id, templateId || 'template1');
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_ID_Cards.pdf"`);
@@ -106,9 +196,10 @@ export const DocumentController = {
     }
   },
 
+
   async generateBulkBonafide(req, res) {
     try {
-      const { studentIds } = req.body;
+      const { studentIds, templateId } = req.body;
       const { user_id, role_id } = req.user;
 
       if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
@@ -133,16 +224,82 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBulkBonafide(studentIds, user_id);
+      const pdfBuffer = await DocumentService.generateBulkBonafide(studentIds, user_id, templateId || 'template1');
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_Bonafide.pdf"`);
       res.status(200).send(pdfBuffer);
-    } catch (err) {
-      console.error(err);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("[DocumentController] generateBulkBonafide error:", error);
       res.status(500).json({ success: false, message: "Error generating bulk Bonafide PDF" });
     }
   },
+
+  async generateFeeReceipt(req, res) {
+    try {
+      const { paymentId } = req.params;
+      const user_id = req.user?.user_id;
+      const templateId = req.query.template || null;
+      
+      const pdfBuffer = await DocumentService.generateFeeReceipt(paymentId, user_id, null, templateId);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Fee_Receipt_${paymentId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("[DocumentController] generateFeeReceipt error:", error);
+      res.status(500).json({ success: false, message: "Error generating fee receipt PDF" });
+    }
+  },
+
+  async generateBulkGeneralCertificates(req, res) {
+    try {
+      const { studentIds, templateId, eventId } = req.body;
+      const { user_id } = req.user;
+
+      if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({ success: false, message: "No student IDs provided" });
+      }
+
+      const pdfBuffer = await DocumentService.generateBulkGeneralCertificates(studentIds, user_id, templateId || 'template1', eventId);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Bulk_Certificates.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "Error generating bulk Certificates PDF" });
+    }
+  },
+
+  async generateGeneralCertificate(req, res) {
+    try {
+      const { studentId } = req.params;
+      const userId = req.user?.user_id || null;
+      const templateId = req.query.template || null;
+      const eventId = req.query.eventId || null;
+      const pdfBuffer = await DocumentService.generateGeneralCertificate(studentId, userId, templateId, null, eventId);
+
+      // Log activity
+      try {
+          const { DashboardService } = await import("../services/dashboard_service.js");
+          await DashboardService.addActivityEntry(
+              userId,
+              'tc_issued',
+              `General Certificate / TC issued for Student ID: ${studentId}`
+          );
+      } catch (e) { console.error(e); }
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Certificate_${studentId}.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "Error generating General Certificate PDF" });
+    }
+  },
+
 
   async getDocumentHistory(req, res) {
     try {
@@ -171,10 +328,16 @@ export const DocumentController = {
     try {
       const { studentId } = req.params;
       const { user_id, role_id } = req.user;
+      const templateId = req.query.template || null;
 
       // Isolation Check
       if ([3, 4, 5].includes(role_id)) {
-        const studentRes = await pool.query(`SELECT class_id FROM student WHERE student_id = $1`, [studentId]);
+        const studentRes = await pool.query(
+          `SELECT ce.class_id FROM student s 
+           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+           WHERE s.student_id = $1`, 
+          [studentId]
+        );
         const staffRes = await pool.query(
           `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
           [user_id]
@@ -184,7 +347,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateMarkSheet(studentId, user_id);
+      const pdfBuffer = await DocumentService.generateMarkSheet(studentId, user_id, null, templateId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="MarkSheet_${studentId}.pdf"`);
@@ -195,30 +358,7 @@ export const DocumentController = {
     }
   },
 
-  async generateGeneralCertificate(req, res) {
-    try {
-      const { studentId } = req.params;
-      const userId = req.user?.user_id || null;
-      const pdfBuffer = await DocumentService.generateGeneralCertificate(studentId, userId);
-
-      // Log activity
-      try {
-          const { DashboardService } = await import("../services/dashboard_service.js");
-          await DashboardService.addActivityEntry(
-              userId,
-              'tc_issued',
-              `General Certificate / TC issued for Student ID: ${studentId}`
-          );
-      } catch (e) { console.error(e); }
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="Certificate_${studentId}.pdf"`);
-      res.status(200).send(pdfBuffer);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, message: "Error generating General Certificate PDF" });
-    }
-  },
+  // Duplicated generateGeneralCertificate method removed.
 
   async generateTimetable(req, res) {
     try {
@@ -240,8 +380,14 @@ export const DocumentController = {
       const { classId, year, month } = req.params;
       const { user_id, role_id } = req.user;
 
-      // Access control: Teachers can only download their own class report
-      if ([3, 4, 15, 16].includes(role_id)) {
+      // Access control: Teachers (roles 3, 4, 5) are completely forbidden from monthly attendance reports
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+      if (isTeacher) {
+        return res.status(403).json({ success: false, message: "Forbidden: Monthly Attendance Reports are accessible only to Admins and Master Admins." });
+      }
+
+      // Access control: other staff roles
+      if ([15, 16].includes(role_id)) {
         const staffRes = await pool.query(
           `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
           [user_id]
@@ -267,6 +413,69 @@ export const DocumentController = {
     } catch (err) {
       console.error("Monthly PDF error:", err);
       res.status(500).json({ success: false, message: "Error generating Monthly Attendance PDF" });
+    }
+  },
+
+  async generateBulkMarkSheets(req, res) {
+    try {
+      const { studentIds, templateId } = req.body;
+      const { user_id, role_id } = req.user;
+
+      if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({ success: false, message: "No student IDs provided" });
+      }
+
+      // Isolation Check
+      if ([3, 4, 5].includes(role_id)) {
+        const staffRes = await pool.query(
+          `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
+          [user_id]
+        );
+        const assignedClassId = staffRes.rows[0]?.class_id;
+        
+        const countRes = await pool.query(
+          `SELECT COUNT(*) FROM student s
+           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+           WHERE s.student_id = ANY($1) AND ce.class_id != $2`,
+          [studentIds, assignedClassId]
+        );
+        
+        if (parseInt(countRes.rows[0].count) > 0) {
+          return res.status(403).json({ success: false, message: "Unauthorized: One or more students are not in your class" });
+        }
+      }
+
+      const pdfBuffer = await DocumentService.generateBulkMarkSheets(studentIds, user_id, templateId);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Bulk_Mark_Sheets.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "Error generating bulk Mark Sheets PDF" });
+    }
+  },
+
+  async generateBulkFeeReceipts(req, res) {
+    try {
+      const { studentIds, templateId } = req.body;
+      const { user_id } = req.user;
+
+      if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({ success: false, message: "No student IDs provided" });
+      }
+
+      const pdfBuffer = await DocumentService.generateBulkFeeReceipts(studentIds, user_id, templateId);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Bulk_Fee_Receipts.pdf"`);
+      res.status(200).send(pdfBuffer);
+    } catch (err) {
+      if (err.message === "NO_PAYMENTS_FOUND") {
+        return res.status(404).json({ success: false, message: "No payment records found for the selected students." });
+      }
+      console.error(err);
+      res.status(500).json({ success: false, message: "Error generating bulk Fee Receipts PDF" });
     }
   }
 };

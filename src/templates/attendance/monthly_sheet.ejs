@@ -137,6 +137,10 @@
                     <div><%= className %></div>
                 </div>
                 <div class="meta-item">
+                    <div class="meta-label">Class Teacher</div>
+                    <div><%= classTeacherName %></div>
+                </div>
+                <div class="meta-item">
                     <div class="meta-label">Month & Year</div>
                     <div><%= monthName %> <%= year %></div>
                 </div>
@@ -158,7 +162,10 @@
                     <% for(let d = 1; d <= daysInMonth; d++) { 
                         const date = new Date(year, month - 1, d);
                         const isSunday = date.getDay() === 0;
-                        const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                        const holiday = holidays.find(h => {
+                            const dateStr = typeof h.date === 'string' ? h.date.split('T')[0] : new Date(h.date).toISOString().split('T')[0];
+                            return parseInt(dateStr.split('-')[2], 10) === d;
+                        });
                     %>
                         <th class="col-day <%= isSunday ? 'bg-sunday' : (holiday ? 'bg-holiday' : '') %>">
                             <%= d %>
@@ -183,7 +190,10 @@
                         <% for(let d = 1; d <= daysInMonth; d++) { 
                             const date = new Date(year, month - 1, d);
                             const isSunday = date.getDay() === 0;
-                            const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                            const holiday = holidays.find(h => {
+                                const dateStr = typeof h.date === 'string' ? h.date.split('T')[0] : new Date(h.date).toISOString().split('T')[0];
+                                return parseInt(dateStr.split('-')[2], 10) === d;
+                            });
                             const status = student.attendance[d];
                             
                             if (status === 1 && !isSunday && !holiday) totalP++;
@@ -215,7 +225,10 @@
                     <% for(let d = 1; d <= daysInMonth; d++) { 
                         const date = new Date(year, month - 1, d);
                         const isSunday = date.getDay() === 0;
-                        const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                        const holiday = holidays.find(h => {
+                            const dateStr = typeof h.date === 'string' ? h.date.split('T')[0] : new Date(h.date).toISOString().split('T')[0];
+                            return parseInt(dateStr.split('-')[2], 10) === d;
+                        });
                         
                         let dailyP = 0;
                         if (!isSunday && !holiday) {
@@ -235,7 +248,10 @@
                     <% for(let d = 1; d <= daysInMonth; d++) { 
                         const date = new Date(year, month - 1, d);
                         const isSunday = date.getDay() === 0;
-                        const holiday = holidays.find(h => new Date(h.date).getDate() === d);
+                        const holiday = holidays.find(h => {
+                            const dateStr = typeof h.date === 'string' ? h.date.split('T')[0] : new Date(h.date).toISOString().split('T')[0];
+                            return parseInt(dateStr.split('-')[2], 10) === d;
+                        });
                         
                         let dailyA = 0;
                         if (!isSunday && !holiday) {
@@ -259,7 +275,10 @@
         </div>
 
         <div class="signature-section">
-            <div class="signature-block">Class Teacher</div>
+            <div class="signature-block">
+                <%= classTeacherName %><br>
+                Class Teacher
+            </div>
             <div class="signature-block">Attendance In-charge</div>
             <div class="signature-block">Principal / Headmaster</div>
         </div>

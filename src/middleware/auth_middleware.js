@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import pool from "../config/db.js";
 
-export default function authMiddleware(req, res, next) {
+export default async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -15,6 +16,22 @@ export default function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check database to ensure the user is active and not deactivated
+    const userRes = await pool.query(
+      'SELECT status, is_active FROM "user" WHERE user_id = $1',
+      [decoded.user_id]
+    );
+
+    if (userRes.rows.length === 0 || userRes.rows[0].status === "deactivated" || !userRes.rows[0].is_active) {
+      console.error(`AUTH 401 => User ${decoded.user_id} is deactivated or not found.`);
+      return res.status(401).json({
+        success: false,
+        message: "Your account is deactivated!",
+        deactivated: true,
+      });
+    }
+
     req.user = decoded;
     next();
   } catch (err) {
@@ -24,7 +41,4 @@ export default function authMiddleware(req, res, next) {
       message: "Invalid or expired token",
     });
   }
-
-  
-
 }

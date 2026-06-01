@@ -1,93 +1,110 @@
-  // controllers/faculty_controller.js
-  import { FacultyService } from "../services/faculty_Service.js";
+// controllers/faculty_controller.js
+import { FacultyService } from "../services/faculty_Service.js";
+import { emailService } from "../services/email_service.js";
 
-  export const FacultyController = {
+export const FacultyController = {
 
-    async getAllFaculty(req, res) {
-      try {
-        const data = await FacultyService.getAllFaculty(req.user);
-        res.status(200).json({ success: true, data });
-      } catch (err) {
-        res.status(err.status || 500).json({
+  async getAllFaculty(req, res) {
+    try {
+      const data = await FacultyService.getAllFaculty(req.user);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      console.error("DEBUG: getAllFaculty - ERROR:", err);
+      res.status(err.status || 500).json({ success: false, message: err.message });
+    }
+  },
+
+  async getFacultyById(req, res) {
+    try {
+      const data = await FacultyService.getFacultyById(req.params.id);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(err.status || 500).json({ success: false, message: err.message });
+    }
+  },
+
+  async uploadPhoto(req, res) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: "No file uploaded" });
+      }
+      res.status(200).json({
+        success: true,
+        message: "Photo uploaded successfully",
+        data: { url: req.file.path },
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  async createFaculty(req, res) {
+    try {
+      if (!req.user || !req.user.institute_id) {
+        return res.status(401).json({
           success: false,
-          message: err.message,
+          message: "Unauthorized: institute missing",
         });
       }
-    },
 
-    async getFacultyById(req, res) {
-      try {
-        const data = await FacultyService.getFacultyById(req.params.id);
-        res.status(200).json({ success: true, data });
-      } catch (err) {
-        res.status(err.status || 500).json({
-          success: false,
-          message: err.message,
-        });
-      }
-    },
+      const data = await FacultyService.createFaculty(req.body, req.user);
 
-    async uploadPhoto(req, res) {
-      try {
-        if (!req.file) {
-          return res.status(400).json({ success: false, message: "No file uploaded" });
-        }
-        res.status(200).json({
-          success: true,
-          message: "Photo uploaded successfully",
-          data: { url: req.file.path } // Cloudinary URL automatically bound by multer config
-        });
-      } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-      }
-    },
+      // ── Auto-send invitation email for new user accounts ──────────────
+      let emailSent = false;
+      let emailWarning = null;
 
-    async createFaculty(req, res) {
-      try {
-        // ✅ SAFE GUARD (NEW)
-        if (!req.user || !req.user.institute_id) {
-          return res.status(401).json({
-            success: false,
-            message: "Unauthorized: institute missing",
+      if (data.isNewUser && data.invite_token) {
+        const roleLabel = req.body.role_id === 3 ? "Teacher" : "Staff";
+        
+        try {
+          await emailService.sendInvitation({
+            to: req.body.email,
+            name: data.fullName || req.body.email,
+            role: roleLabel,
+            token: data.invite_token,
           });
+          console.log(`✅ Invitation email sent to ${req.body.email} for new faculty.`);
+          emailSent = true;
+        } catch (emailErr) {
+          emailWarning = emailErr.message;
+          console.error("❌ Faculty invite email failed:", emailErr.message);
         }
-
-        const data = await FacultyService.createFaculty(req.body, req.user);
-
-        res.status(201).json({
-          success: true,
-          message: "Faculty created successfully",
-          data,
-        });
-      } catch (err) {
-        res.status(err.status || 500).json({
-          success: false,
-          message: err.message,
-        });
       }
-    },
 
-    async updateFaculty(req, res) {
-      try {
-        const data = await FacultyService.updateFaculty(req.params.id, req.body);
-        res.status(200).json({ success: true, data });
-      } catch (err) {
-        res.status(err.status || 500).json({
-          success: false,
-          message: err.message,
-        });
-      }
-    },
+      // Strip internal fields before returning to client
+      const { invite_token, isNewUser, fullName, ...staffData } = data;
 
-    async deleteFaculty(req, res) {
-      try {
-        const data = await FacultyService.deleteFaculty(req.params.id);
-        res.status(200).json({ success: true, data });
-      } catch (err) {
-        res.status(err.status || 500).json({
-          success: false,
-          message: err.message,
-        });
-      }
-    },
-  };
+      res.status(201).json({
+        success: true,
+        message: emailSent
+          ? "Faculty created and invitation email sent successfully."
+          : data.isNewUser
+            ? `Faculty created. ${emailWarning || "Invitation email not sent."}`
+            : "Faculty created successfully.",
+        email_sent: emailSent,
+        data: staffData,
+      });
+    } catch (err) {
+      res.status(err.status || 500).json({ success: false, message: err.message });
+    }
+  },
+
+  async updateFaculty(req, res) {
+    try {
+      const data = await FacultyService.updateFaculty(req.params.id, req.body);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      console.error("❌ UPDATE FACULTY ERROR:", err);
+      res.status(err.status || 500).json({ success: false, message: err.message });
+    }
+  },
+
+  async deleteFaculty(req, res) {
+    try {
+      const data = await FacultyService.deleteFaculty(req.params.id);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      res.status(err.status || 500).json({ success: false, message: err.message });
+    }
+  },
+};

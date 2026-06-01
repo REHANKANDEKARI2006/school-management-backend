@@ -13,7 +13,8 @@ import {
   unlockAttendance,
   getDisplacedPeriods,
   uploadPhotos,
-  getPhotos
+  getPhotos,
+  deletePhoto
 } from "../controllers/events_controller.js";
 import multer from "multer";
 import { storage } from "../config/cloudinary.js";
@@ -35,6 +36,9 @@ router.get("/coordinator/today", authMiddleware, getCoordinatorEvents);
 // Event detail
 router.get("/:id", getEventDetail);
 router.put("/:id", authMiddleware, updateEvent);
+
+// Photo delete must come BEFORE /:id delete to avoid Express route conflict
+router.delete("/photos/:photoId", authMiddleware, allowRoles(1, 2), deletePhoto);
 router.delete("/:id", authMiddleware, deleteEvent);
 
 // Certificates

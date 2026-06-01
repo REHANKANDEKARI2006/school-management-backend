@@ -240,37 +240,46 @@ class DashboardServiceClass {
   async getTeacherUpcoming(staffId, instituteId) {
     const holidayService = (await import('./holiday_service.js')).HolidayService;
     const currentYear = new Date().getFullYear();
-    const holidays = await holidayService.getHolidays(currentYear, instituteId);
+    const [holidaysCurrent, holidaysNext] = await Promise.all([
+      holidayService.getHolidays(currentYear, instituteId),
+      holidayService.getHolidays(currentYear + 1, instituteId)
+    ]);
+    const holidays = [...holidaysCurrent, ...holidaysNext];
 
     const res = await pool.query(`
-      (SELECT CONCAT('event_', event_id) as id, event_name as title, event_date as time, 'event' as category
+      (SELECT CONCAT('event_', event_id) as id, event_name as title, event_date as time, 'event' as category, event_start_date, event_end_date
        FROM events
-       WHERE event_date >= CURRENT_DATE
-       LIMIT 10)
+       WHERE event_date >= CURRENT_DATE - INTERVAL '1 month'
+         AND event_date <= CURRENT_DATE + INTERVAL '12 months')
       UNION ALL
-      (SELECT CONCAT('exam_', e.exam_id) as id, e.exam_name as title, e.date_time as time, 'exam' as category
+      (SELECT CONCAT('exam_', e.exam_id) as id, e.exam_name as title, e.date_time as time, 'exam' as category, e.date_time as event_start_date, e.date_time as event_end_date
        FROM exam e
        JOIN schedule s ON s.class_id = e.class_id AND s.subject_id = e.subject_id
-       WHERE s.staff_id = $1 AND e.date_time >= NOW()
-       GROUP BY e.exam_id, e.exam_name, e.date_time
-       LIMIT 10)
+       WHERE s.staff_id = $1 
+         AND e.date_time >= CURRENT_DATE - INTERVAL '1 month'
+         AND e.date_time <= CURRENT_DATE + INTERVAL '12 months'
+       GROUP BY e.exam_id, e.exam_name, e.date_time)
       ORDER BY time ASC
-      LIMIT 20
+      LIMIT 100
     `, [staffId]);
 
     const mappedHolidays = holidays.map(h => ({
       id: `h_${h.date}_${h.name}`,
       title: h.name,
       time: h.date,
+      event_start_date: h.date,
+      event_end_date: h.date,
       category: h.category // Preserve Maharashtra, Karnataka, National
     }));
 
-    // Filter focus on future items
-    const today = new Date().toISOString().split('T')[0];
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAgoStr = oneMonthAgo.toISOString().split('T')[0];
+
     const combined = [...res.rows, ...mappedHolidays]
-      .filter(item => item.time >= today)
+      .filter(item => item.time >= oneMonthAgoStr)
       .sort((a, b) => new Date(a.time) - new Date(b.time))
-      .slice(0, 10);
+      .slice(0, 100);
 
     return combined;
   }
@@ -324,8 +333,7 @@ class DashboardServiceClass {
       `,
       todayAttendance: `
         SELECT 
-          COUNT(*) FILTER (WHERE ar.status_id = 1) as present,
-          COUNT(*) as total
+          COUNT(DISTINCT ar.student_id) FILTER (WHERE ar.status_id = 1) as present
         FROM attendance_record ar
         JOIN attendance_session ats ON ats.session_id = ar.session_id
         JOIN staff st ON st.staff_id = ats.faculty_id
@@ -386,7 +394,7 @@ class DashboardServiceClass {
       staff: parseInt(results[3].rows[0].count),
       attendance: {
         present: parseInt(results[4].rows[0].present || 0),
-        total: parseInt(results[4].rows[0].total || 0)
+        total: parseInt(results[0].rows[0].count || 0)
       },
       feesMonth: parseFloat(results[5].rows[0].sum || 0),
       pendingDuesCount: parseInt(results[6].rows[0].count || 0),
@@ -463,15 +471,19 @@ class DashboardServiceClass {
   async getEvents(instituteId) {
     const holidayService = (await import('./holiday_service.js')).HolidayService;
     const currentYear = new Date().getFullYear();
-    const holidays = await holidayService.getHolidays(currentYear, instituteId);
+    const [holidaysCurrent, holidaysNext] = await Promise.all([
+      holidayService.getHolidays(currentYear, instituteId),
+      holidayService.getHolidays(currentYear + 1, instituteId)
+    ]);
+    const holidays = [...holidaysCurrent, ...holidaysNext];
 
     const res = await pool.query(`
-      (SELECT CONCAT('event_', event_id) as id, event_name as title, event_date as time, description, venue as location, 'event' as category
+      (SELECT CONCAT('event_', event_id) as id, event_name as title, event_date as time, description, venue as location, 'event' as category, event_start_date, event_end_date
        FROM events
        WHERE event_date >= CURRENT_DATE - INTERVAL '1 month'
          AND event_date <= CURRENT_DATE + INTERVAL '12 months')
       UNION ALL
-      (SELECT CONCAT('exam_', sub.exam_id) as id, sub.exam_name as title, sub.date_time as time, 'School Examination' as description, 'Exam Hall' as location, 'exam' as category
+      (SELECT CONCAT('exam_', sub.exam_id) as id, sub.exam_name as title, sub.date_time as time, 'School Examination' as description, 'Exam Hall' as location, 'exam' as category, sub.date_time as event_start_date, sub.date_time as event_end_date
        FROM (
          SELECT DISTINCT ON (e.exam_name, e.date_time) e.exam_id, e.exam_name, e.date_time
          FROM exam e
@@ -491,6 +503,8 @@ class DashboardServiceClass {
       id: `h_${h.date}_${h.name}`,
       title: h.name,
       time: h.date,
+      event_start_date: h.date,
+      event_end_date: h.date,
       description: h.description || '',
       location: 'School Campus',
       category: h.category // Preserve Maharashtra, Karnataka, National

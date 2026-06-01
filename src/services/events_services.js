@@ -141,11 +141,14 @@ const EventsService = {
    * Submit event attendance + auto-populate regular class attendance
    */
   async submitEventAttendance(eventId, classId, records, teacherStaffId) {
+    // Sanitize: treat 0 / null / undefined / NaN as NULL to avoid FK violations
+    const safeStaffId = teacherStaffId && Number(teacherStaffId) > 0 ? Number(teacherStaffId) : null;
+
     // 1. Save event attendance
-    const savedRecords = await EventsModel.saveEventAttendance(eventId, classId, records, teacherStaffId);
+    const savedRecords = await EventsModel.saveEventAttendance(eventId, classId, records, safeStaffId);
 
     // 2. Auto-populate regular attendance for displaced periods
-    await this.autoPopulateRegularAttendance(eventId, classId, records, teacherStaffId);
+    await this.autoPopulateRegularAttendance(eventId, classId, records, safeStaffId);
 
     // 3. Build summary
     const presentCount = records.filter(r => r.status === 'present').length;
@@ -308,15 +311,28 @@ const EventsService = {
    * Delete a photo from Cloudinary and DB
    */
   async deleteEventPhoto(photoId, publicId) {
-    // 1. Delete from Cloudinary
-    if (publicId) {
-      const { deleteFromCloudinary } = await import("../config/cloudinary.js");
-      // Since these are images, we don't need { resource_type: "raw" } if configured as image
-      // But let's check config/cloudinary.js for the delete function.
-      await deleteFromCloudinary(publicId); 
+    // 1. Look up the photo record to get the public_id if not provided
+    let cloudinaryPublicId = publicId;
+    if (!cloudinaryPublicId) {
+      const photoRecord = await pool.query(
+        `SELECT public_id FROM event_photos WHERE id = $1`,
+        [photoId]
+      );
+      cloudinaryPublicId = photoRecord.rows[0]?.public_id || null;
     }
 
-    // 2. Delete from DB
+    // 2. Delete from Cloudinary if we have a public_id
+    if (cloudinaryPublicId) {
+      try {
+        const { deleteFromCloudinary } = await import("../config/cloudinary.js");
+        await deleteFromCloudinary(cloudinaryPublicId);
+      } catch (cloudErr) {
+        console.error("Cloudinary delete error (non-fatal):", cloudErr);
+        // Continue with DB delete even if Cloudinary fails
+      }
+    }
+
+    // 3. Delete from DB
     return await EventsModel.deleteEventPhoto(photoId);
   }
 };

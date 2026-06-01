@@ -1,100 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>General Certificate - Template 1</title>
+    <title>Certificate of Recognition</title>
     <%- include('../common/styles') %>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Inter:wght@400;500;600;700&family=Great+Vibes&family=Pinyon+Script&display=swap');
+
         body {
-            padding: 50px;
-            font-family: 'Inter', sans-serif;
-            color: var(--text-main);
-        }
-        .gen-cert-container {
-            border: 15px solid var(--primary-color);
-            padding: 40px;
-            min-height: 900px;
-            position: relative;
-            background: white;
-            outline: 2px solid var(--secondary-color);
-            outline-offset: -5px;
-        }
-        .gen-header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        .gen-header img {
-            height: 100px;
-            margin-bottom: 20px;
-        }
-        .gen-header h1 {
-            font-size: 36px;
             margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
+            color: #334155;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .cert-wrapper {
+            position: relative;
+            width: 297mm;
+            height: 210mm;
+            overflow: hidden;
+            background: #ffffff;
+            box-sizing: border-box;
+            padding: 15mm;
+        }
+
+        /* SVG Corners */
+        .corner-tl {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 500px;
+            height: 500px;
+            z-index: 10;
+        }
+        .corner-br {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 500px;
+            height: 500px;
+            z-index: 10;
+        }
+
+        /* Borders */
+        .outer-gray-border {
+            position: absolute;
+            top: 6mm;
+            left: 6mm;
+            right: 6mm;
+            bottom: 6mm;
+            border: 1px solid #e2e8f0;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .inner-gold-border {
+            position: absolute;
+            top: 10mm;
+            left: 10mm;
+            right: 10mm;
+            bottom: 10mm;
+            border: 1.5px solid var(--secondary-color);
+            z-index: 3;
+            pointer-events: none;
+        }
+        
+        .corner-accent {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border: 1.5px solid var(--secondary-color);
+            z-index: 4;
+            background: #ffffff;
+        }
+        .accent-tl { top: 10mm; left: 10mm; transform: translate(-4px, -4px); border-right: none; border-bottom: none; width: 16px; height: 16px; background: transparent; }
+        .accent-tr { top: 10mm; right: 10mm; transform: translate(4px, -4px); border-left: none; border-bottom: none; width: 16px; height: 16px; background: transparent; }
+        .accent-bl { bottom: 10mm; left: 10mm; transform: translate(-4px, 4px); border-right: none; border-top: none; width: 16px; height: 16px; background: transparent; }
+        .accent-br { bottom: 10mm; right: 10mm; transform: translate(4px, 4px); border-left: none; border-top: none; width: 16px; height: 16px; background: transparent; }
+        
+        /* A little square on the actual corner intersection */
+        .corner-square {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: transparent;
+            border: 1.5px solid var(--secondary-color);
+            z-index: 5;
+        }
+        .sq-tl { top: 10mm; left: 10mm; transform: translate(-50%, -50%); }
+        .sq-tr { top: 10mm; right: 10mm; transform: translate(50%, -50%); }
+        .sq-bl { bottom: 10mm; left: 10mm; transform: translate(-50%, 50%); }
+        .sq-br { bottom: 10mm; right: 10mm; transform: translate(50%, 50%); }
+
+
+        /* Content Container */
+        .content-container {
+            position: relative;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            padding-top: 5px;
+            text-align: center;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.03;
+            width: 450px;
+            height: 450px;
+            object-fit: contain;
+            z-index: 0;
+        }
+
+        /* Logo */
+        .logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin-bottom: 15px;
+        }
+
+        /* School Details */
+        .school-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 900;
             color: var(--primary-color);
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .school-info {
+            font-size: 11px;
+            color: #475569;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-weight: 500;
+        }
+        
+        .school-info span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Ornamental diamond flourish */
+        .ornament {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 25px;
+            width: 150px;
+        }
+        .ornament-line {
+            height: 1px;
+            background: var(--secondary-color);
+            flex: 1;
+        }
+        .ornament-diamond {
+            width: 8px;
+            height: 8px;
+            background: var(--secondary-color);
+            transform: rotate(45deg);
+        }
+        .ornament-diamond-inner {
+            width: 4px;
+            height: 4px;
+            background: #ffffff;
+            margin: 2px;
+        }
+
+        /* Certificate Title */
+        .cert-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 46px;
+            font-weight: 900;
+            color: var(--primary-color);
+            margin: 0 0 25px 0;
+            text-transform: uppercase;
             letter-spacing: 2px;
         }
-        .gen-title {
-            text-align: center;
-            margin: 60px 0;
+
+        /* Presented To Ribbon */
+        .presented-to-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 35px;
         }
-        .gen-title h2 {
-            font-family: 'Outfit', sans-serif;
-            font-size: 48px;
+        .presented-to-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--secondary-color);
+        }
+        .presented-to-ribbon {
+            background: var(--secondary-color);
+            padding: 8px 30px;
+            opacity: 0.9;
+        }
+        .presented-to-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e293b;
             text-transform: uppercase;
-            color: var(--text-main);
+            letter-spacing: 2px;
+        }
+
+        /* Student Name */
+        .student-name {
+            font-family: 'Pinyon Script', 'Great Vibes', cursive;
+            font-size: 72px;
+            color: var(--primary-color);
+            margin: 0 0 10px 0;
+            font-weight: 400;
+            line-height: 1;
+        }
+
+        /* Flourish under name */
+        .name-flourish {
+            width: 180px;
+            margin-bottom: 30px;
+        }
+        .name-flourish svg {
+            width: 100%;
+            height: 15px;
+            fill: none;
+            stroke: var(--secondary-color);
+            stroke-width: 1.5;
+        }
+
+        /* Body Text */
+        .body-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            color: #334155;
+            margin: 0 0 8px 0;
+            font-weight: 500;
+        }
+
+        .class-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            color: #334155;
             margin: 0;
+            font-weight: 500;
         }
-        .gen-body {
-            font-size: 22px;
-            line-height: 1.8;
-            text-align: center;
-            margin-bottom: 80px;
-        }
-        .gen-footer {
+
+        /* Footer Layout */
+        .footer {
+            position: absolute;
+            bottom: 30mm;
+            left: 30mm;
+            right: 30mm;
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            margin-top: 100px;
+            z-index: 10;
         }
-        .gen-sign-box {
-            text-align: center;
-            width: 200px;
+
+        /* Date Section */
+        .date-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
-        .gen-sign-box img {
-            height: 60px;
+        .date-icon {
+            width: 45px;
+            height: 45px;
+            background: var(--primary-color);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .gen-sign-label {
-            display: block;
-            border-top: 2px solid var(--primary-color);
-            padding-top: 5px;
+        .date-icon svg {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: #ffffff;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .date-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 140px;
+        }
+        .date-value {
+            font-family: 'Inter', sans-serif;
+            font-size: 16px;
             font-weight: 700;
+            color: var(--primary-color);
+            border-bottom: 1.5px solid var(--secondary-color);
+            padding-bottom: 4px;
+            text-transform: uppercase;
         }
+        .date-label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        /* Signature Section */
+        .signature-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 200px;
+        }
+        .signature-img {
+            height: 45px;
+            object-fit: contain;
+            margin-bottom: 5px;
+            mix-blend-mode: multiply;
+        }
+        .signature-line {
+            width: 100%;
+            height: 1.5px;
+            background: var(--secondary-color);
+            margin-bottom: 8px;
+        }
+        .signature-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-transform: uppercase;
+        }
+        .signature-subtitle {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        /* Diagonal lines pattern for the primary shape */
+        <svg style="width:0;height:0;position:absolute;" aria-hidden="true" focusable="false">
+          <defs>
+            <pattern id="diagonalHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+            </pattern>
+          </defs>
+        </svg>
+
     </style>
 </head>
 <body>
-    <div class="gen-cert-container doc-container">
-        <div class="watermark-large" style="font-size: 200px;"><%= school.school_name.split(' ')[0] %></div>
-        
-        <div class="gen-header">
-            <img src="<%= logoUrl %>" alt="Logo">
-            <h1><%= school.school_name %></h1>
-            <p><%= school.address %></p>
+    <div class="cert-wrapper doc-container">
+
+        <!-- Pattern Definition for SVG Corners -->
+        <svg style="width:0;height:0;position:absolute;" aria-hidden="true" focusable="false">
+          <defs>
+            <pattern id="diagonalHatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255,255,255,0.15)" stroke-width="2.5" />
+            </pattern>
+          </defs>
+        </svg>
+
+        <!-- SVG Corners -->
+        <svg class="corner-tl" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Gold swoosh -->
+            <path d="M0,0 L250,0 C120,60 60,120 0,250 Z" fill="var(--secondary-color)" />
+            <!-- Navy block with pattern -->
+            <path d="M0,0 L180,0 C90,80 30,190 0,380 Z" fill="var(--primary-color)" />
+            <path d="M0,0 L180,0 C90,80 30,190 0,380 Z" fill="url(#diagonalHatch)" />
+        </svg>
+
+        <svg class="corner-br" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Gold swoosh -->
+            <path d="M500,500 L250,500 C380,440 440,380 500,250 Z" fill="var(--secondary-color)" />
+            <!-- Navy block with pattern -->
+            <path d="M500,500 L320,500 C410,420 470,310 500,120 Z" fill="var(--primary-color)" />
+            <path d="M500,500 L320,500 C410,420 470,310 500,120 Z" fill="url(#diagonalHatch)" />
+        </svg>
+
+        <!-- Borders -->
+        <div class="outer-gray-border"></div>
+        <div class="inner-gold-border"></div>
+        <div class="corner-accent accent-tl"></div>
+        <div class="corner-accent accent-tr"></div>
+        <div class="corner-accent accent-bl"></div>
+        <div class="corner-accent accent-br"></div>
+        <div class="corner-square sq-tl"></div>
+        <div class="corner-square sq-tr"></div>
+        <div class="corner-square sq-bl"></div>
+        <div class="corner-square sq-br"></div>
+
+        <!-- Watermark -->
+        <% if (logoUrl) { %>
+            <img src="<%= logoUrl %>" alt="Watermark" class="watermark">
+        <% } %>
+
+        <div class="content-container">
+            <!-- Header -->
+            <% if (logoUrl) { %>
+                <img src="<%= logoUrl %>" alt="Logo" class="logo">
+            <% } %>
+            
+            <h1 class="school-name"><%= school.school_name || 'School Name' %></h1>
+            
+            <div class="school-info">
+                <span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                    <%= school.address || 'School Address' %>
+                </span>
+                <span>|</span>
+                <span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+                    Phone: <%= school.phone || 'Phone Number' %>
+                </span>
+            </div>
+
+            <div class="ornament">
+                <div class="ornament-line"></div>
+                <div class="ornament-diamond"><div class="ornament-diamond-inner"></div></div>
+                <div class="ornament-line"></div>
+            </div>
+
+            <!-- Title -->
+            <h2 class="cert-title"><%= typeof customTitle !== 'undefined' && customTitle ? customTitle : 'Certificate of Recognition' %></h2>
+
+            <!-- Presented To -->
+            <div class="presented-to-wrapper">
+                <div class="presented-to-dot"></div>
+                <div class="presented-to-ribbon">
+                    <span class="presented-to-text">This Certificate is Proudly Presented To</span>
+                </div>
+                <div class="presented-to-dot"></div>
+            </div>
+
+            <!-- Student Name -->
+            <h3 class="student-name"><%= student.stu_first_name || 'Student' %> <%= student.stu_last_name || 'Name' %></h3>
+            
+            <!-- Flourish -->
+            <div class="name-flourish">
+                <svg viewBox="0 0 200 15">
+                    <path d="M0,7 Q50,0 100,7 T200,7 M100,7 L96,4 L104,4 Z" />
+                    <path d="M80,10 L120,10 M90,13 L110,13" />
+                </svg>
+            </div>
+
+            <!-- Body Paragraphs -->
+            <div class="custom-body" style="font-family: 'Inter', sans-serif; font-size: 16px; color: #475569; max-width: 650px; text-align: center; margin: 0 auto 20px; line-height: 1.6;">
+            <% if (typeof customParagraph !== 'undefined' && customParagraph) { %>
+                <div style="white-space: pre-wrap;"><%- customParagraph %></div>
+            <% } else { %>
+                <p class="body-text">For outstanding contribution and performance in school activities.</p>
+                <p class="class-text">Class <%= student.class_name || 'X' %> - Section <%= student.section_name || 'A' %></p>
+            <% } %>
+            
+            <% if (typeof customRemarks !== 'undefined' && customRemarks) { %>
+                <div style="margin-top: 20px; font-style: italic; font-size: 14px; font-weight: 600;">
+                    Remarks: <%= customRemarks %>
+                </div>
+            <% } %>
+            </div>
         </div>
 
-        <div class="gen-title">
-            <h2>Certificate of Recognition</h2>
-        </div>
+        <!-- Footer -->
+        <div class="footer">
+            <div class="date-section">
+                <div class="date-icon">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                </div>
+                <div class="date-info">
+                    <span class="date-value"><%= new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase() %></span>
+                    <span class="date-label">Date of Issue</span>
+                </div>
+            </div>
 
-        <div class="gen-body">
-            This certificate is proudly presented to<br>
-            <span style="font-size: 32px; font-weight: 800; color: var(--primary-color);"><%= student.stu_first_name %> <%= student.stu_last_name %></span><br>
-            For his/her outstanding contribution and performance in school activities.<br>
-            Class: <%= student.class_name %> | Section: <%= student.section_name %>
-        </div>
-
-        <div class="gen-footer">
-            <div style="font-size: 18px;">Date: <%= new Date().toLocaleDateString() %></div>
-            <div class="gen-sign-box">
-                <img src="<%= signatureUrl %>" alt="Signature">
-                <span class="gen-sign-label">Principal</span>
+            <div class="signature-section">
+                <% if (signatureUrl) { %>
+                    <img src="<%= signatureUrl %>" alt="Signature" class="signature-img">
+                <% } else { %>
+                    <div style="height: 45px;"></div>
+                <% } %>
+                <div class="signature-line"></div>
+                <span class="signature-title">PRINCIPAL</span>
+                <span class="signature-subtitle">Authorized Signatory</span>
             </div>
         </div>
     </div>

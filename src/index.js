@@ -25,6 +25,7 @@ import authRoutes from "./routes/auth_routes.js";
 import holidayRoutes from "./routes/holiday_routes.js";
 import { HolidayService } from "./services/holiday_service.js";
 import { seedMasterAdmin } from "./scripts/seed_master_admin.js";
+import { emailService } from "./services/email_service.js";
 
 // Cron Jobs
 import { startCronJobs } from "./cron/status_tracker.js";
@@ -45,6 +46,8 @@ import uploadRoutes from "./routes/upload_routes.js";
 import userStatusRoutes from "./routes/user_status_routes.js";
 import leaveRoutes from "./routes/leave_routes.js";
 import notificationRoutes from "./routes/notification_routes.js";
+import promotionRoutes from "./routes/promotion_routes.js";
+import documentTemplateRoutes from "./routes/document_template_routes.js";
 
 
 const app = express();
@@ -52,9 +55,15 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors({
    origin: true,
-   exposedHeaders: ["Content-Disposition"]
+   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+   exposedHeaders: ["Content-Disposition", "Authorization"],
+   credentials: true,
+   preflightContinue: false,
+   optionsSuccessStatus: 204
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/public', express.static('public'));
 
 app.use("/api/auth", authRoutes);
@@ -83,13 +92,28 @@ app.use("/api/user-status", userStatusRoutes);
 app.use("/api/holidays", holidayRoutes);
 app.use("/api/leaves", leaveRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/promotion", promotionRoutes);
+app.use("/api/document-templates", documentTemplateRoutes);
 
 
-app.listen(PORT, () => {
-   console.log(`✅ Backend server running on http://localhost:${PORT}`);
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("Unhandled Backend Error:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+app.listen(PORT, '0.0.0.0', async () => {
+   console.log(`✅ Backend server running on http://0.0.0.0:${PORT}`);
    startCronJobs();
    seedMasterAdmin();
-   
+
+   // Verify Email SMTP on startup
+   emailService.verify();
+
    // Prime Holiday Cache on Startup
    const currentYear = new Date().getFullYear();
    HolidayService.getHolidays(currentYear).then(() => {

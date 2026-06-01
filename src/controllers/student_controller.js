@@ -25,28 +25,17 @@ export const StudentController = {
 
   async getAllStudents(req, res) {
     try {
-      const { user_id, role_id } = req.user;
+      const { user_id, role_id, institute_id } = req.user;
       let { class_id } = req.query;
 
-      // Isolation: If teacher, restrict to their class
-      const isTeacher = [3, 4, 5].includes(role_id);
-      if (isTeacher) {
-        const staffRes = await pool.query(
-          `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
-          [user_id]
-        );
-        
-        if (staffRes.rows.length === 0 || !staffRes.rows[0].class_id) {
-          return res.status(200).json({ success: true, data: [] });
-        }
-        class_id = staffRes.rows[0].class_id;
-      }
-
+      // Isolation: Admin see all, Teachers see all in institute (unless class_id filter passed)
+      // Removed previous teacher restriction that limited them to only their assigned class
+      
       let data;
       if (class_id) {
-        data = await StudentService.getStudentsByClassId(parseInt(class_id));
+        data = await StudentService.getStudentsByClassId(parseInt(class_id), institute_id);
       } else {
-        data = await StudentService.getAllStudents();
+        data = await StudentService.getAllStudents(institute_id);
       }
       res.json({ success: true, data });
     } catch (err) {
@@ -64,19 +53,8 @@ export const StudentController = {
 
       const data = await StudentService.getStudentById(studentId);
 
-      // Isolation Check
-      const isTeacher = [3, 4, 5].includes(role_id);
-      if (isTeacher) {
-        const staffRes = await pool.query(
-          `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
-          [user_id]
-        );
-        const assignedClassId = staffRes.rows[0]?.class_id;
-        
-        if (data.class_id !== assignedClassId) {
-          return res.status(403).json({ success: false, message: "Unauthorized: Access restricted to students of your assigned class" });
-        }
-      }
+      // (Teachers are allowed to view any student's profile in their institute, 
+      // but editing/deleting is restricted to their assigned class below)
 
       res.json({ success: true, data });
     } catch (err) {
@@ -113,7 +91,9 @@ export const StudentController = {
       res.status(201).json({
         success: true,
         message: "Student created successfully",
-        data,
+        data: { student_id: data.student_id },
+        email_sent: data.email_sent,
+        email_error: data.email_error
       });
     } catch (err) {
       console.error(err);
@@ -139,7 +119,7 @@ export const StudentController = {
         );
         const assignedClassId = staffRes.rows[0]?.class_id;
 
-        if (student.class_id !== assignedClassId) {
+        if (Number(student.class_id) !== Number(assignedClassId)) {
           return res.status(403).json({ success: false, message: "Unauthorized: You can only update students within your assigned class" });
         }
       }
@@ -169,7 +149,7 @@ export const StudentController = {
         );
         const assignedClassId = staffRes.rows[0]?.class_id;
 
-        if (student.class_id !== assignedClassId) {
+        if (Number(student.class_id) !== Number(assignedClassId)) {
           return res.status(403).json({ success: false, message: "Unauthorized: You can only manage students within your assigned class" });
         }
       }

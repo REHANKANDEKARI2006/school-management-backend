@@ -452,5 +452,65 @@ export const LeaveService = {
     }
 
     return { success: true, updated_count: updatedRows.length };
+  },
+
+  /** ── Get Available Teachers for a Specific Period (for manual selection) */
+  async getAvailableTeachersForPeriod(date, periodNumber, leaveApplicationId) {
+    // Parse date and determine day_of_week for schedule lookup
+    const [y, m, d] = date.split('-').map(Number);
+    const jsDow = new Date(y, m - 1, d).getDay(); // 0=Sun…6=Sat
+    const dbDow = jsToDbDow(jsDow);               // 1=Mon…6=Sat, 7=Sun
+
+    // Get original teacher to exclude them
+    let originalTeacherId = null;
+    if (leaveApplicationId) {
+      const application = await LeaveModel.getApplicationById(leaveApplicationId);
+      if (application) originalTeacherId = parseInt(application.teacher_id);
+    }
+
+    // Pre-fetch all active staff and complete schedule
+    const allStaff     = await FacultyModel.getAll();
+    const allSchedules = await ScheduleModel.getAll();
+
+    // Pre-fetch approved leaves that overlap this date
+    const overlappingLeaves = await LeaveModel.getApprovedLeavesInRange(date, date);
+
+    const available = [];
+
+    for (const staff of allStaff) {
+      // Exclude: original teacher
+      if (originalTeacherId && staff.staff_id === originalTeacherId) continue;
+
+      // Exclude: on approved leave this date
+      const isOnLeave = overlappingLeaves.some(l => {
+        const lStart = new Date(l.from_date);
+        const lEnd   = new Date(l.to_date);
+        const check  = new Date(y, m - 1, d);
+        return l.teacher_id === staff.staff_id && lStart <= check && check <= lEnd;
+      });
+      if (isOnLeave) continue;
+
+      // Exclude: already scheduled at this period+day
+      const isBusy = allSchedules.some(
+        s => s.staff_id === staff.staff_id &&
+             s.day_of_week === dbDow &&
+             s.period_number === parseInt(periodNumber) &&
+             !s.is_break
+      );
+      if (isBusy) continue;
+
+      available.push({
+        staff_id:         staff.staff_id,
+        staff_first_name: staff.staff_first_name,
+        staff_last_name:  staff.staff_last_name,
+        dept_name:        staff.dept_name   || null,
+        subject_name:     staff.subject_name || null,
+      });
+    }
+
+    // Sort alphabetically by first name
+    return available.sort((a, b) =>
+      a.staff_first_name.localeCompare(b.staff_first_name)
+    );
   }
 };

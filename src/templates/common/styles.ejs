@@ -1,14 +1,13 @@
+<%- include('theme_variables', { theme: typeof school !== 'undefined' ? school.document_theme : 'THEME_1', is_theme_enabled: typeof school !== 'undefined' ? school.is_document_theme_enabled : true }) %>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
     :root {
-        --primary-color: <%= school ? (school.primary_color || '#437ef1') : '#437ef1' %>;
-        --secondary-color: #64748b;
+        /* Primary, secondary, border and light-accent are managed globally by theme_variables.ejs */
         --accent-color: #3b82f6;
         --text-main: #0f172a;
         --text-muted: #475569;
         --bg-white: #ffffff;
-        --border-color: #e2e8f0;
     }
 
     * {

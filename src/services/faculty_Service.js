@@ -3,7 +3,10 @@ import { FacultyModel } from "../models/faculty_Model.js";
 export const FacultyService = {
 
   async getAllFaculty(authUser) {
-  return await FacultyModel.getAll(authUser.institute_id);
+    if (!authUser?.institute_id) {
+      throw Object.assign(new Error("Unauthorized: Institute ID missing from token"), { status: 401 });
+    }
+    return await FacultyModel.getAll(authUser.institute_id);
   },
 
 
@@ -30,19 +33,7 @@ export const FacultyService = {
       delete payload.avatar;
     }
 
-    const fields = Object.keys(payload);
-    const set = fields.map((f, i) => `${f} = $${i + 1}`);
-    const values = fields.map(f => payload[f]);
-    values.push(id);
-
-    const query = `
-      UPDATE staff
-      SET ${set.join(", ")}
-      WHERE staff_id = $${values.length}
-      RETURNING *;
-    `;
-
-    return await FacultyModel.update(query, values);
+    return await FacultyModel.updateFacultyTransaction(Number(id), payload);
   },
 
   async deleteFaculty(id) {

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ID Card - Template 3</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 204px; height: 324px;
+    overflow: hidden; background: transparent;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    font-family: 'Inter', sans-serif;
+  }
+  .card { width:204px; height:324px; background:#0f172a; position:relative; overflow:hidden; }
+
+  .hdr { position:absolute; top:0; left:0; right:0; height:80px; background:#1e293b; z-index:1; }
+  .accent { position:absolute; top:78px; left:0; right:0; height:2px; background:<%= school.primary_color || '#3b82f6' %>; z-index:2; }
+
+  .logo {
+    position:absolute; top:15px; left:15px;
+    width:30px; height:30px; overflow:hidden;
+    background:rgba(255,255,255,0.1); border-radius:4px;
+    display:flex; align-items:center; justify-content:center; z-index:3;
+  }
+  .logo img { width:100%; height:100%; object-fit:contain; }
+
+  .sn {
+    position:absolute; top:15px; left:50px; right:10px;
+    font-size:8px; font-family:'Outfit',sans-serif; font-weight:700;
+    color:#fff; line-height:1.3; z-index:3;
+  }
+
+  .photo {
+    position:absolute; top:60px; left:52px;
+    width:100px; height:100px; border-radius:50%;
+    border:4px solid <%= school.primary_color || '#3b82f6' %>;
+    overflow:hidden; background:#1e293b;
+    display:flex; align-items:center; justify-content:center; z-index:10;
+  }
+  .photo img { width:100%; height:100%; object-fit:cover; }
+  .photo svg { width:55%; height:55%; }
+
+  .name {
+    position:absolute; top:170px; left:10px; right:10px;
+    font-size:14px; font-family:'Outfit',sans-serif; font-weight:700;
+    text-align:center; color:#fff; line-height:1.2; z-index:4;
+  }
+  .cls {
+    position:absolute; top:190px; left:10px; right:10px;
+    font-size:9px; font-weight:700;
+    text-align:center; color:<%= school.primary_color || '#3b82f6' %>; z-index:4;
+  }
+
+  .dl { position:absolute; font-size:6.5px; font-weight:600; color:#64748b; z-index:4; }
+  .dv { position:absolute; font-size:7px; font-weight:700; color:#cbd5e1; z-index:4; }
+
+  .ft { position:absolute; top:300px; left:0; right:0; height:24px; background:#1e293b; z-index:1; }
+  .ft-txt {
+    position:absolute; top:306px; left:0; right:0; height:10px;
+    font-size:7px; font-weight:700; text-align:center; color:#64748b; z-index:2;
+  }
+
+  .sig {
+    position:absolute; top:248px; left:10px; right:10px; height:32px;
+    display:flex; align-items:center; justify-content:center; z-index:5;
+  }
+  .sig img { height:100%; max-width:80px; object-fit:contain; filter:brightness(10); opacity:0.6; }
+  .sig-line { width:80px; border-bottom:1px solid #334155; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hdr"></div>
+  <div class="accent"></div>
+
+  <div class="logo">
+    <% if (school.logo_url) { %><img src="<%= school.logo_url %>" alt="Logo">
+    <% } else { %><span style="font-size:5px;color:#94a3b8;font-weight:bold;">LOGO</span><% } %>
+  </div>
+  <div class="sn"><%= school.school_name %></div>
+
+  <div class="photo">
+    <% if (student.profile_url) { %><img src="<%= student.profile_url %>" alt="Photo">
+    <% } else { %>
+      <svg viewBox="0 0 24 24" fill="#475569"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+    <% } %>
+  </div>
+
+  <div class="name"><%= student.stu_first_name %> <%= student.stu_last_name %></div>
+  <div class="cls">Class <%= student.class_name %><% if (student.section_name) { %> &ndash; <%= student.section_name %><% } %></div>
+
+  <div class="dl" style="top:215px;left:15px;width:70px;text-align:right;">ID NUMBER</div>
+  <div class="dv" style="top:215px;left:92px;right:8px;"><%= student.admission_no || student.student_id %></div>
+
+  <div class="dl" style="top:227px;left:15px;width:70px;text-align:right;">BIRTH DATE</div>
+  <div class="dv" style="top:227px;left:92px;right:8px;"><% if (student.date_of_birth) { %><%= new Date(student.date_of_birth).toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}) %><% } %></div>
+
+  <div class="dl" style="top:239px;left:15px;width:70px;text-align:right;">BLOOD GRP</div>
+  <div class="dv" style="top:239px;left:92px;right:8px;"><%= student.blood_group || '-' %></div>
+
+  <div class="sig">
+    <% if (school.signature_url) { %><img src="<%= school.signature_url %>" alt="Sign">
+    <% } else { %><div class="sig-line"></div><% } %>
+  </div>
+
+  <div class="ft"></div>
+  <div class="ft-txt">ACADEMIC YEAR <%= school.academic_year || '' %></div>
+</div>
+</body>
+</html>

@@ -7,7 +7,15 @@ export const AttendanceController = {
   async getDashboard(req, res) {
     try {
       const { date } = req.query;
-      const data = await AttendanceService.getDashboard(date);
+      const { user_id, role_id } = req.user;
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      let data;
+      if (isTeacher) {
+        data = await AttendanceService.getTeacherDashboard(date, user_id);
+      } else {
+        data = await AttendanceService.getDashboard(date);
+      }
       res.status(200).json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -16,6 +24,17 @@ export const AttendanceController = {
 
   async checkSession(req, res) {
     try {
+      const { class_id, subject_id } = req.query;
+      const { user_id, role_id } = req.user;
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      if (isTeacher) {
+        const isScheduled = await AttendanceService.verifyTeacherSchedule(user_id, Number(class_id), Number(subject_id));
+        if (!isScheduled) {
+          return res.status(403).json({ success: false, message: "Forbidden: You are not scheduled to teach this class/subject." });
+        }
+      }
+
       const data = await AttendanceService.checkSession(req.query);
       res.status(200).json({ success: true, data });
     } catch (err) {
@@ -25,6 +44,23 @@ export const AttendanceController = {
 
   async createSession(req, res) {
     try {
+      const { class_id, subject_id, attendance_date } = req.body;
+      const { user_id, role_id } = req.user;
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      if (isTeacher) {
+        // Enforce same-day creation policy for teachers
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        if (attendance_date && attendance_date !== todayStr) {
+          return res.status(403).json({ success: false, message: "Forbidden: Teachers are not permitted to record attendance for previous days." });
+        }
+
+        const isScheduled = await AttendanceService.verifyTeacherSchedule(user_id, Number(class_id), Number(subject_id));
+        if (!isScheduled) {
+          return res.status(403).json({ success: false, message: "Forbidden: You are not scheduled to teach this class/subject." });
+        }
+      }
+
       const data = await AttendanceService.createSession(req.body);
       res.status(201).json({ success: true, data });
     } catch (err) {
@@ -34,6 +70,29 @@ export const AttendanceController = {
 
   async createRecords(req, res) {
     try {
+      const { session_id, sessionId } = req.body;
+      const finalSessionId = session_id || sessionId;
+      const { user_id, role_id } = req.user;
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      if (isTeacher) {
+        // Enforce same-day policy for teachers
+        const sessionRes = await pool.query('SELECT attendance_date FROM attendance_session WHERE session_id = $1', [Number(finalSessionId)]);
+        const sessionDate = sessionRes.rows[0]?.attendance_date;
+        if (sessionDate) {
+          const todayStr = new Date().toLocaleDateString('en-CA');
+          const formattedSessionDate = new Date(sessionDate).toLocaleDateString('en-CA');
+          if (formattedSessionDate !== todayStr) {
+            return res.status(403).json({ success: false, message: "Forbidden: Teachers are not permitted to record attendance for previous days." });
+          }
+        }
+
+        const isAuthorized = await AttendanceService.verifyTeacherSession(user_id, Number(finalSessionId));
+        if (!isAuthorized) {
+          return res.status(403).json({ success: false, message: "Forbidden: You are not scheduled to record attendance for this session." });
+        }
+      }
+
       const data = await AttendanceService.createRecords(req.body);
 
       // Log activity
@@ -42,7 +101,7 @@ export const AttendanceController = {
           await DashboardService.addActivityEntry(
               req.user.user_id,
               'attendance_marked',
-              `Attendance marked for Session ID: ${req.body.sessionId}`
+              `Attendance marked for Session ID: ${finalSessionId}`
           );
       } catch (e) { console.error(e); }
 
@@ -55,6 +114,16 @@ export const AttendanceController = {
   async getStudents(req, res) {
     try {
       const { classId } = req.query;
+      const { user_id, role_id } = req.user;
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      if (isTeacher) {
+        const isAuthorized = await AttendanceService.verifyTeacherClass(user_id, Number(classId));
+        if (!isAuthorized) {
+          return res.status(403).json({ success: false, message: "Forbidden: You do not teach this class." });
+        }
+      }
+
       const data = await AttendanceService.getStudentsByClass(classId);
       res.status(200).json({ success: true, data });
     } catch (err) {
@@ -64,8 +133,19 @@ export const AttendanceController = {
 
   async getSummary(req, res) {
     try {
-      const { sessionId } = req.query;
-      const data = await AttendanceService.getAttendanceSummary(sessionId);
+      const { session_id, sessionId } = req.query;
+      const finalSessionId = session_id || sessionId;
+      const { user_id, role_id } = req.user;
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      if (isTeacher) {
+        const isAuthorized = await AttendanceService.verifyTeacherSession(user_id, Number(finalSessionId));
+        if (!isAuthorized) {
+          return res.status(403).json({ success: false, message: "Forbidden: You are not authorized to view this session's summary." });
+        }
+      }
+
+      const data = await AttendanceService.getAttendanceSummary(finalSessionId);
       res.status(200).json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -74,6 +154,29 @@ export const AttendanceController = {
 
   async updateRecord(req, res) {
     try {
+      const { session_id, sessionId } = req.body;
+      const finalSessionId = session_id || sessionId;
+      const { user_id, role_id } = req.user;
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      if (isTeacher) {
+        // Enforce same-day policy for teachers
+        const sessionRes = await pool.query('SELECT attendance_date FROM attendance_session WHERE session_id = $1', [Number(finalSessionId)]);
+        const sessionDate = sessionRes.rows[0]?.attendance_date;
+        if (sessionDate) {
+          const todayStr = new Date().toLocaleDateString('en-CA');
+          const formattedSessionDate = new Date(sessionDate).toLocaleDateString('en-CA');
+          if (formattedSessionDate !== todayStr) {
+            return res.status(403).json({ success: false, message: "Forbidden: Teachers are not permitted to modify attendance records for previous days." });
+          }
+        }
+
+        const isAuthorized = await AttendanceService.verifyTeacherSession(user_id, Number(finalSessionId));
+        if (!isAuthorized) {
+          return res.status(403).json({ success: false, message: "Forbidden: You are not authorized to update this session's records." });
+        }
+      }
+
       const data = await AttendanceService.updateRecord(req.body);
       res.status(200).json({ success: true, data });
     } catch (err) {
@@ -126,8 +229,14 @@ export const AttendanceController = {
       const { classId, month, year } = req.query;
       const { user_id, role_id } = req.user;
 
-      // Access control: Teachers can only view their own class
-      if ([3, 4, 15, 16].includes(role_id)) { // Assuming these are teaching roles
+      // Access control: Teachers (roles 3, 4, 5) are completely forbidden from monthly attendance reports
+      const isTeacher = [3, 4, 5].includes(Number(role_id));
+      if (isTeacher) {
+        return res.status(403).json({ success: false, message: "Forbidden: Monthly Attendance Reports are accessible only to Admins and Master Admins." });
+      }
+
+      // Access control for other staff / management roles
+      if ([15, 16].includes(role_id)) {
         const staffRes = await pool.query(
           `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
           [user_id]

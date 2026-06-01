@@ -1,0 +1,65 @@
+<%
+  // Default to THEME_1 if not provided or disabled
+  let activeTheme = (typeof theme !== 'undefined' && theme) ? theme : 'THEME_1';
+  let isEnabled = (typeof is_theme_enabled !== 'undefined') ? is_theme_enabled : true;
+
+  if (!isEnabled) {
+    // If disabled globally, fallback to a neutral or default theme (Theme 1 or whatever)
+    activeTheme = 'THEME_1';
+  }
+
+  const themes = {
+    'THEME_1': { // ROYAL BLUE
+      primary: '#001F54',
+      secondary: '#F5C400',
+      lightAccent: '#EAF2FF',
+      border: '#D6E4FF'
+    },
+    'THEME_2': { // EMERALD GREEN
+      primary: '#0B6E4F',
+      secondary: '#FFD166',
+      lightAccent: '#EAF7F2',
+      border: '#BFE3D4'
+    },
+    'THEME_3': { // MAROON GOLD
+      primary: '#6D071A',
+      secondary: '#E6B325',
+      lightAccent: '#FFF6E5',
+      border: '#E8D2B0'
+    },
+    'THEME_4': { // PURPLE MODERN
+      primary: '#4B2E83',
+      secondary: '#FFB3C6',
+      lightAccent: '#F5F0FF',
+      border: '#D8C7FF'
+    },
+    'THEME_5': { // SKY BLUE PROFESSIONAL
+      primary: '#0077B6',
+      secondary: '#90E0EF',
+      lightAccent: '#F1FAFF',
+      border: '#CFEFFF'
+    },
+    'THEME_6': { // ELEGANT DARK
+      primary: '#1A1A1A',
+      secondary: '#9CA3AF',
+      lightAccent: '#F3F4F6',
+      border: '#D1D5DB'
+    },
+    'THEME_7': { // RED PREMIUM
+      primary: '#9D0208',
+      secondary: '#FFBA08',
+      lightAccent: '#FFF5F5',
+      border: '#FFD6D6'
+    }
+  };
+
+  const selectedColors = themes[activeTheme] || themes['THEME_1'];
+%>
+<style>
+  :root {
+    --primary-color: <%= selectedColors.primary %>;
+    --secondary-color: <%= selectedColors.secondary %>;
+    --light-accent: <%= selectedColors.lightAccent %>;
+    --border-color: <%= selectedColors.border %>;
+  }
+</style>

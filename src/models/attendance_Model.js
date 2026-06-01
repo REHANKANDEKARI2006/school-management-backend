@@ -137,13 +137,14 @@ export const AttendanceModel = {
       SELECT 
         s.student_id,
         s.stu_first_name || ' ' || s.stu_last_name as name,
-        'N/A' as roll_number,
+        s.profile_url,
+        CAST(ROW_NUMBER() OVER (ORDER BY s.stu_first_name, s.stu_last_name) AS VARCHAR) as roll_number,
         c.class_name as class
       FROM student s
       JOIN class_enrollment ce ON ce.student_id = s.student_id
       JOIN class c ON c.class_id = ce.class_id
       WHERE ce.class_id = $1
-      ORDER BY s.student_id;
+      ORDER BY s.stu_first_name, s.stu_last_name;
     `;
     const { rows } = await pool.query(sql, [classId]);
     return rows;
@@ -151,17 +152,28 @@ export const AttendanceModel = {
 
   async getAttendanceSummary(sessionId) {
     const sql = `
+      WITH class_students AS (
+        SELECT ce.student_id, 
+               CAST(ROW_NUMBER() OVER (ORDER BY s.stu_first_name, s.stu_last_name) AS VARCHAR) as roll_number
+        FROM class_enrollment ce
+        JOIN student s ON s.student_id = ce.student_id
+        WHERE ce.class_id = (
+          SELECT class_id FROM attendance_session WHERE session_id = $1
+        )
+      )
       SELECT 
         ar.student_id,
         s.stu_first_name || ' ' || s.stu_last_name as name,
-        'N/A' as roll_number,
+        s.profile_url,
+        COALESCE(cs.roll_number, 'N/A') as roll_number,
         ast.atd_status_name as status,
         ar.remarks
       FROM attendance_record ar
       JOIN student s ON s.student_id = ar.student_id
       JOIN attendance_status ast ON ast.status_id = ar.status_id
+      LEFT JOIN class_students cs ON cs.student_id = ar.student_id
       WHERE ar.session_id = $1
-      ORDER BY s.student_id;
+      ORDER BY s.stu_first_name, s.stu_last_name;
     `;
     const { rows } = await pool.query(sql, [sessionId]);
     return rows;
@@ -222,9 +234,9 @@ export const AttendanceModel = {
       )
       SELECT 
         ds.subject_name as "subjectName",
-        ds.start_time,
-        ds.end_time,
-        ds.period_number,
+        ds.start_time as "startTime",
+        ds.end_time as "endTime",
+        ds.period_number as "periodNumber",
         $2::DATE as date,
         CASE 
           WHEN ar.status_id = 1 THEN 'present'
@@ -265,7 +277,7 @@ export const AttendanceModel = {
     const reportSql = `
       SELECT 
         ar.student_id,
-        ats.attendance_date,
+        TO_CHAR(ats.attendance_date, 'YYYY-MM-DD') as attendance_date,
         ar.status_id
       FROM attendance_record ar
       JOIN attendance_session ats ON ats.session_id = ar.session_id
@@ -277,6 +289,93 @@ export const AttendanceModel = {
     const { rows: records } = await pool.query(reportSql, [classId, month, year]);
 
     return { students, records };
+  },
+
+  async getTeacherDashboard(date, userId) {
+    const sql = `
+      SELECT 
+        c.class_id,
+        c.class_name,
+        s.section_id,
+        s.section_name,
+        sub.subject_id,
+        sub.subject_name,
+        sch.start_time,
+        sch.end_time,
+        c.room_number as location,
+        ats.session_id,
+        CASE 
+          WHEN ats.session_id IS NULL THEN 'Not taken'
+          ELSE 'Taken'
+        END AS status,
+        COALESCE(ar_stats.present_count, 0) as present_count,
+        COALESCE(ar_stats.absent_count, 0) as absent_count
+      FROM class c
+      JOIN section s ON s.section_id = c.section_id
+      JOIN schedule sch ON sch.class_id = c.class_id
+      JOIN subject sub ON sub.subject_id = sch.subject_id
+      LEFT JOIN attendance_session ats
+        ON ats.class_id = c.class_id
+        AND ats.section_id = s.section_id
+        AND ats.subject_id = sub.subject_id
+        AND ats.attendance_date = $1
+      LEFT JOIN (
+        SELECT 
+          session_id,
+          COUNT(*) FILTER (WHERE status_id = 1) as present_count,
+          COUNT(*) FILTER (WHERE status_id = 2) as absent_count
+        FROM attendance_record
+        GROUP BY session_id
+      ) ar_stats ON ar_stats.session_id = ats.session_id
+      WHERE sch.staff_id = (SELECT staff_id FROM staff WHERE user_id = $2 LIMIT 1)
+        AND sch.day_of_week = EXTRACT(ISODOW FROM $1::DATE)
+        AND sch.is_break = false
+      GROUP BY c.class_id, c.class_name, s.section_id, s.section_name, sub.subject_id, sub.subject_name, sch.start_time, sch.end_time, c.room_number, ats.session_id, ar_stats.present_count, ar_stats.absent_count
+      ORDER BY sch.start_time ASC;
+    `;
+    const { rows } = await pool.query(sql, [date, userId]);
+    return rows;
+  },
+
+  async verifyTeacherSchedule(userId, classId, subjectId) {
+    const sql = `
+      SELECT 1 
+      FROM schedule sch
+      JOIN staff st ON st.staff_id = sch.staff_id
+      WHERE st.user_id = $1 
+        AND sch.class_id = $2 
+        AND sch.subject_id = $3
+      LIMIT 1;
+    `;
+    const { rows } = await pool.query(sql, [userId, classId, subjectId]);
+    return rows.length > 0;
+  },
+
+  async verifyTeacherSession(userId, sessionId) {
+    const sql = `
+      SELECT 1 
+      FROM attendance_session ats
+      JOIN schedule sch ON sch.class_id = ats.class_id AND sch.subject_id = ats.subject_id
+      JOIN staff st ON st.staff_id = sch.staff_id
+      WHERE st.user_id = $1 
+        AND ats.session_id = $2
+      LIMIT 1;
+    `;
+    const { rows } = await pool.query(sql, [userId, sessionId]);
+    return rows.length > 0;
+  },
+
+  async verifyTeacherClass(userId, classId) {
+    const sql = `
+      SELECT 1 
+      FROM schedule sch
+      JOIN staff st ON st.staff_id = sch.staff_id
+      WHERE st.user_id = $1 
+        AND sch.class_id = $2
+      LIMIT 1;
+    `;
+    const { rows } = await pool.query(sql, [userId, classId]);
+    return rows.length > 0;
   }
 
 };

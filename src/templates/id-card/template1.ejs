@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ID Card</title>
+<%- include('../common/theme_variables', { theme: school.document_theme, is_theme_enabled: school.is_document_theme_enabled }) %>
+<%
+  const pc = 'var(--primary-color)';
+  const sc = 'var(--secondary-color)';
+  const initials = ((student.stu_first_name||'').charAt(0) + (student.stu_last_name||'').charAt(0)).toUpperCase() || '?';
+  const dobStr = student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}) : null;
+  const photoSrc = photoDataUrl || student.profile_url || null;
+  const logoSrc  = logoDataUrl  || school.logo_url    || null;
+  const sigSrc   = signatureDataUrl || school.signature_url || null;
+  const sansthaName = (school.organization_name && school.organization_name.trim()) ? school.organization_name.trim() : null;
+  const rollNo = student.student_id;
+  const acadYear = school.academic_year || '2025-26';
+%>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body {
+  width:204px; height:324px; overflow:hidden;
+  background:transparent;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  font-family:'Segoe UI',Arial,sans-serif;
+}
+.card {
+  width:204px; height:324px; background:#fff;
+  position:relative; overflow:hidden;
+  display:flex; flex-direction:column;
+  border-radius: 8px;
+}
+/* ─ Header (Curved) ─ */
+.hdr {
+  flex-shrink:0; height:112px;
+  background:<%= pc %>;
+  position:relative;
+  display:flex; flex-direction:column; align-items:center;
+  padding:6px 8px 0;
+  border-bottom-left-radius: 50% 15%;
+  border-bottom-right-radius: 50% 15%;
+  box-shadow: 0 4px 0 0 #facc15;
+  z-index: 1;
+}
+.logo-wrap {
+  width:28px; height:28px; border-radius:50%;
+  border:1px solid #fff; background:#fff;
+  overflow:hidden; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 0 1px rgba(201,168,76,0.5);
+  margin-bottom: 2px;
+}
+.logo-wrap img { width:100%; height:100%; object-fit:contain; }
+.logo-wrap .lt { font-size:7px; font-weight:800; color:<%= pc %>; }
+
+.org-yellow {
+  font-size:6px; font-weight: 800; color:#facc15;
+  text-align:center; line-height:1.2; margin-bottom:2px;
+}
+.gold-div {
+  display: flex; align-items: center; justify-content: center;
+  width: 60%; margin: 2px 0 3px;
+}
+.gold-div::before, .gold-div::after {
+  content: ''; flex: 1; height: 1px; background: #facc15;
+}
+.gold-div .dot {
+  width: 3px; height: 3px; background: #facc15; border-radius: 50%; margin: 0 2px;
+}
+
+.sn-caps {
+  font-size:9.5px; font-weight:800; color:#fff; text-transform:uppercase;
+  text-align:center; line-height:1.1; margin-bottom: 3px;
+  padding: 0 4px;
+}
+
+.hdr-addr {
+  display: flex; align-items: flex-start; justify-content: center;
+  width: 100%; gap: 3px;
+}
+.hdr-addr-icon {
+  width: 5px; height: 5px; display: flex; align-items: center; justify-content: center; margin-top: 0.2px;
+}
+.hdr-addr-icon svg { width:100%; height:100%; fill:#fff; }
+.hdr-addr-text {
+  font-size: 4.5px; color:#fff; text-align:center; line-height:1.1;
+}
+
+/* ─ Photo ─ */
+.photo {
+  position:absolute; top:80px; left:50%; transform:translateX(-50%);
+  width:60px; height:60px; border-radius:50%;
+  border:2px solid #fff; background:#e2e8f0;
+  overflow:hidden; z-index:10;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 3px 6px rgba(0,0,0,0.15);
+}
+.photo img { width:100%; height:100%; object-fit:cover; }
+.photo-initials { font-size:18px; font-weight:700; color:#475569; }
+
+/* ─ Body ─ */
+.body {
+  flex:1; display:flex; flex-direction:column;
+  padding: 32px 10px 0 10px;
+  min-height:0; position:relative; z-index:2;
+}
+.stu-name {
+  font-size:14px; font-weight:800; color:#1e293b;
+  text-align:center; line-height:1.1;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  margin-bottom: 3px;
+  min-height: 15px;
+}
+.cls-badge {
+  display:flex; justify-content:center; margin-bottom:4px;
+}
+.cls-badge span {
+  font-size:6.5px; font-weight:700; color:#fff;
+  background:<%= pc %>;
+  border-radius:12px; padding:3px 14px;
+  white-space:nowrap;
+}
+
+/* ─ Detail rows ─ */
+.rows-container {
+  display:flex; flex-direction:column; width:100%;
+  background-image: linear-gradient(to right, #cbd5e1 50%, transparent 50%);
+  background-position: top; background-size: 4px 1px; background-repeat: repeat-x;
+}
+.row {
+  display:flex; align-items:center; 
+  padding: 3px 0;
+  background-image: linear-gradient(to right, #cbd5e1 50%, transparent 50%);
+  background-position: bottom; background-size: 4px 1px; background-repeat: repeat-x;
+}
+.row:last-child { background-image: none; }
+
+.icon {
+  width: 9px; height: 9px; margin-right: 5px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.icon svg { width:100%; height:100%; fill:#1e293b; }
+
+.rl {
+  font-size:5px; font-weight:800; color:#1e293b;
+  text-transform:uppercase; letter-spacing:0.02em;
+  width: 80px; flex-shrink:0; line-height:1.1;
+}
+.rc { font-size:5px; font-weight:800; color:#475569; margin-right:4px; line-height:1; }
+.rv { font-size:5.5px; font-weight:800; color:#0f172a; flex:1; line-height:1.1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Multi-line for address */
+.row-address { align-items:flex-start; margin-bottom:0; }
+.row-address .rv { white-space:normal; min-height:12px; height:auto; }
+
+/* ─ Spacer ─ */
+.spacer { flex:1; }
+
+/* ─ Signature ─ */
+.sig-container {
+  display:flex; justify-content:flex-end;
+  padding-right: 4px;
+  margin-bottom: 2px;
+}
+.sig {
+  display:flex; flex-direction:column; align-items:center;
+}
+.sig img { height:12px; max-width:40px; object-fit:contain; }
+.sig-line { width:40px; border-bottom:0.8px solid #1d4ed8; }
+.sig-lbl {
+  font-size:3.5px; font-weight:800; 
+  color:#1d4ed8; text-transform:uppercase; margin-top:2px;
+}
+
+/* ─ Footer ─ */
+.footer-wrap {
+  flex-shrink:0; display:flex; flex-direction:column;
+}
+.ft-gold {
+  height:1.5px; background:#facc15;
+}
+.footer {
+  height:16px; background:<%= pc %>;
+  display:flex; align-items:center; justify-content:center;
+}
+.footer span {
+  font-size:5.5px; font-weight:600; color:#fff; letter-spacing:0.02em;
+}
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="logo-wrap">
+      <% if (logoSrc) { %><img src="<%= logoSrc %>" alt="Logo">
+      <% } else { %><span class="lt"><%= (school.school_name||'').charAt(0) %></span><% } %>
+    </div>
+    
+    <% if (sansthaName) { %>
+      <div class="org-yellow"><%= sansthaName %></div>
+    <% } %>
+    
+    <div class="gold-div"><div class="dot"></div></div>
+    <div class="sn-caps"><%= school.school_name %></div>
+    
+    <% if (school.address) { %>
+    <div class="hdr-addr">
+      <div class="hdr-addr-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+      <div class="hdr-addr-text"><%= school.address %></div>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Student photo -->
+  <div class="photo">
+    <% if (photoSrc) { %>
+      <img src="<%= photoSrc %>" alt="Photo">
+    <% } else { %>
+      <span class="photo-initials"><%= initials %></span>
+    <% } %>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+    <div class="stu-name">
+      <% if (student.stu_first_name || student.stu_last_name) { %>
+        <%= student.stu_first_name || '' %> <%= student.stu_last_name || '' %>
+      <% } %>
+    </div>
+    <div class="cls-badge">
+      <span>Class <%= student.class_name %><% if (student.section_name) { %>-<%= student.section_name %><% } %></span>
+    </div>
+
+    <div class="rows-container">
+      <!-- ID / Roll Number -->
+      <div class="row">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zm0 2v12h16V6H4zm3 3h4v4H7V9zm5 0h5v1.5h-5V9zm0 2.5h5V13h-5v-1.5z"/></svg></div>
+        <span class="rl">ID Number</span><span class="rc">:</span>
+        <span class="rv"><%= rollNo %></span>
+      </div>
+
+      <% if (dobStr) { %>
+      <div class="row">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg></div>
+        <span class="rl">Date of Birth</span><span class="rc">:</span>
+        <span class="rv"><%= dobStr %></span>
+      </div>
+      <% } %>
+
+      <% if (student.blood_group) { %>
+      <div class="row">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg></div>
+        <span class="rl">Blood Group</span><span class="rc">:</span>
+        <span class="rv"><%= student.blood_group %></span>
+      </div>
+      <% } %>
+
+      <% if (student.primary_contact) { %>
+      <div class="row">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.15 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.25 1.12.37 2.32.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div>
+        <span class="rl">Parent Contact No.</span><span class="rc">:</span>
+        <span class="rv"><%= student.primary_contact %></span>
+      </div>
+      <% } %>
+
+      <% if (student.father_name) { %>
+      <div class="row">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>
+        <span class="rl">Father Name</span><span class="rc">:</span>
+        <span class="rv"><%= student.father_name %></span>
+      </div>
+      <% } %>
+
+      <% if (acadYear) { %>
+      <div class="row">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg></div>
+        <span class="rl">Academic Year</span><span class="rc">:</span>
+        <span class="rv"><%= acadYear %></span>
+      </div>
+      <% } %>
+
+      <% if (student.address) { %>
+      <div class="row row-address">
+        <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+        <span class="rl">Address</span><span class="rc">:</span>
+        <span class="rv"><%= student.address %></span>
+      </div>
+      <% } %>
+    </div>
+
+    <div class="spacer"></div>
+
+    <!-- Signature -->
+    <div class="sig-container">
+      <div class="sig">
+        <% if (sigSrc) { %>
+          <img src="<%= sigSrc %>" alt="Sig">
+        <% } else { %>
+          <div class="sig-line"></div>
+        <% } %>
+        <div class="sig-lbl">AUTHORIZED SIGNATORY</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer-wrap">
+    <div class="ft-gold"></div>
+    <div class="footer">
+      <span>Valid for Academic Session <%= acadYear %></span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

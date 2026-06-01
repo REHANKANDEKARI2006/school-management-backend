@@ -5,22 +5,22 @@ import authMiddleware from "../middleware/auth_middleware.js";
 const router = Router();
 
 /* DASHBOARD */
-router.get("/dashboard", AttendanceController.getDashboard);
+router.get("/dashboard", authMiddleware, AttendanceController.getDashboard);
 
 /* SESSION */
-router.post("/session", AttendanceController.createSession);
-router.get("/session/check", AttendanceController.checkSession);
+router.post("/session", authMiddleware, AttendanceController.createSession);
+router.get("/session/check", authMiddleware, AttendanceController.checkSession);
 
 /* RECORD */
-router.post("/record", AttendanceController.createRecords);
-router.put("/record", AttendanceController.updateRecord);
+router.post("/record", authMiddleware, AttendanceController.createRecords);
+router.put("/record", authMiddleware, AttendanceController.updateRecord);
 
 /* OTHERS */
-router.get("/students", AttendanceController.getStudents);
-router.get("/summary", AttendanceController.getSummary);
+router.get("/students", authMiddleware, AttendanceController.getStudents);
+router.get("/summary", authMiddleware, AttendanceController.getSummary);
 
 /* STUDENT HISTORY */
-router.get("/student/:studentId", AttendanceController.getStudentHistory);
+router.get("/student/:studentId", authMiddleware, AttendanceController.getStudentHistory);
 router.get("/my-history", authMiddleware, AttendanceController.getMyHistory);
 
 /* REPORTS */

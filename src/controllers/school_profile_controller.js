@@ -1,4 +1,5 @@
 import { SchoolProfileService } from "../services/school_profile_service.js";
+import pool from "../config/db.js";
 
 export const SchoolProfileController = {
   async getProfile(req, res) {
@@ -26,6 +27,9 @@ export const SchoolProfileController = {
       if (!req.file) {
         return res.status(400).json({ success: false, message: "No file uploaded" });
       }
+      // Instantly update the database to ensure real-time application across all documents
+      await pool.query('UPDATE school_profile SET logo_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [req.file.path]);
+      
       res.status(200).json({
         success: true,
         message: "Logo uploaded successfully",
@@ -42,6 +46,9 @@ export const SchoolProfileController = {
       if (!req.file) {
         return res.status(400).json({ success: false, message: "No file uploaded" });
       }
+      // Instantly update the database to ensure real-time application across all documents
+      await pool.query('UPDATE school_profile SET signature_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [req.file.path]);
+
       res.status(200).json({
         success: true,
         message: "Signature uploaded successfully",
@@ -74,6 +81,9 @@ export const SchoolProfileController = {
       if (!req.file) {
         return res.status(400).json({ success: false, message: "No file uploaded" });
       }
+      // Instantly update the database to ensure real-time application across all documents
+      await pool.query('UPDATE school_profile SET stamp_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [req.file.path]);
+
       res.status(200).json({
         success: true,
         message: "Stamp uploaded successfully",

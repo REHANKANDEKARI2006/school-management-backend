@@ -7,7 +7,7 @@ import upload from "../middlewares/upload.js";
 const router = Router();
 
 // Upload Logo
-router.post("/upload-logo", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17, 21), (req, res, next) => {
+router.post("/upload-logo", authMiddleware, allowRoles(1, 21), (req, res, next) => {
     upload.single("file")(req, res, function (err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message || "File upload failed" });
@@ -17,7 +17,7 @@ router.post("/upload-logo", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17, 21)
 }, SchoolProfileController.uploadLogo);
 
 // Upload Signature
-router.post("/upload-signature", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17, 21), (req, res, next) => {
+router.post("/upload-signature", authMiddleware, allowRoles(1, 21), (req, res, next) => {
     upload.single("file")(req, res, function (err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message || "File upload failed" });
@@ -27,7 +27,7 @@ router.post("/upload-signature", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17
 }, SchoolProfileController.uploadSignature);
 
 // Upload Secondary Logo
-router.post("/upload-secondary-logo", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17, 21), (req, res, next) => {
+router.post("/upload-secondary-logo", authMiddleware, allowRoles(1, 21), (req, res, next) => {
     upload.single("file")(req, res, function (err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message || "File upload failed" });
@@ -37,7 +37,7 @@ router.post("/upload-secondary-logo", authMiddleware, allowRoles(1, 2, 10, 11, 1
 }, SchoolProfileController.uploadSecondaryLogo);
 
 // Upload Stamp
-router.post("/upload-stamp", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17, 21), (req, res, next) => {
+router.post("/upload-stamp", authMiddleware, allowRoles(1, 21), (req, res, next) => {
     upload.single("file")(req, res, function (err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message || "File upload failed" });
@@ -48,6 +48,6 @@ router.post("/upload-stamp", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17, 21
 
 // GET and UPSERT Profile
 router.get("/", authMiddleware, SchoolProfileController.getProfile);
-router.put("/", authMiddleware, allowRoles(1, 2, 10, 11, 16, 17, 21), SchoolProfileController.upsertProfile);
+router.put("/", authMiddleware, allowRoles(1, 21), SchoolProfileController.upsertProfile);
 
 export default router;

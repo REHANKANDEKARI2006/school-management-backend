@@ -13,13 +13,11 @@
             background: #ffffff;
         }
         .cert-container {
-            border: 2px solid var(--primary-color);
             padding: 10px;
             height: 100%;
             position: relative;
         }
         .cert-inner {
-            border: 4px solid var(--primary-color);
             padding: 40px 60px;
             height: 100%;
             position: relative;
@@ -144,25 +142,35 @@
             </div>
 
             <div class="cert-title">
-                <h2>Bonafide Certificate</h2>
+                <h2><%= typeof customTitle !== 'undefined' && customTitle ? customTitle : 'Bonafide Certificate' %></h2>
             </div>
 
             <div class="cert-body">
-                <p>
-                    This is to certify that Mr./Ms. <span class="highlight"><%= student.stu_first_name %> <%= student.stu_last_name %></span>, 
-                    son/daughter of <span class="highlight"><%= student.father_name || '______________' %></span> 
-                    and <span class="highlight"><%= student.mother_name || '______________' %></span>, 
-                    bearing ID number <span class="highlight"><%= student.student_id %></span>, 
-                    is a bonafide student of this institution.
-                </p>
-                <p>
-                    He/She is currently studying in class <span class="highlight"><%= student.class_name %> - <%= student.section_name || '' %></span> 
-                    for the academic year <span class="highlight"><%= school.academic_year || '2024-25' %></span>. 
-                    His/Her date of birth according to the school records is <span class="highlight"><%= new Date(student.date_of_birth).toLocaleDateString('en-GB') %></span>.
-                </p>
-                <p>
-                    To the best of our knowledge, he/she possesses a good moral character.
-                </p>
+                <% if (typeof customParagraph !== 'undefined' && customParagraph) { %>
+                    <div style="white-space: pre-wrap;"><%- customParagraph %></div>
+                <% } else { %>
+                    <p>
+                        This is to certify that Mr./Ms. <span class="highlight"><%= student.stu_first_name %> <%= student.stu_last_name %></span>, 
+                        son/daughter of <span class="highlight"><%= student.father_name || '______________' %></span> 
+                        and <span class="highlight"><%= student.mother_name || '______________' %></span>, 
+                        bearing ID number <span class="highlight"><%= student.student_id %></span>, 
+                        is a bonafide student of this institution.
+                    </p>
+                    <p>
+                        He/She is currently studying in class <span class="highlight"><%= student.class_name %> - <%= student.section_name || '' %></span> 
+                        for the academic year <span class="highlight"><%= school.academic_year || '2024-25' %></span>. 
+                        His/Her date of birth according to the school records is <span class="highlight"><%= new Date(student.date_of_birth).toLocaleDateString('en-GB') %></span>.
+                    </p>
+                    <p>
+                        To the best of our knowledge, he/she possesses a good moral character.
+                    </p>
+                <% } %>
+                
+                <% if (typeof customRemarks !== 'undefined' && customRemarks) { %>
+                    <div class="remarks-block" style="margin-top: 20px; font-style: italic;">
+                        <strong>Remarks:</strong> <%= customRemarks %>
+                    </div>
+                <% } %>
             </div>
 
             <div class="cert-footer">

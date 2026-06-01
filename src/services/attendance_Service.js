@@ -4,7 +4,73 @@ import { HolidayService } from "./holiday_service.js";
 export const AttendanceService = {
 
   async getDashboard(date) {
-    return await AttendanceModel.getDashboard(date);
+    const classes = await AttendanceModel.getDashboard(date);
+    
+    // Check if the date is a holiday or Sunday
+    const dateObj = new Date(date);
+    const year = dateObj.getFullYear();
+    const holidays = await HolidayService.getHolidays(year);
+    
+    // Format date string to YYYY-MM-DD local time instead of UTC to avoid timezone issues
+    const yearStr = dateObj.getFullYear();
+    const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(dateObj.getDate()).padStart(2, '0');
+    const localDateStr = `${yearStr}-${monthStr}-${dayStr}`;
+
+    const todaysHolidays = holidays.filter(h => h.date === localDateStr);
+    const isSunday = dateObj.getDay() === 0;
+    
+    let holidayNames = todaysHolidays.map(h => h.name);
+    if (isSunday && holidayNames.length === 0) {
+      holidayNames = ['Sunday'];
+    }
+
+    return {
+      classes,
+      is_holiday: todaysHolidays.length > 0 || isSunday,
+      holiday_names: holidayNames
+    };
+  },
+
+  async getTeacherDashboard(date, userId) {
+    const classes = await AttendanceModel.getTeacherDashboard(date, userId);
+    
+    // Check if the date is a holiday or Sunday
+    const dateObj = new Date(date);
+    const year = dateObj.getFullYear();
+    const holidays = await HolidayService.getHolidays(year);
+    
+    // Format date string to YYYY-MM-DD local time instead of UTC to avoid timezone issues
+    const yearStr = dateObj.getFullYear();
+    const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(dateObj.getDate()).padStart(2, '0');
+    const localDateStr = `${yearStr}-${monthStr}-${dayStr}`;
+
+    const todaysHolidays = holidays.filter(h => h.date === localDateStr);
+    const isSunday = dateObj.getDay() === 0;
+    
+    let holidayNames = todaysHolidays.map(h => h.name);
+    if (isSunday && holidayNames.length === 0) {
+      holidayNames = ['Sunday'];
+    }
+
+    return {
+      classes,
+      is_holiday: todaysHolidays.length > 0 || isSunday,
+      holiday_names: holidayNames
+    };
+  },
+
+  async verifyTeacherSchedule(userId, classId, subjectId) {
+    return await AttendanceModel.verifyTeacherSchedule(userId, classId, subjectId);
+  },
+
+  async verifyTeacherSession(userId, sessionId) {
+    return await AttendanceModel.verifyTeacherSession(userId, sessionId);
+  },
+
+  async verifyTeacherClass(userId, classId) {
+    return await AttendanceModel.verifyTeacherClass(userId, classId);
   },
 
   async checkSession(params) {
@@ -49,7 +115,16 @@ export const AttendanceService = {
       const days = {};
       
       studentRecords.forEach(r => {
-        const day = new Date(r.attendance_date).getDate();
+        let day;
+        if (typeof r.attendance_date === 'string') {
+          const datePart = r.attendance_date.split('T')[0];
+          day = parseInt(datePart.split('-')[2], 10);
+        } else if (r.attendance_date instanceof Date) {
+          day = r.attendance_date.getDate();
+        } else {
+          day = new Date(r.attendance_date).getDate();
+        }
+
         // If multiple sessions, 'Present' (status_id 1) takes priority
         if (!days[day] || r.status_id === 1) {
           days[day] = r.status_id;

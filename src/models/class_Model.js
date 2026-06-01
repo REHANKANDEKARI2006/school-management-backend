@@ -43,6 +43,7 @@ export const ClassModel = {
       SELECT c.*, s.section_name 
       FROM class c
       LEFT JOIN section s ON s.section_id = c.section_id
+      WHERE c.room_number IS NOT NULL
       ORDER BY c.class_id DESC;
     `;
     const { rows } = await pool.query(sql);
@@ -51,7 +52,38 @@ export const ClassModel = {
 
   async findById(id) {
     const sql = `
-      SELECT c.*, s.section_name 
+      SELECT 
+        c.*, 
+        s.section_name,
+        (SELECT COUNT(*) FROM class_enrollment ce WHERE ce.class_id = c.class_id AND ce.status_id = 1) as student_count,
+        (
+          SELECT ROUND(AVG(CASE WHEN ar.status_id = 1 THEN 100 ELSE 0 END), 1)
+          FROM attendance_record ar
+          JOIN attendance_session ats ON ats.session_id = ar.session_id
+          WHERE ats.class_id = c.class_id
+        ) as attendance_rate,
+        (
+          SELECT COUNT(*) 
+          FROM exam e
+          WHERE e.class_id = c.class_id 
+          AND e.date_time < NOW()
+          AND NOT EXISTS (SELECT 1 FROM exam_grades eg WHERE eg.exam_id = e.exam_id)
+        ) as pending_marks,
+        (
+          SELECT 
+            CASE 
+              WHEN AVG(eg.marks_obtained * 100.0 / NULLIF(e.total_score, 0)) >= 90 THEN 'A+'
+              WHEN AVG(eg.marks_obtained * 100.0 / NULLIF(e.total_score, 0)) >= 80 THEN 'A'
+              WHEN AVG(eg.marks_obtained * 100.0 / NULLIF(e.total_score, 0)) >= 70 THEN 'B+'
+              WHEN AVG(eg.marks_obtained * 100.0 / NULLIF(e.total_score, 0)) >= 60 THEN 'B'
+              WHEN AVG(eg.marks_obtained * 100.0 / NULLIF(e.total_score, 0)) >= 50 THEN 'C'
+              WHEN AVG(eg.marks_obtained * 100.0 / NULLIF(e.total_score, 0)) IS NULL THEN 'N/A'
+              ELSE 'D'
+            END
+          FROM exam_grades eg
+          JOIN exam e ON e.exam_id = eg.exam_id
+          WHERE e.class_id = c.class_id
+        ) as performance
       FROM class c
       LEFT JOIN section s ON s.section_id = c.section_id
       WHERE c.class_id = $1 LIMIT 1;
@@ -162,6 +194,7 @@ export const ClassModel = {
           s.section_name,
           st.staff_first_name,
           st.staff_last_name,
+          st.profile_url,
           COUNT(ce.enrollment_id) AS students_count
         FROM class c
         LEFT JOIN section s ON s.section_id = c.section_id
@@ -174,7 +207,8 @@ export const ClassModel = {
           c.staff_id,
           s.section_name,
           st.staff_first_name,
-          st.staff_last_name
+          st.staff_last_name,
+          st.profile_url
         ORDER BY c.class_id DESC;
       `;
 

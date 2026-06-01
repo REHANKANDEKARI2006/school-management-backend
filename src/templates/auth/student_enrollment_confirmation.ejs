@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Enrollment Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7fa; color: #334155;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 0; background: linear-gradient(135deg, <%= branding.primaryColor %>, #1d4ed8);">
+                            <img src="<%= branding.logoUrl %>" alt="<%= branding.schoolName %> Logo" width="80" style="margin-bottom: 16px;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;"><%= branding.schoolName %></h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 20px; font-weight: 700;">Enrollment Confirmed</h2>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 24px;">Dear <%= guardianName %>,</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 24px;">
+                                We are pleased to inform you that your child, <strong><%= studentName %></strong>, has been successfully enrolled at <strong><%= branding.schoolName %></strong>.
+                            </p>
+                            
+                            <div style="background-color: #f8fafc; border-radius: 12px; padding: 24px; border-left: 4px solid <%= branding.primaryColor %>;">
+                                <h3 style="margin: 0 0 12px 0; color: #475569; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 800;">Student Details</h3>
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                    <tr>
+                                        <td style="padding: 4px 0; font-size: 14px; color: #64748b;">Name:</td>
+                                        <td style="padding: 4px 0; font-size: 14px; font-weight: 600; text-align: right;"><%= studentName %></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 4px 0; font-size: 14px; color: #64748b;">Class:</td>
+                                        <td style="padding: 4px 0; font-size: 14px; font-weight: 600; text-align: right;"><%= className %></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 4px 0; font-size: 14px; color: #64748b;">Enrollment Date:</td>
+                                        <td style="padding: 4px 0; font-size: 14px; font-weight: 600; text-align: right;"><%= enrollmentDate %></td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <p style="margin: 32px 0 0 0; font-size: 16px; line-height: 24px;">
+                                Your child will receive a separate email to set up their student portal access. We look forward to a successful academic journey together.
+                            </p>
+                            
+                            <p style="margin: 24px 0 0 0; font-size: 16px; line-height: 24px;">
+                                Best regards,<br>
+                                <strong>Admissions Team</strong><br>
+                                <%= branding.schoolName %>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+                                &copy; <%= new Date().getFullYear() %> <%= branding.schoolName %>. All rights reserved.<br>
+                                This is an automated notification, please do not reply to this email.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -24,6 +24,8 @@ export const DashboardController = {
         
         const staffId = staffRes.rows[0].staff_id;
         summary = await DashboardService.getTeacherSummary(staffId, user_id, institute_id);
+      } else if (role_id === 18) { // Student
+        summary = await DashboardService.getStudentDashboardData(user_id);
       } else {
         // Default to Admin Summary for now (Admin/Master Admin)
         summary = await DashboardService.getAdminSummary(institute_id);

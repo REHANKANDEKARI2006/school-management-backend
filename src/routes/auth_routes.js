@@ -1,5 +1,5 @@
 import express from "express";
-import { login, refreshToken, getProfile, updateProfile, changePassword, uploadAvatar, inviteUser, resendInvitation, verifyInviteToken, setPassword, forgotPassword, resetPassword, getUsers, updateUserStatus, deleteUser } from "../controllers/auth_controller.js";
+import { login, refreshToken, getProfile, updateProfile, changePassword, uploadAvatar, inviteUser, resendInvitation, verifyInviteToken, setPassword, forgotPassword, resetPassword, verifyResetToken, getUsers, updateUserStatus, deleteUser } from "../controllers/auth_controller.js";
 import authMiddleware from "../middleware/auth_middleware.js";
 import upload from "../middlewares/upload.js";
 
@@ -14,6 +14,7 @@ router.post("/upload-avatar", authMiddleware, upload.single("file"), uploadAvata
 router.post("/invite-user", authMiddleware, inviteUser);
 router.post("/resend-invitation", authMiddleware, resendInvitation);
 router.get("/verify-invite-token", verifyInviteToken);
+router.get("/verify-reset-token", verifyResetToken);
 router.post("/set-password", setPassword);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);

@@ -360,6 +360,8 @@ const EventsModel = {
    */
   async saveEventAttendance(eventId, classId, records, markedBy) {
     const client = await pool.connect();
+    // Sanitize markedBy: treat 0, null, undefined, NaN as NULL to avoid FK violation
+    const safeMarkedBy = markedBy && Number(markedBy) > 0 ? Number(markedBy) : null;
     try {
       await client.query("BEGIN");
       
@@ -373,7 +375,7 @@ const EventsModel = {
           DO UPDATE SET status = EXCLUDED.status, remarks = EXCLUDED.remarks,
                         marked_by = EXCLUDED.marked_by, marked_at = now()
           RETURNING *
-        `, [eventId, classId, r.student_id, r.status, r.remarks || null, markedBy]);
+        `, [eventId, classId, r.student_id, r.status, r.remarks || null, safeMarkedBy]);
         results.push(res.rows[0]);
       }
 

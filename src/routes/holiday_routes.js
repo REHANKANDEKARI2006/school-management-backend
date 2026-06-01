@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', authMiddleware, HolidayController.getHolidays);
 
 // Admin / Management only
-const adminGroup = [1, 2, 10, 11]; // MASTER_ADMIN, INSTITUTE_ADMIN, PRINCIPAL, VICE_PRINCIPAL
+const adminGroup = [1]; // Reserved exclusively for MASTER_ADMIN (1)
 
 router.get('/custom', 
   authMiddleware, 

@@ -1,6 +1,7 @@
 // src/routes/fees_routes.js
 import { Router } from "express";
 import { FeesController } from "../controllers/fees_controller.js";
+import authMiddleware from "../middleware/auth_middleware.js";
 
 const router = Router();
 
@@ -18,10 +19,10 @@ router.post("/structures", FeesController.createFeeStructure);
 router.get("/installments/:fee_struct_id", FeesController.getInstallmentsByStructure);
 
 /* Fee Collection */
-router.post("/collect", FeesController.collectFee);
-router.get("/collection/:student_id", FeesController.getStudentFeeCollection);
-router.get("/status/class/:class_id", FeesController.getFeeStatusByClass);
-router.get("/status/student/:student_id", FeesController.getStudentDetailedFeeStatus);
+router.post("/collect", authMiddleware, FeesController.collectFee);
+router.get("/collection/:student_id", authMiddleware, FeesController.getStudentFeeCollection);
+router.get("/status/class/:class_id", authMiddleware, FeesController.getFeeStatusByClass);
+router.get("/status/student/:student_id", authMiddleware, FeesController.getStudentDetailedFeeStatus);
 
 router.put("/structure", FeesController.updateFeeStructure);
 router.delete("/structure", FeesController.deleteFeeStructure);

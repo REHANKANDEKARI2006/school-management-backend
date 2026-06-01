@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Leaving Certificate</title>
+    <%- include('../common/styles') %>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Playfair Display', serif;
+            background: #ffffff;
+            color: #1e293b;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .cert-wrapper {
+            position: relative;
+            width: 210mm;
+            height: 297mm;
+            box-sizing: border-box;
+            padding: 12mm;
+            background: #ffffff;
+        }
+
+        /* Asterisk Border Pattern */
+        .asterisk-border {
+            position: absolute;
+            top: 10mm;
+            left: 10mm;
+            right: 10mm;
+            bottom: 10mm;
+            border: 4px solid transparent;
+            /* Star repeating pattern */
+            background-image: 
+              url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 1L10 6L15 8L10 10L8 15L6 10L1 8L6 6L8 1Z' fill='%231e293b'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            z-index: 2;
+            pointer-events: none;
+        }
+        
+        .inner-content {
+            position: relative;
+            z-index: 10;
+            background: #ffffff;
+            margin: 12px;
+            padding: 15px;
+            height: calc(100% - 24px);
+            box-sizing: border-box;
+        }
+
+        /* Header Layout */
+        .header-box {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .header-logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin-right: 15px;
+        }
+        .header-text {
+            flex: 1;
+            text-align: center;
+        }
+        .sanstha-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        .school-name {
+            font-size: 32px;
+            font-weight: 700;
+            margin: 0 0 5px 0;
+            color: var(--primary-color, #1e293b);
+        }
+        .school-address {
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        /* Divider */
+        .ornate-divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        .ornate-divider::before, .ornate-divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1.5px solid #1e293b;
+            margin: 0 10px;
+        }
+        .ornate-diamond {
+            width: 10px;
+            height: 10px;
+            background: #1e293b;
+            transform: rotate(45deg);
+        }
+
+        /* Title */
+        .cert-title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 5px 0;
+            letter-spacing: 1px;
+        }
+        .cert-subtitle {
+            text-align: center;
+            font-size: 12px;
+            margin: 0 0 20px 0;
+            font-style: italic;
+        }
+
+        /* Header Data Row */
+        .gr-row {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        .underline-input {
+            border-bottom: 1px solid #1e293b;
+            display: inline-block;
+            min-width: 100px;
+            text-align: center;
+            padding: 0 5px;
+            font-weight: 500;
+        }
+
+        /* Form Fields */
+        .form-body {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: flex;
+            margin-bottom: 8px;
+            align-items: flex-end;
+        }
+        .form-number {
+            width: 25px;
+        }
+        .form-label {
+            width: 220px;
+            flex-shrink: 0;
+        }
+        .form-colon {
+            width: 15px;
+        }
+        .form-value {
+            flex: 1;
+            border-bottom: 1px solid #1e293b;
+            padding-left: 5px;
+            min-height: 20px;
+        }
+        .form-value-inline {
+            border-bottom: 1px solid #1e293b;
+            padding: 0 10px;
+            display: inline-block;
+        }
+
+        /* Bottom Section */
+        .bottom-section {
+            margin-top: 20px;
+        }
+        .thick-divider {
+            border-top: 2.5px solid #1e293b;
+            margin-bottom: 15px;
+        }
+        .certified-text {
+            text-align: center;
+            font-size: 14px;
+            margin-bottom: 60px;
+        }
+
+        .signature-row {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 0 20px;
+            margin-bottom: 30px;
+        }
+        .sig-block {
+            text-align: center;
+            width: 150px;
+            border-top: 1px solid #1e293b;
+            padding-top: 5px;
+            position: relative;
+        }
+        .sig-img {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            height: 40px;
+            mix-blend-mode: multiply;
+        }
+
+        .date-bottom {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="cert-wrapper doc-container">
+        <div class="asterisk-border"></div>
+        
+        <div class="inner-content">
+            <!-- Header -->
+            <div class="header-box">
+                <% if (logoUrl) { %>
+                    <img src="<%= logoUrl %>" alt="Logo" class="header-logo">
+                <% } else { %>
+                    <div class="header-logo"></div>
+                <% } %>
+                <div class="header-text">
+                    <div class="sanstha-name">Sangli Shikshan Sanstha</div>
+                    <h1 class="school-name"><%= school.school_name || 'School Name' %></h1>
+                    <div class="school-address">
+                        <span><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg> <%= school.address || 'Address' %></span>
+                        <span><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg> <%= school.phone || 'Phone' %></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ornate-divider">
+                <div class="ornate-diamond"></div>
+            </div>
+
+            <!-- Title -->
+            <h2 class="cert-title"><%= typeof customTitle !== 'undefined' && customTitle ? customTitle : 'LEAVING CERTIFICATE' %></h2>
+            <div class="cert-subtitle">(Issued Under the Authority of the School)</div>
+
+            <% 
+                const sName = `${student.stu_first_name || ''} ${student.stu_last_name || ''}`.trim() || '';
+                const fName = student.father_name || '';
+                const mName = student.mother_name || '';
+                const relCaste = (student.religion || '') + ((student.religion && student.caste) ? ' - ' : '') + (student.caste || '');
+                const dob = student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString('en-GB') : '';
+                const admissionDate = student.admission_date ? new Date(student.admission_date).toLocaleDateString('en-GB') : '';
+            %>
+
+            <!-- G.R. and Sr. No -->
+            <div class="gr-row">
+                <div>G. R. No. : <span class="underline-input"><%= student.admission_no || student.student_id || '' %></span></div>
+                <div>Sr. No. : <span class="underline-input">______</span></div>
+            </div>
+
+            <!-- Dynamic Content Injection Point -->
+            <% if (typeof customParagraph !== 'undefined' && customParagraph) { %>
+                <div class="form-body" style="white-space: pre-wrap;"><%- customParagraph %></div>
+                <% if (typeof customRemarks !== 'undefined' && customRemarks) { %>
+                    <div style="font-weight: 600; margin-bottom: 20px;">Remarks: <%= customRemarks %></div>
+                <% } %>
+            <% } else { %>
+                <!-- Default Form Body (English) -->
+                <div class="form-body">
+                    <div class="form-row">
+                        <span class="form-number">1.</span>
+                        <span class="form-label">Name of the Pupil</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"><%= sName %></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">2.</span>
+                        <span class="form-label">Father's / Guardian's Name</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"><%= fName %></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">3.</span>
+                        <span class="form-label">Mother's Name</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"><%= mName %></span>
+                    </div>
+                    <div class="form-row" style="align-items: center;">
+                        <span class="form-number">4.</span>
+                        <span class="form-label">Religion & Caste</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value-inline" style="flex: 0.5;"><%= relCaste %></span>
+                        <span style="margin-left:10px;">Sub Caste :</span>
+                        <span class="form-value" style="margin-left:5px;"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">5.</span>
+                        <span class="form-label">Place of Birth</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">6.</span>
+                        <span class="form-label">Date of Birth (in words and figures)</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"><%= dob %></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number"></span>
+                        <span class="form-label"></span>
+                        <span class="form-value" style="margin-left: 15px;"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">7.</span>
+                        <span class="form-label">Previous School attended</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">8.</span>
+                        <span class="form-label">Date of Admission</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"><%= admissionDate %></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">9.</span>
+                        <span class="form-label">Grade admitted to</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">10.</span>
+                        <span class="form-label">Conduct</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row" style="align-items: center;">
+                        <span class="form-number">11.</span>
+                        <span class="form-label">Grade studying in & since when</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value-inline" style="flex: 0.4;"><%= student.class_name || '' %></span>
+                        <span class="form-value" style="margin-left:15px;"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">12.</span>
+                        <span class="form-label">Date of leaving school</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">13.</span>
+                        <span class="form-label">Promoted / Detained</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">14.</span>
+                        <span class="form-label">Reason for leaving the School</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">15.</span>
+                        <span class="form-label">Total no. of working days</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">16.</span>
+                        <span class="form-label">No. of days present</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">17.</span>
+                        <span class="form-label">Child UID No.</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                    <div class="form-row">
+                        <span class="form-number">18.</span>
+                        <span class="form-label">Remarks</span>
+                        <span class="form-colon">:</span>
+                        <span class="form-value"></span>
+                    </div>
+                </div>
+            <% } %>
+
+            <!-- Bottom Section -->
+            <div class="bottom-section">
+                <div class="thick-divider"></div>
+                <div class="certified-text">
+                    Certified that the above information is in accordance with the school general record
+                </div>
+
+                <div class="signature-row">
+                    <div class="sig-block">Class Teacher</div>
+                    <div class="sig-block">Checked By</div>
+                    <div class="sig-block">
+                        <% if (signatureUrl) { %>
+                            <img src="<%= signatureUrl %>" alt="Signature" class="sig-img">
+                        <% } %>
+                        Principal
+                    </div>
+                </div>
+
+                <div class="date-bottom">
+                    Date : <span class="underline-input" style="min-width: 120px;"><%= new Date().toLocaleDateString('en-GB') %></span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>

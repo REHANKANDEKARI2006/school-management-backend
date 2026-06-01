@@ -1,140 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Bonafide Certificate - Template 2</title>
+    <title>Bonafide Certificate</title>
     <%- include('../common/styles') %>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Inter:wght@400;500;600;700&display=swap');
+
         body {
-            padding: 40px;
-            background: #f1f5f9;
-        }
-        .modern-cert {
-            background: white;
-            min-height: 1000px;
-            padding: 60px;
-            position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-        }
-        .modern-cert::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; height: 10px;
-            background: var(--primary-color);
-        }
-        .modern-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 60px;
-        }
-        .school-logo-large {
-            height: 70px;
-        }
-        .modern-header-text {
-            text-align: right;
-        }
-        .modern-header-text h1 {
-            font-size: 24px;
             margin: 0;
-            color: var(--primary-color);
-        }
-        .modern-header-text p {
-            font-size: 12px;
-            color: var(--secondary-color);
-        }
-        .modern-title {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-        .modern-title h2 {
-            font-size: 38px;
-            font-family: 'Outfit', sans-serif;
-            color: var(--text-main);
-            margin: 0;
-            letter-spacing: 3px;
-        }
-        .modern-body {
-            font-size: 20px;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
             color: #334155;
-            line-height: 1.8;
-            margin-bottom: 100px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-        .modern-body strong {
-            color: var(--primary-color);
-            background: rgba(0,0,0,0.02);
-            padding: 0 4px;
+
+        .cert-wrapper {
+            position: relative;
+            width: 210mm;
+            height: 297mm;
+            overflow: hidden;
+            background: #ffffff;
+            box-sizing: border-box;
+            padding: 15mm;
         }
-        .modern-footer {
+
+        /* Border */
+        .inner-border {
+            position: absolute;
+            top: 10mm;
+            left: 10mm;
+            right: 10mm;
+            bottom: 10mm;
+            border: 1px solid var(--secondary-color);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* SVG Corners */
+        .corner-tl {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 250px;
+            height: 250px;
+            z-index: 10;
+        }
+        .corner-br {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 250px;
+            height: 250px;
+            z-index: 10;
+        }
+
+        /* Content Container */
+        .content-container {
+            position: relative;
+            z-index: 20;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: center;
+            height: 100%;
+            padding-top: 20px;
         }
-        .modern-seal {
-            width: 100px;
-            height: 100px;
-            border: 2px dashed var(--border-color);
-            border-radius: 50%;
+
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.04;
+            width: 400px;
+            height: 400px;
+            object-fit: contain;
+            z-index: 0;
+        }
+
+        /* Header / Logo */
+        .header-logo-row {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
-            color: var(--secondary-color);
-            text-transform: uppercase;
+            gap: 20px;
+            margin-bottom: 20px;
         }
-        .modern-sign-box {
+
+        .flourish {
+            width: 50px;
+            height: 20px;
+        }
+        
+        .flourish svg {
+            width: 100%;
+            height: 100%;
+            fill: none;
+            stroke: var(--secondary-color);
+            stroke-width: 1.5;
+        }
+
+        .flourish-right {
+            transform: scaleX(-1);
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+        }
+
+        /* Typography */
+        .school-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 36px;
+            font-weight: 900;
+            color: var(--primary-color);
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             text-align: center;
         }
-        .modern-sign-box img {
+
+        .school-info {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        .school-info span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Badge / Ribbon */
+        .badge-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            margin-bottom: 50px;
+        }
+
+        .badge-arrow {
+            width: 40px;
+            height: 20px;
+        }
+        .badge-arrow svg {
+            width: 100%;
+            height: 100%;
+            fill: none;
+            stroke: var(--secondary-color);
+            stroke-width: 1.5;
+        }
+        .badge-arrow-right {
+            transform: scaleX(-1);
+        }
+
+        .badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 12px 40px;
+            font-family: 'Inter', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 50%, calc(100% - 15px) 100%, 15px 100%, 0 50%);
+            margin: 0 10px;
+        }
+
+        /* Body Paragraphs */
+        .body-content {
+            font-size: 20px;
+            line-height: 2.2;
+            color: #334155;
+            text-align: justify;
+            width: 100%;
+            padding: 0 10px;
+        }
+
+        .data-field {
+            display: inline-block;
+            color: var(--primary-color);
+            font-weight: 700;
+            border-bottom: 1.5px dotted #94a3b8;
+            padding: 0 15px;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .data-field.serif {
+            font-family: 'Playfair Display', serif;
+            font-size: 24px;
+        }
+
+        /* Footer */
+        .footer {
+            position: absolute;
+            bottom: 40mm;
+            left: 20mm;
+            right: 20mm;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            z-index: 10;
+        }
+
+        .date-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .calendar-icon {
+            display: flex;
+            align-items: center;
+        }
+        .calendar-icon svg {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: #475569;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .date-value {
+            border-bottom: 2px solid var(--primary-color);
+            padding: 0 5px 2px;
+            color: var(--primary-color);
+            font-weight: 700;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .signature-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 220px;
+        }
+
+        .signature-img {
             height: 50px;
+            object-fit: contain;
+            margin-bottom: 5px;
             mix-blend-mode: multiply;
         }
-        .modern-sign-label {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-main);
-            border-top: 2px solid var(--primary-color);
-            padding-top: 5px;
-            margin-top: 5px;
-            display: block;
+
+        .signature-line {
+            width: 100%;
+            height: 1.5px;
+            background: #334155;
+            margin-bottom: 8px;
         }
+
+        .signature-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .signature-subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
     </style>
 </head>
 <body>
-    <div class="modern-cert doc-container">
-        <div class="watermark-large" style="font-size: 180px;"><%= school.school_name.split(' ')[0] %></div>
-        <div class="modern-header">
-            <img src="<%= logoUrl %>" class="school-logo-large" alt="Logo">
-            <div class="modern-header-text">
-                <h1 class="premium-heading"><%= school.school_name %></h1>
-                <p><%= school.email %> | <%= school.phone %></p>
+    <div class="cert-wrapper doc-container">
+        <!-- SVG Corners -->
+        <svg class="corner-tl" viewBox="0 0 250 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0,0 L200,0 L0,200 Z" fill="var(--primary-color)" />
+            <path d="M210,0 L250,0 L0,250 L0,210 Z" fill="var(--secondary-color)" />
+        </svg>
+
+        <svg class="corner-br" viewBox="0 0 250 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M250,250 L50,250 L250,50 Z" fill="var(--primary-color)" />
+            <path d="M40,250 L0,250 L250,0 L250,40 Z" fill="var(--secondary-color)" />
+        </svg>
+
+        <!-- Inner Border -->
+        <div class="inner-border"></div>
+
+        <!-- Watermark -->
+        <% if (logoUrl) { %>
+            <img src="<%= logoUrl %>" alt="Watermark" class="watermark">
+        <% } %>
+
+        <div class="content-container">
+            <!-- Header -->
+            <div class="header-logo-row">
+                <div class="flourish">
+                    <svg viewBox="0 0 50 20">
+                        <path d="M0,10 Q12,0 25,10 T50,10" />
+                    </svg>
+                </div>
+                <% if (logoUrl) { %>
+                    <img src="<%= logoUrl %>" alt="Logo" class="logo">
+                <% } %>
+                <div class="flourish flourish-right">
+                    <svg viewBox="0 0 50 20">
+                        <path d="M0,10 Q12,0 25,10 T50,10" />
+                    </svg>
+                </div>
             </div>
-        </div>
-
-        <div class="modern-title">
-            <h2>CERTIFICATE</h2>
-            <div style="font-size: 12px; color: var(--secondary-color); text-transform: uppercase; letter-spacing: 5px; margin-top: 10px;">OF BONAFIDE CITIZENSHIP</div>
-        </div>
-
-        <div class="modern-body">
-            This is to formally certify that <strong><%= student.stu_first_name %> <%= student.stu_last_name %></strong>, 
-            bearing Student ID <strong>#<%= student.student_id %></strong>, is a registered and legitimate student 
-            of this institution.
-            <br><br>
-            He/She is currently enrolled in <strong>Class <%= student.class_name %></strong>, 
-            under the supervision of <strong>Section <%= student.section_name %></strong> 
-            for the tenure of academic session <strong><%= school.academic_year %></strong>.
-            <br><br>
-            According to the official repository, his/her date of birth is documented as 
-            <strong><%= new Date(student.date_of_birth).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) %></strong>.
-        </div>
-
-        <div class="modern-footer">
-            <div style="font-size: 14px; color: var(--secondary-color);">
-                Dated: <%= new Date().toLocaleDateString() %>
+            
+            <% if (typeof customTitle !== 'undefined' && customTitle) { %>
+                <h1 class="school-name" style="font-size: 28px; font-weight: bold; margin-bottom: 5px; color: #1e3a8a;"><%= customTitle %></h1>
+            <% } else { %>
+                <h1 class="school-name"><%= school.school_name || 'School Name' %></h1>
+            <% } %>
+            
+            <div class="school-info">
+                <span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                    <%= school.address || 'School Address' %>
+                </span>
+                <span>|</span>
+                <span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+                    Phone: <%= school.phone || 'Phone Number' %>
+                </span>
             </div>
-            <div class="modern-seal">Official Seal</div>
-            <div class="modern-sign-box">
-                <img src="<%= signatureUrl %>" alt="Signature">
-                <span class="modern-sign-label">Principal</span>
+
+            <!-- Badge -->
+            <div class="badge-container">
+                <div class="badge-arrow">
+                    <svg viewBox="0 0 40 20">
+                        <path d="M40,10 L0,10 M10,0 L0,10 L10,20" />
+                    </svg>
+                </div>
+                <div class="badge">BONAFIDE CERTIFICATE</div>
+                <div class="badge-arrow badge-arrow-right">
+                    <svg viewBox="0 0 40 20">
+                        <path d="M40,10 L0,10 M10,0 L0,10 L10,20" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Body Paragraphs -->
+            <% 
+                const studentName = `${student.stu_first_name || ''} ${student.stu_last_name || ''}`.trim() || 'Student Name';
+                const dob = student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString('en-GB') : 'DD/MM/YYYY';
+                const fatherName = student.father_name || 'Father Name';
+                const motherName = student.mother_name || 'Mother Name';
+                const admissionNo = student.admission_no || student.student_id || 'ID_NUM';
+            %>
+            <% if (typeof customParagraph !== 'undefined' && customParagraph) { %>
+                <div class="body-content">
+                    <%- customParagraph %>
+                </div>
+            <% } else if (typeof customBodyContent !== 'undefined' && customBodyContent) { %>
+                <div class="body-content">
+                    <%- customBodyContent %>
+                </div>
+            <% } else { %>
+                <div class="body-content">
+                    This is to certify that Mr./Ms. <span class="data-field serif"><%= studentName %></span> , 
+                    son/daughter of <span class="data-field"><%= fatherName %></span> and <span class="data-field"><%= motherName %></span> , 
+                    bearing ID number <span class="data-field"><%= admissionNo %></span> , is a bonafide student of this institution.
+                    <br><br>
+                    He/She is currently studying in class <span class="data-field"><%= student.class_name || 'Class' %> - <%= student.section_name || 'Section' %></span> 
+                    for the academic year <span class="data-field"><%= school.academic_year || 'YYYY-YY' %></span> . 
+                    His/Her date of birth according to the school records is <span class="data-field"><%= dob %></span> .
+                    <br><br><br>
+                    To the best of our knowledge, he/she possesses a good moral character.
+                </div>
+            <% } %>
+
+            <% if (typeof customRemarks !== 'undefined' && customRemarks) { %>
+                <div style="margin-top: 20px; font-style: italic; font-size: 16px; color: #64748b; text-align: left; padding: 0 10px;">
+                    <strong>Remarks:</strong> <%= customRemarks %>
+                </div>
+            <% } %>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="date-section">
+                <div class="calendar-icon">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                </div>
+                <span>Date:</span>
+                <span class="date-value"><%= new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) %></span>
+            </div>
+
+            <div class="signature-section">
+                <% if (signatureUrl) { %>
+                    <img src="<%= signatureUrl %>" alt="Signature" class="signature-img">
+                <% } else { %>
+                    <div style="height: 50px;"></div>
+                <% } %>
+                <div class="signature-line"></div>
+                <span class="signature-title">PRINCIPAL</span>
+                <span class="signature-subtitle">Authorized Signatory</span>
             </div>
         </div>
     </div>
