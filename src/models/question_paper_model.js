@@ -3,20 +3,20 @@ import pool from "../config/db.js";
 
 const QuestionPaperModel = {
   // 1. Create a new paper draft (Step 1 of Wizard)
-  async createDraft(data) {
+  async createDraft(data, instituteId) {
     const { exam_id, title, class_id, subject_id, total_marks, duration_mins, instructions } = data;
     const query = `
-      INSERT INTO question_papers (exam_id, title, class_id, subject_id, total_marks, duration_mins, instructions, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft')
+      INSERT INTO question_papers (exam_id, title, class_id, subject_id, total_marks, duration_mins, instructions, status, institute_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', $8)
       RETURNING *
     `;
-    const values = [exam_id, title, class_id, subject_id, total_marks, duration_mins, instructions];
+    const values = [exam_id, title, class_id, subject_id, total_marks, duration_mins, instructions, instituteId];
     const { rows } = await pool.query(query, values);
     return rows[0];
   },
 
   // 2. Update paper metadata
-  async updatePaper(id, data) {
+  async updatePaper(id, data, instituteId) {
     const fields = [];
     const values = [];
     let i = 1;
@@ -29,13 +29,14 @@ const QuestionPaperModel = {
       }
     }
 
-    if (fields.length === 0) return this.getById(id);
+    if (fields.length === 0) return this.getById(id, instituteId);
 
     values.push(id);
+    values.push(instituteId);
     const query = `
       UPDATE question_papers 
       SET ${fields.join(', ')}, updated_at = now() 
-      WHERE paper_id = $${i} 
+      WHERE paper_id = $${i} AND institute_id = $${i + 1}
       RETURNING *
     `;
     const { rows } = await pool.query(query, values);
@@ -43,16 +44,16 @@ const QuestionPaperModel = {
   },
 
   // 3. Hierarchical Get
-  async getById(paper_id) {
+  async getById(paper_id, instituteId) {
     const paperQuery = `
       SELECT qp.*, c.class_name, s.subject_name, e.exam_name, e.date_time
       FROM question_papers qp
       LEFT JOIN class c ON c.class_id = qp.class_id
       LEFT JOIN subject s ON s.subject_id = qp.subject_id
       LEFT JOIN exam e ON e.exam_id = qp.exam_id
-      WHERE qp.paper_id = $1
+      WHERE qp.paper_id = $1 AND qp.institute_id = $2
     `;
-    const { rows: [paper] } = await pool.query(paperQuery, [paper_id]);
+    const { rows: [paper] } = await pool.query(paperQuery, [paper_id, instituteId]);
     if (!paper) return null;
 
     const sectionsQuery = `
@@ -77,16 +78,16 @@ const QuestionPaperModel = {
   },
 
   // 4. List papers
-  async list({ class_id, subject_id, status, is_template, limit = 50, offset = 0 }) {
+  async list({ class_id, subject_id, status, is_template, limit = 50, offset = 0 }, instituteId) {
     let query = `
       SELECT qp.*, c.class_name, s.subject_name
       FROM question_papers qp
       LEFT JOIN class c ON c.class_id = qp.class_id
       LEFT JOIN subject s ON s.subject_id = qp.subject_id
-      WHERE 1=1
+      WHERE qp.institute_id = $1
     `;
-    const params = [];
-    let i = 1;
+    const params = [instituteId];
+    let i = 2;
 
     if (class_id) { query += ` AND qp.class_id = $${i++}`; params.push(class_id); }
     if (subject_id) { query += ` AND qp.subject_id = $${i++}`; params.push(subject_id); }
@@ -101,13 +102,13 @@ const QuestionPaperModel = {
   },
 
   // 5. Delete
-  async delete(id) {
-    await pool.query('DELETE FROM question_papers WHERE paper_id = $1', [id]);
+  async delete(id, instituteId) {
+    await pool.query('DELETE FROM question_papers WHERE paper_id = $1 AND institute_id = $2', [id, instituteId]);
     return true;
   },
 
   // 6. Upcoming Exams for Setup (Step 1)
-  async getUpcomingExams() {
+  async getUpcomingExams(instituteId) {
     const query = `
       SELECT 
         e.exam_id, e.exam_name, e.total_score, e.date_time, e.duration_mins,
@@ -116,26 +117,26 @@ const QuestionPaperModel = {
       FROM exam e
       JOIN class c ON c.class_id = e.class_id
       JOIN subject s ON s.subject_id = e.subject_id
-      WHERE e.is_deleted = false
+      WHERE e.is_deleted = false AND e.institute_id = $1
       AND NOT EXISTS (
         SELECT 1 FROM exam_grades eg WHERE eg.exam_id = e.exam_id
       )
       ORDER BY e.date_time ASC
     `;
-    const { rows } = await pool.query(query);
+    const { rows } = await pool.query(query, [instituteId]);
     return rows;
   },
 
   // 7. Duplicate
-  async duplicate(id, newTitle) {
-    const oldPaper = await this.getById(id);
-    if (!oldPaper) throw new Error('Paper not found');
+  async duplicate(id, newTitle, instituteId) {
+    const oldPaper = await this.getById(id, instituteId);
+    if (!oldPaper) throw new Error('Paper not found or unauthorized');
 
     const newPaper = await this.createDraft({
       ...oldPaper,
       title: newTitle || `Copy of ${oldPaper.title}`,
       exam_id: null // Reset exam link for duplicates
-    });
+    }, instituteId);
 
     for (const section of oldPaper.sections) {
       const newSection = await pool.query(
@@ -151,11 +152,17 @@ const QuestionPaperModel = {
         );
       }
     }
-    return this.getById(newPaper.paper_id);
+    return this.getById(newPaper.paper_id, instituteId);
   },
 
   // 8. Section & Question Management
-  async upsertSection(section_id, paper_id, data) {
+  async upsertSection(section_id, paper_id, data, instituteId) {
+    // Verify paper ownership
+    const paperCheck = await pool.query('SELECT 1 FROM question_papers WHERE paper_id = $1 AND institute_id = $2', [paper_id, instituteId]);
+    if (paperCheck.rows.length === 0) {
+      throw new Error('Unauthorized or paper not found');
+    }
+
     const isUpdate = section_id && !isNaN(parseInt(section_id)) && parseInt(section_id) > 0;
     if (isUpdate) {
       const { rows } = await pool.query(
@@ -172,7 +179,17 @@ const QuestionPaperModel = {
     }
   },
 
-  async upsertQuestion(question_id, section_id, data) {
+  async upsertQuestion(question_id, section_id, data, instituteId) {
+    const sectionCheck = await pool.query(
+      `SELECT 1 FROM paper_sections ps 
+       JOIN question_papers qp ON qp.paper_id = ps.paper_id
+       WHERE ps.section_id = $1 AND qp.institute_id = $2`, 
+      [section_id, instituteId]
+    );
+    if (sectionCheck.rows.length === 0) {
+      throw new Error('Unauthorized or section not found');
+    }
+
     const isUpdate = question_id && !isNaN(parseInt(question_id)) && parseInt(question_id) > 0;
     if (isUpdate) {
       const { rows } = await pool.query(
@@ -196,12 +213,31 @@ const QuestionPaperModel = {
     }
   },
 
-  async deleteSection(section_id) {
+  async deleteSection(section_id, instituteId) {
+    const sectionCheck = await pool.query(
+      `SELECT 1 FROM paper_sections ps 
+       JOIN question_papers qp ON qp.paper_id = ps.paper_id
+       WHERE ps.section_id = $1 AND qp.institute_id = $2`, 
+      [section_id, instituteId]
+    );
+    if (sectionCheck.rows.length === 0) {
+      throw new Error('Unauthorized or section not found');
+    }
     await pool.query('DELETE FROM paper_sections WHERE section_id = $1', [section_id]);
     return true;
   },
 
-  async deleteQuestion(question_id) {
+  async deleteQuestion(question_id, instituteId) {
+    const questionCheck = await pool.query(
+      `SELECT 1 FROM questions q
+       JOIN paper_sections ps ON ps.section_id = q.section_id
+       JOIN question_papers qp ON qp.paper_id = ps.paper_id
+       WHERE q.question_id = $1 AND qp.institute_id = $2`, 
+      [question_id, instituteId]
+    );
+    if (questionCheck.rows.length === 0) {
+      throw new Error('Unauthorized or question not found');
+    }
     await pool.query('DELETE FROM questions WHERE question_id = $1', [question_id]);
     return true;
   }

@@ -13,7 +13,7 @@ const QuestionPaperController = {
   // GET /api/question-papers/upcoming-exams
   async getUpcomingExams(req, res) {
     try {
-      const data = await QuestionPaperModel.getUpcomingExams();
+      const data = await QuestionPaperModel.getUpcomingExams(req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -23,7 +23,7 @@ const QuestionPaperController = {
   // POST /api/question-papers/draft
   async createDraft(req, res) {
     try {
-      const data = await QuestionPaperModel.createDraft(req.body);
+      const data = await QuestionPaperModel.createDraft(req.body, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -33,7 +33,7 @@ const QuestionPaperController = {
   // GET /api/question-papers/:id
   async getById(req, res) {
     try {
-      const data = await QuestionPaperModel.getById(req.params.id);
+      const data = await QuestionPaperModel.getById(req.params.id, req.instituteId);
       if (!data) return res.status(404).json({ success: false, message: 'Paper not found' });
       res.json({ success: true, data });
     } catch (err) {
@@ -49,7 +49,7 @@ const QuestionPaperController = {
         class_id, subject_id, status, is_template,
         limit: limit ? parseInt(limit) : 50,
         offset: offset ? parseInt(offset) : 0
-      });
+      }, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -59,7 +59,7 @@ const QuestionPaperController = {
   // PATCH /api/question-papers/:id
   async updatePaper(req, res) {
     try {
-      const data = await QuestionPaperModel.updatePaper(req.params.id, req.body);
+      const data = await QuestionPaperModel.updatePaper(req.params.id, req.body, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -69,7 +69,7 @@ const QuestionPaperController = {
   // POST /api/question-papers/:id/publish
   async publishPaper(req, res) {
     try {
-      const data = await QuestionPaperModel.updatePaper(req.params.id, { status: 'Published' });
+      const data = await QuestionPaperModel.updatePaper(req.params.id, { status: 'Published' }, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -79,7 +79,7 @@ const QuestionPaperController = {
   // DELETE /api/question-papers/:id
   async deletePaper(req, res) {
     try {
-      await QuestionPaperModel.delete(req.params.id);
+      await QuestionPaperModel.delete(req.params.id, req.instituteId);
       res.json({ success: true, message: 'Paper deleted' });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -90,7 +90,7 @@ const QuestionPaperController = {
   async duplicate(req, res) {
     try {
       const { title } = req.body;
-      const data = await QuestionPaperModel.duplicate(req.params.id, title);
+      const data = await QuestionPaperModel.duplicate(req.params.id, title, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -100,7 +100,7 @@ const QuestionPaperController = {
   // POST /api/question-papers/:paper_id/sections
   async upsertSection(req, res) {
     try {
-      const data = await QuestionPaperModel.upsertSection(req.body.section_id, req.params.paper_id, req.body);
+      const data = await QuestionPaperModel.upsertSection(req.body.section_id, req.params.paper_id, req.body, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -110,7 +110,7 @@ const QuestionPaperController = {
   // POST /api/question-papers/sections/:section_id/questions
   async upsertQuestion(req, res) {
     try {
-      const data = await QuestionPaperModel.upsertQuestion(req.body.question_id, req.params.section_id, req.body);
+      const data = await QuestionPaperModel.upsertQuestion(req.body.question_id, req.params.section_id, req.body, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -120,7 +120,7 @@ const QuestionPaperController = {
   // DELETE /api/question-papers/sections/:section_id
   async deleteSection(req, res) {
     try {
-      await QuestionPaperModel.deleteSection(req.params.section_id);
+      await QuestionPaperModel.deleteSection(req.params.section_id, req.instituteId);
       res.json({ success: true, message: 'Section deleted' });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -130,7 +130,7 @@ const QuestionPaperController = {
   // DELETE /api/question-papers/questions/:question_id
   async deleteQuestion(req, res) {
     try {
-      await QuestionPaperModel.deleteQuestion(req.params.question_id);
+      await QuestionPaperModel.deleteQuestion(req.params.question_id, req.instituteId);
       res.json({ success: true, message: 'Question deleted' });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -141,10 +141,10 @@ const QuestionPaperController = {
   async generatePDF(req, res) {
     let browser = null;
     try {
-      const paper = await QuestionPaperModel.getById(req.params.id);
+      const paper = await QuestionPaperModel.getById(req.params.id, req.instituteId);
       if (!paper) return res.status(404).json({ success: false, message: 'Paper not found' });
 
-      const school = await SchoolProfileModel.getProfile();
+      const school = await SchoolProfileModel.getProfile(req.instituteId);
       const generateAnswerKey = req.body.generateAnswerKey === true;
       const config = (school && school.document_config && school.document_config['EXAMINATION_PAPER']) || { header: true, footer: true };
 
@@ -177,7 +177,8 @@ const QuestionPaperController = {
           await DashboardService.addActivityEntry(
               req.user?.user_id,
               'paper_generated',
-              `Question paper generated: ${paper.title}`
+              `Question paper generated: ${paper.title}`,
+              req.instituteId
           );
       } catch (e) { console.error(e); }
 

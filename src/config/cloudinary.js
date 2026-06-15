@@ -35,23 +35,18 @@ const deleteFromCloudinary = async (fileUrl) => {
     try {
         if (!fileUrl) return;
 
-        // Extract public_id from the complete URL
-        // Example: https://res.cloudinary.com/.../raw/upload/v1234567/school_materials/file.pdf
-        const parts = fileUrl.split("/upload/");
-        if (parts.length === 2) {
-            let pathAfterUpload = parts[1];
-
-            // Remove the version tag if it exists (e.g., v1234567890/)
-            const versionMatch = pathAfterUpload.match(/^v\d+\//);
-            if (versionMatch) {
-                pathAfterUpload = pathAfterUpload.replace(versionMatch[0], "");
+        // Extract resourceType and publicId dynamically from URL
+        const match = fileUrl.match(/\/(image|raw|video)\/upload\/(?:v\d+\/)?(.+)$/);
+        if (match) {
+            const resourceType = match[1];
+            let publicId = match[2];
+            if (resourceType === "image" || resourceType === "video") {
+                publicId = publicId.replace(/\.[^/.]+$/, "");
             }
 
-            const publicId = pathAfterUpload; // The full path after version is the public_id for raw files
-
-            console.log("Deleting asset from Cloudinary with public_id:", publicId);
-            // Resource type "raw" must be specified to delete raw files successfully
-            const result = await cloudinary.uploader.destroy(publicId, { resource_type: "raw" });
+            console.log(`Deleting asset from Cloudinary with public_id: ${publicId} (type: ${resourceType})`);
+            // Destroy using correct resource type bucket
+            const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
             console.log("Cloudinary deletion result:", result);
             return result;
         }

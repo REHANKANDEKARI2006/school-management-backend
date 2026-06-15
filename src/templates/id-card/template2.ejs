@@ -35,46 +35,38 @@ html, body {
 .main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
 /* ──────────────────────────────────────────
-   LEFT PANEL
+   LEFT PANEL  (mirrors the vertical header)
 ────────────────────────────────────────── */
 .left {
   width: 118px; flex-shrink: 0;
-  background: var(--primary-color);
+  background: <%= pc %>;
   display: flex; flex-direction: column; align-items: center;
   padding: 7px 6px 5px;
   overflow: hidden;
 }
 
-/* Logo circle */
+/* Logo circle — identical to .logo-wrap in template1 */
 .logo-wrap {
-  width: 34px; height: 34px; border-radius: 50%;
-  border: 2px solid #fff; background: #fff;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid #fff; background: #fff;
   overflow: hidden; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
-  margin-bottom: 3px;
+  box-shadow: 0 0 0 1px rgba(201,168,76,0.5);
+  margin-bottom: 2px;
 }
 .logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
-.logo-wrap .lt { font-size: 9px; font-weight: 800; color: var(--primary-color); }
+.logo-wrap .lt { font-size: 7px; font-weight: 800; color: <%= pc %>; }
 
-/* Org name — gold italic */
-.org-name {
-  font-size: 5px; font-weight: 700; font-style: italic;
-  color: #facc15; text-align: center; line-height: 1.2;
-  margin-bottom: 2px; padding: 0 2px;
+/* Org name — gold, bold, NON-italic (matches .org-yellow in template1) */
+.org-yellow {
+  font-size: 5px; font-weight: 800; color: #facc15;
+  text-align: center; line-height: 1.2; margin-bottom: 2px;
 }
 
-/* School name — white bold */
-.school-name {
-  font-size: 8px; font-weight: 800; color: #fff;
-  text-align: center; line-height: 1.2;
-  margin-bottom: 3px; padding: 0 2px;
-}
-
-/* Gold dot divider */
+/* Gold dot divider — identical to template1 */
 .gold-div {
   display: flex; align-items: center; justify-content: center;
-  width: 55%; margin: 0 0 3px;
+  width: 55%; margin: 2px 0 3px;
 }
 .gold-div::before, .gold-div::after {
   content: ''; flex: 1; height: 1px; background: #facc15;
@@ -84,25 +76,39 @@ html, body {
   border-radius: 50%; margin: 0 2px;
 }
 
-/* Address */
-.school-addr {
-  font-size: 4.5px; color: rgba(255,255,255,0.85);
-  text-align: center; line-height: 1.3;
-  margin-bottom: 4px; padding: 0 2px;
+/* School name — uppercase bold white (matches .sn-caps in template1) */
+.sn-caps {
+  font-size: 7.5px; font-weight: 800; color: #fff; text-transform: uppercase;
+  text-align: center; line-height: 1.1; margin-bottom: 3px;
+  padding: 0 2px;
 }
 
-/* Photo */
+/* Address with pin icon — matches .hdr-addr in template1 */
+.hdr-addr {
+  display: flex; align-items: flex-start; justify-content: center;
+  width: 100%; gap: 2px;
+}
+.hdr-addr-icon {
+  width: 5px; height: 5px; display: flex; align-items: center;
+  justify-content: center; margin-top: 0.2px; flex-shrink: 0;
+}
+.hdr-addr-icon svg { width: 100%; height: 100%; fill: #fff; }
+.hdr-addr-text {
+  font-size: 4px; color: #fff; text-align: center; line-height: 1.1;
+}
+
+/* Photo — rectangular with rounded corners (landscape layout) */
 .photo-wrap {
-  width: 66px; height: 72px;
-  border: 2.5px solid #fff; border-radius: 6px;
+  width: 60px; height: 66px;
+  border: 2px solid #fff; border-radius: 6px;
   overflow: hidden; flex-shrink: 0;
   background: #e2e8f0;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  margin-top: auto;
+  margin-top: 6px;
 }
 .photo-wrap img { width: 100%; height: 100%; object-fit: cover; }
-.photo-wrap .ph-init { font-size: 20px; font-weight: 700; color: #475569; }
+.photo-wrap .ph-init { font-size: 18px; font-weight: 700; color: #475569; }
 
 /* ──────────────────────────────────────────
    RIGHT PANEL
@@ -113,78 +119,86 @@ html, body {
   background: #fff;
 }
 
-/* Student name — large, always dark/black */
+/* Student name */
 .stu-name {
-  font-size: 17px; font-weight: 800; color: #1e293b;
-  line-height: 1; white-space: nowrap;
+  font-size: 14px; font-weight: 800; color: #1e293b;
+  line-height: 1.1; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
-  margin-bottom: 2px;
-}
-
-/* Class — theme color (design element, not data) */
-.stu-cls {
-  font-size: 7.5px; font-weight: 700;
-  color: var(--primary-color);
   margin-bottom: 3px;
 }
 
-/* ── Detail rows ── */
+/* Class badge — pill with primary-color background, identical to template1 */
+.cls-badge {
+  display: flex; margin-bottom: 4px;
+}
+.cls-badge span {
+  font-size: 6.5px; font-weight: 700; color: #fff;
+  background: <%= pc %>;
+  border-radius: 12px; padding: 2px 10px;
+  white-space: nowrap;
+}
+
+/* ── Detail rows — same dashed divider style as template1 ── */
 .rows-container {
   display: flex; flex-direction: column; width: 100%;
-  border-top: 0.8px dashed #cbd5e1;
+  background-image: linear-gradient(to right, #cbd5e1 50%, transparent 50%);
+  background-position: top; background-size: 4px 1px; background-repeat: repeat-x;
 }
 .row {
   display: flex; align-items: center;
-  padding: 2px 0;
-  border-bottom: 0.8px dashed #cbd5e1;
+  padding: 3.5px 0;
+  background-image: linear-gradient(to right, #cbd5e1 50%, transparent 50%);
+  background-position: bottom; background-size: 4px 1px; background-repeat: repeat-x;
 }
-.row:last-child { border-bottom: none; }
+.row:last-child { background-image: none; }
 
-/* Icon — fixed black */
+/* Icon — fixed black, same as template1 */
 .icon {
-  width: 7px; height: 7px; margin-right: 3px;
+  width: 7px; height: 7px; margin-right: 4px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .icon svg { width: 100%; height: 100%; fill: #1e293b; }
 
-/* Field label — fixed bold black */
+/* Field label */
 .rl {
   font-size: 5px; font-weight: 800;
-  color: #1e293b;
+  color: #1e293b; text-transform: uppercase; letter-spacing: 0.02em;
   width: 68px; flex-shrink: 0; line-height: 1.1;
 }
 
 /* Colon separator */
-.rc { font-size: 5px; font-weight: 800; color: #1e293b; margin-right: 3px; line-height: 1; }
+.rc { font-size: 5px; font-weight: 800; color: #475569; margin-right: 3px; line-height: 1; }
 
-/* Value — ALWAYS BOLD BLACK, fixed, never changes with theme */
+/* Value */
 .rv {
-  font-size: 5.5px; font-weight: 800; color: #1e293b;
-  flex: 1; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 5.5px; font-weight: 800; color: #0f172a;
+  flex: 1; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* Multi-line address value */
-.rv-addr {
-  font-size: 5.5px; font-weight: 800; color: #1e293b;
-  flex: 1; line-height: 1.3; white-space: normal;
-}
+.row-address { align-items: flex-start; }
+.row-address .rv { white-space: normal; min-height: 10px; height: auto; }
 
 /* ── Bottom area ── */
 .bottom-area {
   flex-shrink: 0;
   margin-top: auto;
-  padding-top: 3px;
 }
-.gold-line { height: 1.5px; background: #facc15; margin-bottom: 3px; }
-.sig-row {
-  display: flex; align-items: flex-end; justify-content: flex-end;
+
+/* Signature — identical styling to template1 (blue) */
+.sig-container {
+  display: flex; justify-content: flex-end;
+  padding-right: 2px;
+  margin-bottom: 1px;
 }
-.sig-area { display: flex; flex-direction: column; align-items: center; }
-.sig-area img { height: 14px; max-width: 48px; object-fit: contain; }
-.sig-line { width: 48px; border-bottom: 0.8px solid #94a3b8; margin-bottom: 1px; }
+.sig {
+  display: flex; flex-direction: column; align-items: center;
+}
+.sig img { height: 12px; max-width: 44px; object-fit: contain; }
+.sig-line { width: 44px; border-bottom: 0.8px solid #1d4ed8; }
 .sig-lbl {
-  font-size: 4.5px; font-weight: 800; letter-spacing: 0.03em;
-  color: #d4a017; text-transform: uppercase;
+  font-size: 3.5px; font-weight: 800;
+  color: #1d4ed8; text-transform: uppercase; margin-top: 2px;
 }
 </style>
 </head>
@@ -200,20 +214,23 @@ html, body {
         <% } else { %><span class="lt"><%= (school.school_name||'').charAt(0) %></span><% } %>
       </div>
 
-      <!-- Org name in gold italic -->
+      <!-- Org name — gold bold (same as template1) -->
       <% if (sansthaName) { %>
-        <div class="org-name"><%= sansthaName %></div>
+        <div class="org-yellow"><%= sansthaName %></div>
       <% } %>
 
-      <!-- School name in white bold -->
-      <div class="school-name"><%= school.school_name %></div>
-
-      <!-- Gold dot divider -->
+      <!-- Gold dot divider — between org and school name, same order as template1 -->
       <div class="gold-div"><div class="dot"></div></div>
 
-      <!-- Address -->
+      <!-- School name — uppercase bold white -->
+      <div class="sn-caps"><%= school.school_name %></div>
+
+      <!-- Address with pin icon — same as template1 header -->
       <% if (school.address) { %>
-        <div class="school-addr"><%= school.address %></div>
+        <div class="hdr-addr">
+          <div class="hdr-addr-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+          <div class="hdr-addr-text"><%= school.address %></div>
+        </div>
       <% } %>
 
       <!-- Student photo -->
@@ -225,11 +242,17 @@ html, body {
 
     <!-- ════════════ RIGHT PANEL ════════════ -->
     <div class="right">
-      <!-- Student name — always black -->
-      <div class="stu-name"><%= student.stu_first_name %> <%= student.stu_last_name %></div>
+      <!-- Student name -->
+      <div class="stu-name">
+        <% if (student.stu_first_name || student.stu_last_name) { %>
+          <%= student.stu_first_name || '' %> <%= student.stu_last_name || '' %>
+        <% } %>
+      </div>
 
-      <!-- Class — theme color (it's a design label, not student data) -->
-      <div class="stu-cls">Class <%= student.class_name %><% if (student.section_name) { %>-<%= student.section_name %><% } %></div>
+      <!-- Class badge — pill (same as template1) -->
+      <div class="cls-badge">
+        <span>Class <%= student.class_name %><% if (student.section_name) { %>-<%= student.section_name %><% } %></span>
+      </div>
 
       <!-- Data rows -->
       <div class="rows-container">
@@ -237,7 +260,7 @@ html, body {
         <!-- ID / Roll Number -->
         <div class="row">
           <div class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zm0 2v12h16V6H4zm3 3h4v4H7V9zm5 0h5v1.5h-5V9zm0 2.5h5V13h-5v-1.5z"/></svg></div>
-          <span class="rl">ID Number / Roll Number</span><span class="rc">:</span>
+          <span class="rl">ID Number</span><span class="rc">:</span>
           <span class="rv"><%= rollNo %></span>
         </div>
 
@@ -282,23 +305,25 @@ html, body {
         <% } %>
 
         <% if (student.address) { %>
-        <div class="row" style="align-items:flex-start; padding:2px 0 1px;">
-          <div class="icon" style="margin-top:1px;"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
-          <span class="rl" style="padding-top:0px;">Address</span><span class="rc" style="padding-top:0px;">:</span>
-          <span class="rv-addr"><%= student.address %></span>
+        <div class="row row-address">
+          <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>
+          <span class="rl">Address</span><span class="rc">:</span>
+          <span class="rv"><%= student.address %></span>
         </div>
         <% } %>
 
       </div>
 
-      <!-- Gold separator + signature -->
+      <!-- Signature — separated from data rows, no overlap -->
       <div class="bottom-area">
-        <div class="gold-line"></div>
-        <div class="sig-row">
-          <div class="sig-area">
-            <% if (sigSrc) { %><img src="<%= sigSrc %>" alt="Sig">
-            <% } else { %><div class="sig-line"></div><% } %>
-            <span class="sig-lbl">Authorized Signatory</span>
+        <div class="sig-container">
+          <div class="sig">
+            <% if (sigSrc) { %>
+              <img src="<%= sigSrc %>" alt="Sig">
+            <% } else { %>
+              <div class="sig-line"></div>
+            <% } %>
+            <div class="sig-lbl">AUTHORIZED SIGNATORY</div>
           </div>
         </div>
       </div>
@@ -306,9 +331,12 @@ html, body {
 
   </div>
 
-  <!-- ════════════ FOOTER ════════════ -->
-  <div style="flex-shrink:0; height:16px; background:var(--primary-color); display:flex; align-items:center; justify-content:center;">
-    <span style="font-size:5.5px; font-weight:600; color:#fff; letter-spacing:0.04em;">Valid for Academic Session <%= acadYear %></span>
+  <!-- ════════════ FOOTER (matches template1 footer-wrap) ════════════ -->
+  <div style="flex-shrink:0; display:flex; flex-direction:column;">
+    <div style="height:1.5px; background:#facc15;"></div>
+    <div style="height:16px; background:<%= pc %>; display:flex; align-items:center; justify-content:center;">
+      <span style="font-size:5.5px; font-weight:600; color:#fff; letter-spacing:0.02em;">Valid for Academic Session <%= acadYear %></span>
+    </div>
   </div>
 
 </div>

@@ -139,7 +139,7 @@ class HolidayServiceClass {
   }
 
   // Get Holidays for the year (with Caching)
-  async getHolidays(year) {
+  async getHolidays(year, instituteId) {
     try {
       // 1. Fetch & Cache National Holidays (Google)
       const cacheRes = await pool.query(
@@ -173,8 +173,8 @@ class HolidayServiceClass {
 
       // 3. Fetch Custom Holidays (One-off)
       const customRes = await pool.query(
-        'SELECT id, holiday_name as name, holiday_date as date, category, \'Admin\' as source FROM custom_holidays WHERE EXTRACT(YEAR FROM holiday_date) = $1',
-        [year]
+        'SELECT id, holiday_name as name, holiday_date as date, category, \'Admin\' as source FROM custom_holidays WHERE EXTRACT(YEAR FROM holiday_date) = $1 AND institute_id = $2',
+        [year, instituteId]
       );
       
       const customHolidays = customRes.rows.map(r => ({
@@ -193,8 +193,8 @@ class HolidayServiceClass {
   }
 
   // Get Holidays for a specific Month
-  async getHolidaysByMonth(year, month) {
-    const allHolidays = await this.getHolidays(year);
+  async getHolidaysByMonth(year, month, instituteId) {
+    const allHolidays = await this.getHolidays(year, instituteId);
     return allHolidays.filter(h => {
       const d = new Date(h.date);
       return d.getUTCFullYear() === parseInt(year) && (d.getUTCMonth() + 1) === parseInt(month);

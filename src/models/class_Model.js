@@ -38,19 +38,19 @@ export const SectionModel = {
 
 export const ClassModel = {
 
-  async getAll() {
+  async getAll(instituteId) {
     const sql = `
       SELECT c.*, s.section_name 
       FROM class c
       LEFT JOIN section s ON s.section_id = c.section_id
-      WHERE c.room_number IS NOT NULL
+      WHERE c.room_number IS NOT NULL AND c.institute_id = $1
       ORDER BY c.class_id DESC;
     `;
-    const { rows } = await pool.query(sql);
+    const { rows } = await pool.query(sql, [instituteId]);
     return rows;
   },
 
-  async findById(id) {
+  async findById(id, instituteId) {
     const sql = `
       SELECT 
         c.*, 
@@ -86,17 +86,17 @@ export const ClassModel = {
         ) as performance
       FROM class c
       LEFT JOIN section s ON s.section_id = c.section_id
-      WHERE c.class_id = $1 LIMIT 1;
+      WHERE c.class_id = $1 AND c.institute_id = $2 LIMIT 1;
     `;
-    const { rows } = await pool.query(sql, [id]);
+    const { rows } = await pool.query(sql, [id, instituteId]);
     return rows[0] || null;
   },
 
-  async create(data) {
+  async create(data, instituteId) {
     const sql = `
       INSERT INTO class
-        (class_name, section_id, staff_id, room_number)
-      VALUES ($1, $2, $3, $4)
+        (class_name, section_id, staff_id, room_number, institute_id)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
 
@@ -105,6 +105,7 @@ export const ClassModel = {
       data.section_id,
       data.staff_id,
       data.room_number,
+      Number(instituteId),
     ];
 
     const { rows } = await pool.query(sql, values);
@@ -126,7 +127,7 @@ export const ClassModel = {
   },
 
   // ✅ HARD DELETE (REPLACING SOFT DELETE)
-  async softDelete(id) {
+  async softDelete(id, instituteId) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -146,6 +147,8 @@ export const ClassModel = {
       await client.query("DELETE FROM notice_audience WHERE class_id = $1", [id]);
       await client.query("DELETE FROM notices WHERE class_id = $1", [id]);
       await client.query("DELETE FROM grade_boundary WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM question_papers WHERE class_id = $1", [id]);
+      await client.query("DELETE FROM substitute_assignments WHERE class_id = $1", [id]);
       
       // Exams and its children
       await client.query(`
@@ -167,10 +170,10 @@ export const ClassModel = {
       
       const sql = `
         DELETE FROM class
-        WHERE class_id = $1
+        WHERE class_id = $1 AND institute_id = $2
         RETURNING *;
       `;
-      const { rows } = await client.query(sql, [id]);
+      const { rows } = await client.query(sql, [id, instituteId]);
       
       await client.query("COMMIT");
       return rows[0] || null;
@@ -182,8 +185,8 @@ export const ClassModel = {
     }
   },
 
-  // ✅ ADMIN LIST (UNCHANGED)
-  async getAllForAdmin() {
+  // ✅ ADMIN LIST
+  async getAllForAdmin(instituteId) {
     const sql = `
         SELECT
           c.class_id,
@@ -200,7 +203,7 @@ export const ClassModel = {
         LEFT JOIN section s ON s.section_id = c.section_id
         LEFT JOIN staff st ON st.staff_id = c.staff_id
         LEFT JOIN class_enrollment ce ON ce.class_id = c.class_id
-        WHERE c.room_number IS NOT NULL
+        WHERE c.room_number IS NOT NULL AND c.institute_id = $1
         GROUP BY
           c.class_id,
           c.section_id,
@@ -212,7 +215,7 @@ export const ClassModel = {
         ORDER BY c.class_id DESC;
       `;
 
-    const { rows } = await pool.query(sql);
+    const { rows } = await pool.query(sql, [instituteId]);
     return rows;
   },
 };

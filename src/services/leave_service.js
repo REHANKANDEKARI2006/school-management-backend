@@ -17,6 +17,21 @@ import { NotificationModel } from '../models/notification_Model.js';
 import { FacultyModel } from '../models/faculty_Model.js';
 import ScheduleModel from '../models/schedule_model.js';
 
+// Real-time SSE Clients
+const sseClients = new Set();
+
+export function broadcastLeaveEvent(eventData) {
+  const payload = JSON.stringify(eventData);
+  for (const client of sseClients) {
+    try {
+      client.res.write(`data: ${payload}\n\n`);
+    } catch (err) {
+      console.error('SSE connection write failed, closing client:', err);
+      sseClients.delete(client);
+    }
+  }
+}
+
 /** Helpers ─────────────────────────────────────────── */
 
 function formatDate(d) {
@@ -49,8 +64,34 @@ function jsToDbDow(jsDow) {
 
 export const LeaveService = {
 
+  /** ── SSE Connection Registry ─────────────────────── */
+  registerSSEConnection(req, res) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const client = { res };
+    sseClients.add(client);
+
+    res.write('data: {"type":"connected"}\n\n');
+
+    const keepAlive = setInterval(() => {
+      try {
+        res.write(': ping\n\n');
+      } catch (err) {
+        clearInterval(keepAlive);
+      }
+    }, 20000);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      sseClients.delete(client);
+    });
+  },
+
   /** ── Apply for Leave ─────────────────────────────── */
-  async applyForLeave(data, user) {
+  async applyForLeave(data, user, instituteId) {
     const { teacher_id, leave_type_id, from_date, to_date, total_days, reason, document_url } = data;
 
     if (!teacher_id)    throw new Error('teacher_id is required');
@@ -60,7 +101,7 @@ export const LeaveService = {
     const academic_year = data.academic_year || '2025-2026';
 
     // Validate balance for paid leaves
-    const balances = await LeaveModel.getLeaveBalance(teacher_id, academic_year);
+    const balances = await LeaveModel.getLeaveBalance(teacher_id, academic_year, instituteId);
     const bal = balances.find(b => b.leave_type_id === parseInt(leave_type_id));
     if (bal && bal.is_paid && bal.name !== 'Loss of Pay') {
       if (parseFloat(total_days) > parseFloat(bal.remaining_days)) {
@@ -73,16 +114,17 @@ export const LeaveService = {
       teacher_id, leave_type_id, from_date, to_date,
       total_days: parseFloat(total_days),
       reason, document_url, academic_year
-    });
+    }, instituteId);
 
     // Fetch teacher details for notification
-    const teacher = await FacultyModel.findById(teacher_id);
+    const teacher = await FacultyModel.findById(teacher_id, instituteId);
     const teacherName = teacher ? `${teacher.staff_first_name} ${teacher.staff_last_name}` : 'A teacher';
     const leaveTypeName = bal ? bal.leave_type_name : 'Leave';
 
-    // Notify ALL admin users
+    // Notify ALL admin users of this school
     const { rows: admins } = await db.query(
-      `SELECT user_id FROM "user" WHERE role_id = 1`
+      `SELECT user_id FROM "user" WHERE role_id = 1 AND institute_id = $1`,
+      [instituteId]
     );
     for (const admin of admins) {
       await NotificationModel.createNotification({
@@ -95,26 +137,38 @@ export const LeaveService = {
       });
     }
 
+    broadcastLeaveEvent({ type: 'update' });
+
     return application;
   },
 
   /** ── Substitute Suggestion Algorithm ────────────── */
-  async getSubstituteSuggestions(leave_application_id) {
-    const application = await LeaveModel.getApplicationById(leave_application_id);
+  async getSubstituteSuggestions(leave_application_id, instituteId) {
+    const application = await LeaveModel.getApplicationById(leave_application_id, instituteId);
     if (!application) throw new Error('Leave application not found');
 
     const { teacher_id, from_date, to_date } = application;
+
+    // Resolve institute_id for this teacher's user record and verify
+    const { rows: teacherUserRows } = await db.query(
+      `SELECT u.institute_id FROM staff s JOIN "user" u ON s.user_id = u.user_id WHERE s.staff_id = $1`,
+      [teacher_id]
+    );
+    const resolvedInstId = teacherUserRows[0]?.institute_id;
+    if (resolvedInstId !== instituteId) {
+      throw new Error('Unauthorized cross-school access to substitute suggestions');
+    }
 
     // Get all working dates in the leave range (Mon–Sat, skip Sun)
     const workingDates = getWorkingDates(from_date, to_date);
     if (workingDates.length === 0) return [];
 
-    // Pre-fetch all active staff
-    const allStaff  = await FacultyModel.getAll();
-    // Pre-fetch all schedules (complete timetable)
-    const allSchedules = await ScheduleModel.getAll();
-    // Pre-fetch all approved leaves that overlap this range
-    const overlappingLeaves = await LeaveModel.getApprovedLeavesInRange(from_date, to_date);
+    // Pre-fetch all active staff for the specific institute
+    const allStaff  = await FacultyModel.getAll(instituteId);
+    // Pre-fetch all schedules (complete timetable) for the specific institute
+    const allSchedules = await ScheduleModel.getAll(instituteId);
+    // Pre-fetch all approved leaves that overlap this range for the specific institute
+    const overlappingLeaves = await LeaveModel.getApprovedLeavesInRange(from_date, to_date, instituteId);
 
     // Pre-fetch substitute duty counts this month for fairness
     const dutyCountMap = {};
@@ -229,18 +283,22 @@ export const LeaveService = {
   },
 
   /** ── Approve Leave (Atomic Transaction) ─────────── */
-  async approveLeaveWithSubstitutes(leave_id, assignments, admin_user_id, remarks) {
+  async approveLeaveWithSubstitutes(leave_id, assignments, admin_user_id, remarks, instituteId) {
     const client = await db.connect();
     try {
       await client.query('BEGIN');
 
       // 1. Update leave status → approved
       const application = await LeaveModel.updateApplicationStatus(
-        leave_id, 'approved', admin_user_id, remarks, client
+        leave_id, 'approved', admin_user_id, remarks, client, instituteId
       );
 
+      if (!application) {
+        throw new Error('Leave application not found or unauthorized');
+      }
+
       // 2. Fetch full application details for notification messages
-      const fullApp = await LeaveModel.getApplicationById(leave_id);
+      const fullApp = await LeaveModel.getApplicationById(leave_id, instituteId);
 
       // 3. Deduct balance
       const academicYear = '2025-2026';
@@ -287,13 +345,13 @@ export const LeaveService = {
 
       // Fetch admin user_id for sender
       const { rows: adminRows } = await db.query(
-        `SELECT user_id FROM "user" WHERE user_id = $1`, [admin_user_id]
+        `SELECT user_id FROM "user" WHERE user_id = $1 AND institute_id = $2`, [admin_user_id, instituteId]
       );
       const adminUserId = adminRows[0]?.user_id || admin_user_id;
 
       // 5. Notify leave teacher — Approved
       const teacherUserRow = await db.query(
-        `SELECT user_id FROM staff WHERE staff_id = $1`, [fullApp.teacher_id]
+        `SELECT user_id FROM staff WHERE staff_id = $1 AND institute_id = $2`, [fullApp.teacher_id, instituteId]
       );
       const teacherUserId = teacherUserRow.rows[0]?.user_id;
       if (teacherUserId) {
@@ -316,7 +374,7 @@ export const LeaveService = {
 
       for (const [subStaffId, duties] of Object.entries(subGroups)) {
         const subUserRow = await db.query(
-          `SELECT user_id FROM staff WHERE staff_id = $1`, [subStaffId]
+          `SELECT user_id FROM staff WHERE staff_id = $1 AND institute_id = $2`, [subStaffId, instituteId]
         );
         const subUserId = subUserRow.rows[0]?.user_id;
         if (!subUserId) continue;
@@ -336,6 +394,8 @@ export const LeaveService = {
         });
       }
 
+      broadcastLeaveEvent({ type: 'update' });
+
       return { success: true, application, assignments: createdAssignments };
     } catch (err) {
       await client.query('ROLLBACK');
@@ -346,16 +406,16 @@ export const LeaveService = {
   },
 
   /** ── Reject Leave ────────────────────────────────── */
-  async rejectLeave(leave_id, admin_user_id, remarks) {
-    const fullApp = await LeaveModel.getApplicationById(leave_id);
+  async rejectLeave(leave_id, admin_user_id, remarks, instituteId) {
+    const fullApp = await LeaveModel.getApplicationById(leave_id, instituteId);
     if (!fullApp) throw new Error('Leave application not found');
     if (fullApp.status !== 'pending') throw new Error('Only pending applications can be rejected');
 
-    await LeaveModel.updateApplicationStatus(leave_id, 'rejected', admin_user_id, remarks);
+    await LeaveModel.updateApplicationStatus(leave_id, 'rejected', admin_user_id, remarks, null, instituteId);
 
     // Notify teacher
     const teacherUserRow = await db.query(
-      `SELECT user_id FROM staff WHERE staff_id = $1`, [fullApp.teacher_id]
+      `SELECT user_id FROM staff WHERE staff_id = $1 AND institute_id = $2`, [fullApp.teacher_id, instituteId]
     );
     const teacherUserId = teacherUserRow.rows[0]?.user_id;
 
@@ -375,28 +435,40 @@ export const LeaveService = {
       });
     }
 
+    broadcastLeaveEvent({ type: 'update' });
+
     return { success: true };
   },
 
   /** ── Cancel Leave (teacher cancels their own pending) */
-  async cancelLeave(leave_id, teacher_id) {
-    const fullApp = await LeaveModel.getApplicationById(leave_id);
+  async cancelLeave(leave_id, teacher_id, instituteId) {
+    const fullApp = await LeaveModel.getApplicationById(leave_id, instituteId);
     if (!fullApp) throw new Error('Leave application not found');
     if (fullApp.teacher_id !== parseInt(teacher_id)) throw new Error('Unauthorized');
     if (fullApp.status !== 'pending') throw new Error('Only pending applications can be cancelled');
 
-    const cancelled = await LeaveModel.cancelApplication(leave_id, teacher_id);
+    const cancelled = await LeaveModel.cancelApplication(leave_id, teacher_id, instituteId);
     if (!cancelled) throw new Error('Could not cancel. Application may have been actioned already.');
+
+    broadcastLeaveEvent({ type: 'update' });
 
     return { success: true };
   },
 
   /** ── Substitute Responds (Accept/Decline) ──────── */
-  async respondToSubstituteDuty(leave_application_id, substitute_staff_id, action, assignment_id = null) {
+  async respondToSubstituteDuty(leave_application_id, substitute_staff_id, action, assignment_id = null, instituteId) {
     if (!['accept', 'decline'].includes(action)) throw new Error('Invalid action');
 
     const newStatus  = action === 'accept' ? 'accepted' : 'declined';
     
+    // Verify substitute belongs to this institute
+    const subRow  = await db.query(
+      `SELECT staff_first_name, staff_last_name, user_id FROM staff WHERE staff_id = $1 AND institute_id = $2`,
+      [substitute_staff_id, instituteId]
+    );
+    const sub = subRow.rows[0];
+    if (!sub) throw new Error('Substitute teacher not found or unauthorized');
+
     let updatedRows = [];
     if (assignment_id) {
       // Individual acceptance/decline
@@ -412,16 +484,13 @@ export const LeaveService = {
     if (!updatedRows || updatedRows.length === 0) throw new Error('No assignments found to update');
 
     // Get details for admin notification
-    const fullApp = await LeaveModel.getApplicationById(leave_application_id);
-    const subRow  = await db.query(
-      `SELECT staff_first_name, staff_last_name, user_id FROM staff WHERE staff_id = $1`, [substitute_staff_id]
-    );
-    const sub = subRow.rows[0];
-    const subName = sub ? `${sub.staff_first_name} ${sub.staff_last_name}` : 'A teacher';
-    const teacherName = fullApp ? `${fullApp.staff_first_name} ${fullApp.staff_last_name}` : 'the teacher';
+    const fullApp = await LeaveModel.getApplicationById(leave_application_id, instituteId);
+    if (!fullApp) throw new Error('Leave application not found');
+    const subName = `${sub.staff_first_name} ${sub.staff_last_name}`;
+    const teacherName = `${fullApp.staff_first_name} ${fullApp.staff_last_name}`;
 
-    // Notify all admin users
-    const { rows: admins } = await db.query(`SELECT user_id FROM "user" WHERE role_id = 1`);
+    // Notify all admin users of this school
+    const { rows: admins } = await db.query(`SELECT user_id FROM "user" WHERE role_id = 1 AND institute_id = $1`, [instituteId]);
     for (const admin of admins) {
       if (action === 'accept') {
         const periodList = updatedRows
@@ -451,29 +520,33 @@ export const LeaveService = {
       }
     }
 
+    broadcastLeaveEvent({ type: 'update' });
+
     return { success: true, updated_count: updatedRows.length };
   },
 
   /** ── Get Available Teachers for a Specific Period (for manual selection) */
-  async getAvailableTeachersForPeriod(date, periodNumber, leaveApplicationId) {
+  async getAvailableTeachersForPeriod(date, periodNumber, leaveApplicationId, instituteId) {
     // Parse date and determine day_of_week for schedule lookup
     const [y, m, d] = date.split('-').map(Number);
     const jsDow = new Date(y, m - 1, d).getDay(); // 0=Sun…6=Sat
     const dbDow = jsToDbDow(jsDow);               // 1=Mon…6=Sat, 7=Sun
 
-    // Get original teacher to exclude them
+    // Get original teacher to exclude them and determine instituteId
     let originalTeacherId = null;
     if (leaveApplicationId) {
-      const application = await LeaveModel.getApplicationById(leaveApplicationId);
-      if (application) originalTeacherId = parseInt(application.teacher_id);
+      const application = await LeaveModel.getApplicationById(leaveApplicationId, instituteId);
+      if (application) {
+        originalTeacherId = parseInt(application.teacher_id);
+      }
     }
 
-    // Pre-fetch all active staff and complete schedule
-    const allStaff     = await FacultyModel.getAll();
-    const allSchedules = await ScheduleModel.getAll();
+    // Pre-fetch all active staff and complete schedule for the specific institute
+    const allStaff     = await FacultyModel.getAll(instituteId);
+    const allSchedules = await ScheduleModel.getAll(instituteId);
 
     // Pre-fetch approved leaves that overlap this date
-    const overlappingLeaves = await LeaveModel.getApprovedLeavesInRange(date, date);
+    const overlappingLeaves = await LeaveModel.getApprovedLeavesInRange(date, date, instituteId);
 
     const available = [];
 

@@ -702,7 +702,7 @@ export const inviteUser = async (req, res) => {
     const { name, email, phone, role_code, designation } = req.body;
     const inviter_id = req.user.user_id;
     const inviter_role = Number(req.user.role_id);
-    const institute_id = req.user.institute_id;
+    const institute_id = req.instituteId || req.user.institute_id;
 
     if (!name || !email || !role_code) {
       return res.status(400).json({ success: false, message: "Name, email, and role are required" });
@@ -825,6 +825,7 @@ export const inviteUser = async (req, res) => {
           name: name,
           role: role_code.replace(/_/g, " "),
           token: invite_token,
+          instituteId: req.instituteId,
         });
         emailSent = true;
       } catch (emailErr) {
@@ -894,6 +895,7 @@ export const resendInvitation = async (req, res) => {
       name: user.user_name,
       role: role_code.replace("_", " "),
       token: invite_token,
+      instituteId: req.instituteId,
     });
 
     return res.json({ success: true, message: "Invitation resent successfully" });
@@ -950,7 +952,7 @@ export const setPassword = async (req, res) => {
     const cleanToken = token.trim();
 
     const userRes = await pool.query(
-      'SELECT user_id, user_name, email, invite_token_expiry FROM "user" WHERE invite_token = $1',
+      'SELECT user_id, user_name, email, invite_token_expiry, institute_id FROM "user" WHERE invite_token = $1',
       [cleanToken]
     );
 
@@ -980,11 +982,13 @@ export const setPassword = async (req, res) => {
     await pool.query('UPDATE admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
     await pool.query('UPDATE staff SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
     await pool.query('UPDATE student SET user_status_id = 1 WHERE student_user_id = $1', [user.user_id]);
+    await pool.query('UPDATE master_admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
 
     // Send confirmation email
     await emailService.sendPasswordChangedConfirmation({
       to: user.email,
       name: user.user_name,
+      instituteId: user.institute_id,
     });
 
     return res.json({ success: true, message: "Password set successfully. You can now login." });
@@ -1006,7 +1010,7 @@ export const forgotPassword = async (req, res) => {
     const successMsg = "If this email exists, a reset link has been sent.";
 
     const userRes = await pool.query(
-      'SELECT user_id, user_name FROM "user" WHERE LOWER(email) = LOWER($1)',
+      'SELECT user_id, user_name, institute_id FROM "user" WHERE LOWER(email) = LOWER($1)',
       [email]
     );
 
@@ -1027,6 +1031,7 @@ export const forgotPassword = async (req, res) => {
       to: email,
       name: user.user_name,
       token: reset_token,
+      instituteId: user.institute_id,
     });
 
     return res.json({ success: true, message: successMsg });
@@ -1047,7 +1052,7 @@ export const resetPassword = async (req, res) => {
     }
 
     const userRes = await pool.query(
-      'SELECT user_id, user_name, email, reset_token_expiry FROM "user" WHERE reset_token = $1',
+      'SELECT user_id, user_name, email, reset_token_expiry, institute_id FROM "user" WHERE reset_token = $1',
       [token]
     );
 
@@ -1077,6 +1082,7 @@ export const resetPassword = async (req, res) => {
     await emailService.sendPasswordChangedConfirmation({
       to: user.email,
       name: user.user_name,
+      instituteId: user.institute_id,
     });
 
     return res.json({ success: true, message: "Password reset successfully. You can now login." });
@@ -1138,7 +1144,7 @@ export const getUsers = async (req, res) => {
       JOIN user_role r ON u.role_id = r.role_id
       WHERE u.institute_id = $1
     `;
-    const params = [req.user.institute_id];
+    const params = [req.instituteId || req.user.institute_id];
 
     if (role_code) {
       query += " AND r.role_code = $2";
@@ -1167,7 +1173,7 @@ export const updateUserStatus = async (req, res) => {
     const { status, is_active } = req.body;
 
     const userRes = await pool.query(
-      `SELECT u.email, u.user_name, u.role_id, r.role_code, u.status, u.is_active 
+      `SELECT u.email, u.user_name, u.role_id, r.role_code, u.status, u.is_active, u.institute_id 
        FROM "user" u
        LEFT JOIN user_role r ON u.role_id = r.role_id
        WHERE u.user_id = $1`,
@@ -1179,6 +1185,9 @@ export const updateUserStatus = async (req, res) => {
     }
 
     const oldUser = userRes.rows[0];
+    if (Number(oldUser.institute_id) !== Number(req.instituteId)) {
+      return res.status(403).json({ success: false, message: "Forbidden: User belongs to another school" });
+    }
     const isDeactivating = (status === 'deactivated' && oldUser.status !== 'deactivated') || 
                            (is_active === false && oldUser.is_active !== false);
 
@@ -1206,6 +1215,7 @@ export const updateUserStatus = async (req, res) => {
           name: oldUser.user_name,
           role: oldUser.role_code.replace(/_/g, " "),
           token: invite_token,
+          instituteId: oldUser.institute_id,
         });
       } catch (emailErr) {
         console.error("❌ Failed to send reactivation invitation email:", emailErr);
@@ -1228,6 +1238,7 @@ export const updateUserStatus = async (req, res) => {
           await emailService.sendDeactivationNotification({
             to: oldUser.email,
             name: oldUser.user_name,
+            instituteId: oldUser.institute_id,
           });
         } catch (emailErr) {
           console.error("❌ Failed to send deactivation email:", emailErr);
@@ -1264,7 +1275,8 @@ export const updateUserStatus = async (req, res) => {
               await emailService.sendStudentStatusUpdateNotification({
                 to: recipientEmail,
                 studentName,
-                statusName: status_name || `Status #${newStatusId}`
+                statusName: status_name || `Status #${newStatusId}`,
+                instituteId: oldUser.institute_id,
               });
             }
           }
@@ -1289,6 +1301,14 @@ export const deleteUser = async (req, res) => {
 
     if (Number(id) === Number(currentUserId)) {
       return res.status(400).json({ success: false, message: "You cannot delete your own account" });
+    }
+
+    const userCheck = await client.query('SELECT institute_id FROM "user" WHERE user_id = $1', [id]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (Number(userCheck.rows[0].institute_id) !== Number(req.instituteId)) {
+      return res.status(403).json({ success: false, message: "Forbidden: User belongs to another school" });
     }
 
     await client.query("BEGIN");
@@ -1321,6 +1341,304 @@ export const deleteUser = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   } finally {
     client.release();
+  }
+};
+
+/* ==================================================
+   SETUP & MULTI-SCHOOL SWITCHER CONTROLLERS
+================================================== */
+
+export const getSetupStatus = async (req, res) => {
+  try {
+    const roleRes = await pool.query("SELECT role_id FROM user_role WHERE role_code = 'MASTER_ADMIN'");
+    let hasMasterAdmin = false;
+    if (roleRes.rows.length > 0) {
+      const roleId = roleRes.rows[0].role_id;
+      const userRes = await pool.query('SELECT user_id FROM "user" WHERE role_id = $1 LIMIT 1', [roleId]);
+      hasMasterAdmin = userRes.rows.length > 0;
+    }
+
+    const instRes = await pool.query("SELECT institute_id FROM institute WHERE name != 'Setup Placeholder School' LIMIT 1");
+    const hasSchool = instRes.rows.length > 0;
+
+    res.json({
+      success: true,
+      hasMasterAdmin,
+      hasSchool
+    });
+  } catch (error) {
+    console.error("❌ SETUP STATUS ERROR:", error);
+    res.status(500).json({ success: false, message: "Server error checking setup status" });
+  }
+};
+
+export const setupMasterAdmin = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { name, email, phone } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: "Name and email are required" });
+    }
+
+    const roleRes = await client.query("SELECT role_id FROM user_role WHERE role_code = 'MASTER_ADMIN'");
+    if (roleRes.rows.length === 0) {
+      return res.status(500).json({ success: false, message: "MASTER_ADMIN role not seeded" });
+    }
+    const roleId = roleRes.rows[0].role_id;
+
+    const userRes = await client.query('SELECT user_id FROM "user" WHERE role_id = $1 LIMIT 1', [roleId]);
+    if (userRes.rows.length > 0) {
+      return res.status(400).json({ success: false, message: "Master Admin already exists" });
+    }
+
+    // Check if email already exists
+    const emailCheck = await client.query('SELECT user_id FROM "user" WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    if (emailCheck.rows.length > 0) {
+      return res.status(409).json({ success: false, message: "A user with this email already exists" });
+    }
+
+    await client.query("BEGIN");
+
+    const placeholderInstRes = await client.query(
+      `INSERT INTO institute (name, short_name, address, status_id) 
+       VALUES ('Setup Placeholder School', 'SPS_TEMP', 'System Setup Placeholder', 1) 
+       RETURNING institute_id`
+    );
+    const instituteId = placeholderInstRes.rows[0].institute_id;
+
+    // Generate invite token (same pattern as inviteUser)
+    const invite_token = crypto.randomBytes(32).toString("hex");
+    const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Create user as PENDING (no password yet — they'll set it via email link)
+    const newUserRes = await client.query(
+      `INSERT INTO "user" (
+        user_name, email, phone, role_id, institute_id, 
+        is_active, status, invite_token, invite_token_expiry
+      ) VALUES ($1, $2, $3, $4, $5, false, 'pending', $6, $7) 
+      RETURNING user_id, user_name, email, role_id, institute_id`,
+      [name, email, phone || null, roleId, instituteId, invite_token, invite_token_expiry]
+    );
+    const newUser = newUserRes.rows[0];
+
+    const statusRes = await client.query("SELECT user_status_id FROM user_status WHERE status_name = 'Pending Approval'");
+    const pendingStatusId = statusRes.rows.length > 0 ? statusRes.rows[0].user_status_id : 13;
+
+    const nameParts = name.trim().split(" ");
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(" ") || "Admin";
+
+    await client.query(
+      `INSERT INTO master_admin (
+        user_id, m_admin_first_name, m_admin_last_name, email, phone, user_status_id
+      ) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [newUser.user_id, firstName, lastName, email, phone || null, pendingStatusId]
+    );
+
+    await client.query(
+      `INSERT INTO school_profile (id, school_name, email, phone, address, academic_year)
+       VALUES ($1, 'Setup Placeholder School', $2, $3, 'System Setup Placeholder', '2026-27')`,
+      [instituteId, email, phone || null]
+    );
+
+    await client.query("COMMIT");
+
+    // Send confirmation email with set-password link (non-blocking for response)
+    let emailSent = false;
+    try {
+      await emailService.sendMasterAdminSetup({
+        to: email,
+        name: name,
+        token: invite_token,
+        instituteId,
+      });
+      emailSent = true;
+    } catch (emailErr) {
+      console.error("❌ Master Admin setup email failed:", emailErr.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: emailSent
+        ? `Master Admin account created! A confirmation email has been sent to ${email}. Please check your inbox to set your password.`
+        : `Master Admin account created, but email delivery failed. Please contact support.`,
+      email_sent: emailSent,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("❌ SETUP MASTER ADMIN ERROR:", error);
+    res.status(500).json({ success: false, message: "Server error setting up Master Admin" });
+  } finally {
+    client.release();
+  }
+};
+
+export const setupSchool = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { user_id, role_id, institute_id: currentInstituteId } = req.user;
+
+    if (Number(role_id) !== 1) {
+      return res.status(403).json({ success: false, message: "Only Master Admin can create schools" });
+    }
+
+    const {
+      school_name, organization_name, school_code,
+      school_email, school_phone, school_address,
+      principal_name, academic_year, logo_url
+    } = req.body;
+
+    if (!school_name || !organization_name || !school_code || !school_email || !school_phone || !school_address || !principal_name || !academic_year) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const finalLogoUrl = req.file ? req.file.path : (logo_url || "");
+
+    await client.query("BEGIN");
+
+    const newInstRes = await client.query(
+      `INSERT INTO institute (
+        name, short_name, address, phone, email, logo_url, status_id, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, 1, NOW()) 
+      RETURNING institute_id`
+    );
+    const newInstituteId = newInstRes.rows[0].institute_id;
+
+    await client.query(
+      `INSERT INTO school_profile (
+        id, school_name, organization_name, affiliation_number, school_type,
+        email, phone, address, principal_name, logo_url, academic_year
+      ) VALUES ($1, $2, $3, $4, 'K-12', $5, $6, $7, $8, $9, $10)`,
+      [
+        newInstituteId, school_name, organization_name, school_code,
+        school_email, school_phone, school_address, principal_name, finalLogoUrl, academic_year
+      ]
+    );
+
+    const currentInstRes = await client.query(
+      "SELECT name FROM institute WHERE institute_id = $1",
+      [currentInstituteId]
+    );
+
+    const isPlaceholder = currentInstRes.rows.length > 0 && currentInstRes.rows[0].name === "Setup Placeholder School";
+
+    if (isPlaceholder) {
+      await client.query(
+        'UPDATE "user" SET institute_id = $1 WHERE user_id = $2',
+        [newInstituteId, user_id]
+      );
+
+      await client.query("DELETE FROM school_profile WHERE id = $1", [currentInstituteId]);
+      await client.query("DELETE FROM institute WHERE institute_id = $1", [currentInstituteId]);
+    }
+
+    await client.query("COMMIT");
+
+    const accessToken = jwt.sign(
+      {
+        user_id,
+        role_id,
+        institute_id: newInstituteId,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "School created successfully",
+      accessToken,
+      institute_id: newInstituteId,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("❌ SETUP SCHOOL ERROR:", error);
+    res.status(500).json({ success: false, message: "Server error setting up school" });
+  } finally {
+    client.release();
+  }
+};
+
+export const switchSchool = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { user_id, role_id } = req.user;
+    const { institute_id } = req.body;
+
+    if (Number(role_id) !== 1) {
+      return res.status(403).json({ success: false, message: "Only Master Admin can switch schools" });
+    }
+
+    if (!institute_id) {
+      return res.status(400).json({ success: false, message: "Institute ID is required" });
+    }
+
+    const instRes = await client.query(
+      "SELECT institute_id FROM institute WHERE institute_id = $1 AND name != 'Setup Placeholder School'",
+      [institute_id]
+    );
+
+    if (instRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "School not found" });
+    }
+
+    await client.query("BEGIN");
+
+    await client.query(
+      'UPDATE "user" SET institute_id = $1 WHERE user_id = $2',
+      [institute_id, user_id]
+    );
+
+    await client.query("COMMIT");
+
+    const accessToken = jwt.sign(
+      {
+        user_id,
+        role_id,
+        institute_id: Number(institute_id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Switched school successfully",
+      accessToken,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("❌ SWITCH SCHOOL ERROR:", error);
+    res.status(500).json({ success: false, message: "Server error switching school" });
+  } finally {
+    client.release();
+  }
+};
+
+export const getMySchools = async (req, res) => {
+  try {
+    const { role_id } = req.user;
+
+    if (Number(role_id) !== 1) {
+      return res.status(403).json({ success: false, message: "Only Master Admin can list all schools" });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT i.institute_id, COALESCE(sp.school_name, i.name) AS name, i.short_name, COALESCE(sp.logo_url, i.logo_url) AS logo_url, i.email, i.phone, i.address 
+       FROM institute i
+       LEFT JOIN school_profile sp ON i.institute_id = sp.id
+       WHERE i.name != 'Setup Placeholder School' 
+       ORDER BY i.institute_id ASC`
+    );
+
+    res.status(200).json({
+      success: true,
+      schools: rows,
+    });
+  } catch (error) {
+    console.error("❌ GET MY SCHOOLS ERROR:", error);
+    res.status(500).json({ success: false, message: "Server error fetching schools" });
   }
 };
 

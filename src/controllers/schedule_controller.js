@@ -5,7 +5,7 @@ const ScheduleController = {
 
   async getSchoolSchedule(req, res) {
     try {
-      const data = await ScheduleService.getSchoolSchedule();
+      const data = await ScheduleService.getSchoolSchedule(req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -15,7 +15,7 @@ const ScheduleController = {
   async getMySchedule(req, res) {
     try {
       const { staff_id, class_id, week_start } = req.query;
-      const data = await ScheduleService.getMySchedule({ staff_id, class_id, week_start });
+      const data = await ScheduleService.getMySchedule({ staff_id, class_id, week_start }, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -24,7 +24,7 @@ const ScheduleController = {
 
   async createSchedule(req, res) {
     try {
-      const data = await ScheduleService.createSchedule(req.body);
+      const data = await ScheduleService.createSchedule(req.body, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });
@@ -34,7 +34,7 @@ const ScheduleController = {
   async replaceClassSchedule(req, res) {
     try {
       const { class_id, scheduleArray } = req.body;
-      const data = await ScheduleService.replaceClassSchedule(class_id, scheduleArray);
+      const data = await ScheduleService.replaceClassSchedule(class_id, scheduleArray, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });
@@ -43,7 +43,7 @@ const ScheduleController = {
 
   async updateSchedule(req, res) {
     try {
-      const data = await ScheduleService.updateSchedule(req.params.id, req.body);
+      const data = await ScheduleService.updateSchedule(req.params.id, req.body, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });
@@ -52,7 +52,7 @@ const ScheduleController = {
 
   async deleteSchedule(req, res) {
     try {
-      await ScheduleService.deleteSchedule(req.params.id);
+      await ScheduleService.deleteSchedule(req.params.id, req.instituteId);
       res.json({ success: true, message: "Schedule deleted" });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });

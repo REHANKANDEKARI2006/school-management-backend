@@ -6,7 +6,7 @@ const QuestionBankController = {
   // POST /api/question-bank — add a single question
   async addQuestion(req, res) {
     try {
-      const data = await QuestionBankModel.addQuestion(req.body);
+      const data = await QuestionBankModel.addQuestion(req.body, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -20,7 +20,7 @@ const QuestionBankController = {
       if (!Array.isArray(questions) || !questions.length) {
         return res.status(400).json({ success: false, message: 'questions array is required' });
       }
-      const data = await QuestionBankModel.bulkAdd(questions);
+      const data = await QuestionBankModel.bulkAdd(questions, req.instituteId);
       res.status(201).json({ success: true, count: data.length, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -35,7 +35,7 @@ const QuestionBankController = {
         class_name, subject, chapter, question_type, difficulty, search,
         limit:  limit  ? parseInt(limit)  : 50,
         offset: offset ? parseInt(offset) : 0
-      });
+      }, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -45,7 +45,7 @@ const QuestionBankController = {
   // GET /api/question-bank/:id — get one question (with answer for teacher)
   async getById(req, res) {
     try {
-      const data = await QuestionBankModel.getById(req.params.id);
+      const data = await QuestionBankModel.getById(req.params.id, req.instituteId);
       if (!data) return res.status(404).json({ success: false, message: 'Question not found' });
       res.json({ success: true, data });
     } catch (err) {
@@ -56,7 +56,7 @@ const QuestionBankController = {
   // PATCH /api/question-bank/:id — update question
   async update(req, res) {
     try {
-      const data = await QuestionBankModel.update(req.params.id, req.body);
+      const data = await QuestionBankModel.update(req.params.id, req.body, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -66,7 +66,7 @@ const QuestionBankController = {
   // DELETE /api/question-bank/:id — delete question
   async delete(req, res) {
     try {
-      await QuestionBankModel.delete(req.params.id);
+      await QuestionBankModel.delete(req.params.id, req.instituteId);
       res.json({ success: true, message: 'Question deleted' });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });

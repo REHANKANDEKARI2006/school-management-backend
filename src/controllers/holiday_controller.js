@@ -10,9 +10,9 @@ export const HolidayController = {
       
       let holidays;
       if (month) {
-        holidays = await HolidayService.getHolidaysByMonth(currentYear, month);
+        holidays = await HolidayService.getHolidaysByMonth(currentYear, month, req.instituteId);
       } else {
-        holidays = await HolidayService.getHolidays(currentYear);
+        holidays = await HolidayService.getHolidays(currentYear, req.instituteId);
       }
 
       res.status(200).json({
@@ -33,7 +33,8 @@ export const HolidayController = {
   async getCustomHolidays(req, res) {
     try {
       const result = await pool.query(
-        'SELECT * FROM custom_holidays ORDER BY holiday_date DESC'
+        'SELECT * FROM custom_holidays WHERE institute_id = $1 ORDER BY holiday_date DESC',
+        [req.instituteId]
       );
       res.status(200).json({
         success: true,
@@ -69,10 +70,10 @@ export const HolidayController = {
         );
       } else {
         result = await pool.query(
-          `INSERT INTO custom_holidays (holiday_name, holiday_date, category, description, created_by)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO custom_holidays (holiday_name, holiday_date, category, description, created_by, institute_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING *`,
-          [holiday_name, holiday_date, category, description, userId]
+          [holiday_name, holiday_date, category, description, userId, req.instituteId]
         );
       }
 
@@ -116,9 +117,9 @@ export const HolidayController = {
         result = await pool.query(
           `UPDATE custom_holidays 
            SET holiday_name = $1, holiday_date = $2, category = $3, description = $4, updated_at = now()
-           WHERE id = $5
+           WHERE id = $5 AND institute_id = $6
            RETURNING *`,
-          [holiday_name, holiday_date, category, description, numericId]
+          [holiday_name, holiday_date, category, description, numericId, req.instituteId]
         );
       }
 
@@ -150,7 +151,7 @@ export const HolidayController = {
         await pool.query('DELETE FROM recurring_holidays WHERE id = $1', [numericId]);
       } else {
         const numericId = id.startsWith('cus_') ? id.split('_')[1] : id;
-        await pool.query('DELETE FROM custom_holidays WHERE id = $1', [numericId]);
+        await pool.query('DELETE FROM custom_holidays WHERE id = $1 AND institute_id = $2', [numericId, req.instituteId]);
       }
       
       res.status(200).json({

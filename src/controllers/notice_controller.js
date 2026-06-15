@@ -6,7 +6,7 @@ export const NoticeController = {
     try {
       let { class_id } = req.query;
       const cleanClassId = class_id && !isNaN(parseInt(class_id)) ? parseInt(class_id) : null;
-      const notices = await NoticeService.getAll(cleanClassId);
+      const notices = await NoticeService.getAll(cleanClassId, req.instituteId);
       res.json({ success: true, data: notices });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -15,7 +15,7 @@ export const NoticeController = {
 
   async getNoticeById(req, res) {
     try {
-      const notice = await NoticeService.getById(req.params.id);
+      const notice = await NoticeService.getById(req.params.id, req.instituteId);
       if (!notice) {
         return res.status(404).json({ success: false, message: "Notice not found" });
       }
@@ -27,7 +27,7 @@ export const NoticeController = {
 
   async getNoticeAudiences(req, res) {
     try {
-      const audiences = await NoticeService.getAudiences();
+      const audiences = await NoticeService.getAudiences(req.instituteId);
       res.json({ success: true, data: audiences });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -36,7 +36,7 @@ export const NoticeController = {
 
   async createNotice(req, res) {
     try {
-      const notice = await NoticeService.create(req.body);
+      const notice = await NoticeService.create(req.body, req.instituteId);
 
       // Log activity
       try {
@@ -44,7 +44,8 @@ export const NoticeController = {
           await DashboardService.addActivityEntry(
               req.user.user_id,
               'notice_posted',
-              `New notice posted: ${req.body.title}`
+              `New notice posted: ${req.body.title}`,
+              req.instituteId
           );
       } catch (e) { console.error(e); }
 
@@ -60,7 +61,7 @@ export const NoticeController = {
 
   async updateNotice(req, res) {
     try {
-      const notice = await NoticeService.update(req.params.id, req.body);
+      const notice = await NoticeService.update(req.params.id, req.body, req.instituteId);
       res.json({
         success: true,
         message: "Notice updated successfully",
@@ -73,7 +74,7 @@ export const NoticeController = {
 
   async deleteNotice(req, res) {
     try {
-      await NoticeService.delete(req.params.id);
+      await NoticeService.delete(req.params.id, req.instituteId);
       res.json({
         success: true,
         message: "Notice removed from user view (Soft Delete)"

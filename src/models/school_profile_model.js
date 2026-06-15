@@ -1,13 +1,58 @@
 import pool from "../config/db.js";
 
 export const SchoolProfileModel = {
-  async getProfile() {
-    // Since there's only one school, we assume id = 1
-    const { rows } = await pool.query(`SELECT * FROM school_profile WHERE id = 1`);
-    return rows[0] || null;
+  async getProfile(instituteId) {
+    const id = instituteId || 3;
+    const { rows } = await pool.query(`SELECT * FROM school_profile WHERE id = $1`, [id]);
+    if (rows.length > 0) {
+      return rows[0];
+    }
+
+    try {
+      const instRes = await pool.query(
+        "SELECT name, email, phone, address, logo_url FROM institute WHERE institute_id = $1",
+        [id]
+      );
+      if (instRes.rows.length > 0) {
+        const inst = instRes.rows[0];
+        const insertQuery = `
+          INSERT INTO school_profile (
+            id, school_name, organization_name, email, phone, address, principal_name, logo_url, academic_year,
+            selected_id_card_template, selected_bonafide_template, selected_mark_sheet_template,
+            selected_general_certificate_template, selected_leaving_certificate_template, selected_fee_receipt_template
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          RETURNING *;
+        `;
+        const insertRes = await pool.query(insertQuery, [
+          id,
+          inst.name || "School Name",
+          inst.name || "Organization Name",
+          inst.email || "school@demo.edu.in",
+          inst.phone || "+1 234 567 8900",
+          inst.address || "School Address",
+          "Principal Name",
+          inst.logo_url || "",
+          "2026-27",
+          "template1",
+          "template1",
+          "template1",
+          "template1",
+          "template1",
+          "template1"
+        ]);
+        return insertRes.rows[0];
+      }
+    } catch (err) {
+      console.error("Failed to create default school profile:", err);
+    }
+    return null;
   },
 
-  async upsertProfile(data) {
+  async upsertProfile(instituteId, data) {
+    const id = instituteId;
+    if (!id) {
+      throw new Error("instituteId is required to update school profile");
+    }
     const {
       school_name, address, phone, email, affiliation_number, principal_name,
       logo_url, signature_url, primary_color, academic_year,
@@ -23,9 +68,12 @@ export const SchoolProfileModel = {
     } = data;
 
     // Check if profile exists
-    const existing = await this.getProfile();
+    const existing = await this.getProfile(id);
 
     if (existing) {
+      if (school_name) {
+        await pool.query('UPDATE institute SET name = $1 WHERE institute_id = $2', [school_name, id]);
+      }
       // Update
       const { rows } = await pool.query(
         `UPDATE school_profile SET 
@@ -74,7 +122,7 @@ export const SchoolProfileModel = {
           is_document_theme_enabled = COALESCE($43, is_document_theme_enabled),
           selected_leaving_certificate_template = COALESCE($44, selected_leaving_certificate_template),
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = 1
+        WHERE id = $45
         RETURNING *`,
         [
           school_name, address, phone, email, affiliation_number, principal_name,
@@ -88,7 +136,8 @@ export const SchoolProfileModel = {
           footer_bg_color, footer_text_color, footer_left_text, footer_right_text, page_number_format, show_generation_date,
           cashier_signature_url, bonafide_config, achievement_config, organization_name,
           selected_fee_receipt_template, fee_receipt_config, document_theme, is_document_theme_enabled,
-          selected_leaving_certificate_template
+          selected_leaving_certificate_template,
+          id
         ]
       );
       return rows[0];
@@ -109,11 +158,11 @@ export const SchoolProfileModel = {
           selected_fee_receipt_template, fee_receipt_config, document_theme, is_document_theme_enabled,
           selected_leaving_certificate_template
         ) VALUES (
-          1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
-          $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+          $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45
         ) RETURNING *`,
         [
-          school_name, address, phone, email, affiliation_number, principal_name,
+          id, school_name, address, phone, email, affiliation_number, principal_name,
           logo_url, signature_url, primary_color, academic_year,
           selected_id_card_template, selected_bonafide_template,
           selected_mark_sheet_template, selected_general_certificate_template,

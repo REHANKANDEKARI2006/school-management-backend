@@ -1,68 +1,9 @@
-<%
-// Dynamic Branding Resolution
-let schoolName = branding.schoolName;
-let logoUrl = branding.logoUrl;
-let primaryColor = branding.primaryColor;
-
-try {
-    if (typeof loginEmail !== 'undefined' && loginEmail) {
-        const cp = process.getBuiltinModule('child_process');
-        const path = process.getBuiltinModule('path');
-        const dbPath = 'file:///' + path.resolve(process.cwd(), 'src/config/db.js').replace(/\\/g, '/');
-        const dbQueryCode = `
-            import('${dbPath}').then(async (m) => {
-                const pool = m.default;
-                try {
-                    const email = process.argv[1];
-                    const userRes = await pool.query('SELECT institute_id FROM \\\"user\\\" WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
-                    if (userRes.rows.length > 0) {
-                        const instId = userRes.rows[0].institute_id;
-                        const profileRes = await pool.query('SELECT school_name, logo_url, primary_color FROM school_profile WHERE id = $1', [instId]);
-                        if (profileRes.rows.length > 0) {
-                            console.log(JSON.stringify(profileRes.rows[0]));
-                            process.exit(0);
-                        }
-                    }
-                } catch (e) {}
-                process.exit(1);
-            });
-        `;
-        const result = cp.spawnSync('node', ['-e', dbQueryCode, loginEmail], {
-            timeout: 5000
-        });
-        if (result.status === 0) {
-            const lines = result.stdout.toString().split('\n');
-            let dbBranding = null;
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                    try {
-                        dbBranding = JSON.parse(trimmed);
-                        break;
-                    } catch (e) {}
-                }
-            }
-            if (dbBranding) {
-                if (dbBranding.school_name) schoolName = dbBranding.school_name;
-                if (dbBranding.logo_url) logoUrl = dbBranding.logo_url;
-                if (dbBranding.primary_color) primaryColor = dbBranding.primary_color;
-            }
-        }
-    }
-} catch (err) {
-    // Fail silently, fallback to passed branding properties
-}
-
-primaryColor = primaryColor || "#3b82f6";
-logoUrl = logoUrl || "https://res.cloudinary.com/dmrin51u8/image/upload/v1713550000/logo_placeholder.png";
-schoolName = schoolName || "CampusConnect";
-%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You're invited to CampusConnect</title>
+    <title>Welcome to CampusConnect — Set Your Password</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -83,7 +24,7 @@ schoolName = schoolName || "CampusConnect";
         }
         /* Header */
         .header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, <%= branding.primaryColor %> 0%, #1d4ed8 100%);
             padding: 40px 32px 36px;
             text-align: center;
         }
@@ -126,9 +67,9 @@ schoolName = schoolName || "CampusConnect";
         /* Role badge */
         .role-badge {
             display: inline-block;
-            background: #eff6ff;
-            color: #2563eb;
-            border: 1px solid #bfdbfe;
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
             border-radius: 20px;
             padding: 4px 14px;
             font-size: 13px;
@@ -143,7 +84,7 @@ schoolName = schoolName || "CampusConnect";
         .cta-button {
             display: inline-block;
             padding: 14px 36px;
-            background: var(--primary-color);
+            background: <%= branding.primaryColor %>;
             color: #ffffff !important;
             text-decoration: none;
             border-radius: 8px;
@@ -194,14 +135,14 @@ schoolName = schoolName || "CampusConnect";
         .footer strong { color: #64748b; }
     </style>
 </head>
-<body style="--primary-color: <%= primaryColor %>;">
+<body>
 <div class="wrapper">
     <div class="card">
 
         <!-- HEADER -->
         <div class="header">
-            <img src="<%= logoUrl %>" alt="<%= schoolName %> Logo" onerror="this.style.display='none'">
-            <h1><%= schoolName %></h1>
+            <img src="<%= branding.logoUrl %>" alt="<%= branding.schoolName %> Logo" onerror="this.style.display='none'">
+            <h1><%= branding.schoolName %></h1>
             <p>School Management System</p>
         </div>
 
@@ -209,20 +150,20 @@ schoolName = schoolName || "CampusConnect";
         <div class="body">
             <p class="greeting">Hello, <strong><%= name %></strong> 👋</p>
             <p class="message">
-                You have been invited to join <strong><%= schoolName %></strong>'s
-                school management platform — CampusConnect.
+                Your <strong>Master Admin</strong> account has been successfully created on
+                <strong><%= branding.schoolName %></strong>'s school management platform — CampusConnect.
             </p>
 
             <p class="message">Your assigned role is:</p>
-            <span class="role-badge"><%= role %></span>
+            <span class="role-badge">🛡️ Master Admin</span>
 
             <p class="message" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 24px;">
-                <strong>Your Login Username/Email:</strong> <br/>
+                <strong>Your Login Email:</strong> <br/>
                 <span style="color: #2563eb; font-weight: 600;"><%= loginEmail %></span>
             </p>
 
             <p class="message">
-                Click the button below to set your password and activate your account.
+                To activate your account, please click the button below to set your password.
                 You'll be able to log in immediately after.
             </p>
 
@@ -237,7 +178,7 @@ schoolName = schoolName || "CampusConnect";
                 <span class="expiry-icon">⏰</span>
                 <div class="expiry-text">
                     <strong>This link expires in 24 hours.</strong><br>
-                    If it expires, contact your administrator to resend the invitation.
+                    If it expires, you'll need to re-run the setup process.
                 </div>
             </div>
 
@@ -250,7 +191,7 @@ schoolName = schoolName || "CampusConnect";
             </div>
 
             <p style="font-size:13px; color:#94a3b8; margin-top:20px;">
-                If you didn't expect this invitation, you can safely ignore this email.
+                If you didn't initiate this setup, you can safely ignore this email.
                 The link will expire automatically.
             </p>
         </div>
@@ -258,7 +199,7 @@ schoolName = schoolName || "CampusConnect";
         <!-- FOOTER -->
         <div class="footer">
             <p>
-                &copy; <%= new Date().getFullYear() %> <strong><%= schoolName %></strong>. All rights reserved.<br>
+                &copy; <%= new Date().getFullYear() %> <strong><%= branding.schoolName %></strong>. All rights reserved.<br>
                 Powered by <strong>CampusConnect</strong>
             </p>
         </div>

@@ -2,12 +2,12 @@ import ExamsModel from "../models/exams_model.js";
 
 const ExamsService = {
 
-  async createExam(payload) {
+  async createExam(payload, instituteId) {
     const { class_id } = payload; // class_id now holds the Standard name (e.g. "10")
 
-    // 1. Fetch all classes
+    // 1. Fetch all classes for this institute
     const { ClassModel } = await import("../models/class_Model.js");
-    const allClasses = await ClassModel.getAll();
+    const allClasses = await ClassModel.getAll(instituteId);
 
     // 2. Filter classes that match the requested Standard
     const matchingClasses = allClasses.filter(c => String(c.class_name).trim() === String(class_id).trim());
@@ -24,27 +24,27 @@ const ExamsService = {
         class_id: cls.class_id,
       };
       
-      const created = await ExamsModel.createExam(dbPayload);
+      const created = await ExamsModel.createExam(dbPayload, instituteId);
       results.push(created);
     }
 
     return results[0];
   },
 
-  getAllExams(class_id = null) {
-    return ExamsModel.getAllExams(class_id);
+  getAllExams(class_id = null, instituteId) {
+    return ExamsModel.getAllExams(class_id, instituteId);
   },
 
-  getExamById(id) {
-    return ExamsModel.getExamById(id);
+  getExamById(id, instituteId) {
+    return ExamsModel.getExamById(id, instituteId);
   },
 
-  updateExam(id, payload) {
-    return ExamsModel.updateExam(id, payload);
+  updateExam(id, payload, instituteId) {
+    return ExamsModel.updateExam(id, payload, instituteId);
   },
 
-  deleteExam(id) {
-    return ExamsModel.deleteExam(id);
+  deleteExam(id, instituteId) {
+    return ExamsModel.deleteExam(id, instituteId);
   },
 
   getExamTypes() {
@@ -55,16 +55,16 @@ const ExamsService = {
     return ExamsModel.getExamStatuses();
   },
 
-  addGrades(exam_id, payload) {
-    return ExamsModel.addGrades(exam_id, payload);
+  addGrades(exam_id, payload, instituteId) {
+    return ExamsModel.addGrades(exam_id, payload, instituteId);
   },
 
-  getGrades(exam_id) {
-    return ExamsModel.getGrades(exam_id);
+  getGrades(exam_id, instituteId) {
+    return ExamsModel.getGrades(exam_id, instituteId);
   },
 
-  addBulkGrades(exam_id, grades) {
-    return ExamsModel.addBulkGrades(exam_id, grades);
+  addBulkGrades(exam_id, grades, instituteId) {
+    return ExamsModel.addBulkGrades(exam_id, grades, instituteId);
   }
 
 };

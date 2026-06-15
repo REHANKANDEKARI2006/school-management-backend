@@ -19,8 +19,24 @@ const __dirname = path.dirname(__filename);
 
 export const DocumentService = {
 
+  /**
+   * Safely closes a Puppeteer browser instance.
+   * On Windows, Chrome's child process sometimes cannot be terminated
+   * (EBUSY / EPERM on the lockfile). Letting that error bubble up causes
+   * an unhandled promise rejection that crashes the entire Node process.
+   * This helper swallows those errors so the server stays alive.
+   */
+  async _safeBrowserClose(browser) {
+    if (!browser) return;
+    try {
+      await browser.close();
+    } catch (closeErr) {
+      console.warn('[DocumentService] browser.close() warning (non-fatal):', closeErr.message);
+    }
+  },
+
   // Helper for live HTML previews
-  async generatePreviewHtml(documentType, templateId, language, title, paragraph, remarks) {
+  async generatePreviewHtml(documentType, templateId, language, title, paragraph, remarks, instituteId) {
     // Generate dummy student and school data
     const student = {
       stu_first_name: 'John',
@@ -48,7 +64,7 @@ export const DocumentService = {
     };
 
     try {
-      const realProfile = await SchoolProfileModel.getProfile();
+      const realProfile = await SchoolProfileModel.getProfile(instituteId);
       if (realProfile) {
         schoolProfile = {
           ...schoolProfile,
@@ -168,7 +184,7 @@ export const DocumentService = {
       if (!currentBrowser) {
         currentBrowser = await puppeteer.launch({
           headless: "new",
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security', '--disable-gpu', '--no-first-run']
         });
       }
       
@@ -204,23 +220,23 @@ export const DocumentService = {
       const pdfBuffer = await page.pdf(pdfOptions);
 
       await page.close();
-      if (shouldCloseBrowser) await currentBrowser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(currentBrowser);
 
       return pdfBuffer;
     } catch (err) {
-      if (shouldCloseBrowser && currentBrowser) await currentBrowser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(currentBrowser);
       throw err;
     }
   },
 
-  async generateIdCard(studentId, userId, templateId = null, providedBrowser = null) {
+  async generateIdCard(studentId, userId, templateId = null, providedBrowser = null, instituteId = null) {
     let shouldCloseBrowser = !providedBrowser;
     let browser = providedBrowser;
     try {
-      const student = await StudentModel.findById(studentId);
+      const student = await StudentModel.findById(studentId, instituteId);
       if (!student) throw new Error("Student not found");
 
-      const schoolProfile = await SchoolProfileModel.getProfile();
+      const schoolProfile = await SchoolProfileModel.getProfile(student.institute_id);
       if (!schoolProfile) throw new Error("School profile not configured");
 
       // template1 = portrait, template2 = landscape; template3 removed — fall back to template1
@@ -250,7 +266,7 @@ export const DocumentService = {
       const pdfH = isLandscape ? '2.125in' : '3.375in';
 
       if (!browser) {
-        browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'] });
+        browser = await puppeteer.launch({ headless: "new", args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security', '--disable-gpu', '--no-first-run'] });
       }
 
       const page = await browser.newPage();
@@ -276,13 +292,13 @@ export const DocumentService = {
       });
 
       await page.close();
-      if (shouldCloseBrowser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
 
       if (userId) await this.logDocumentGeneration(studentId, 'ID_CARD', selectedTemplate, userId);
       return pdfBuffer;
 
     } catch (err) {
-      if (shouldCloseBrowser && browser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
       console.error("[DocumentService] Error generating ID Card:", err);
       throw err;
     }
@@ -319,9 +335,9 @@ export const DocumentService = {
     return result;
   },
 
-  async renderWithBranding(docType, templatePath, data) {
+  async renderWithBranding(docType, templatePath, data, instituteId = null) {
     try {
-      const school = await SchoolProfileModel.getProfile();
+      const school = await SchoolProfileModel.getProfile(instituteId || data?.student?.institute_id);
       if (!school) throw new Error("School profile not configured");
 
       const docConfig = (school.document_config && school.document_config[docType]) || {
@@ -353,14 +369,14 @@ export const DocumentService = {
     }
   },
 
-  async generateBonafide(studentId, userId, templateId = null, providedBrowser = null) {
+  async generateBonafide(studentId, userId, templateId = null, providedBrowser = null, instituteId = null) {
     let shouldCloseBrowser = !providedBrowser;
     let browser = providedBrowser;
     try {
-      const student = await StudentModel.findById(studentId);
+      const student = await StudentModel.findById(studentId, instituteId);
       if (!student) throw new Error("Student not found");
 
-      const schoolProfile = await SchoolProfileModel.getProfile();
+      const schoolProfile = await SchoolProfileModel.getProfile(student.institute_id);
       if (!schoolProfile) throw new Error("School profile not configured");
 
       let selectedTemplate = templateId || schoolProfile.selected_bonafide_template || 'template1';
@@ -405,7 +421,7 @@ export const DocumentService = {
       });
 
       if (!browser) {
-        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run'] });
       }
 
       const page = await browser.newPage();
@@ -418,26 +434,26 @@ export const DocumentService = {
       });
 
       await page.close();
-      if (shouldCloseBrowser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
 
       if (userId) await this.logDocumentGeneration(studentId, 'BONAFIDE', selectedTemplate, userId);
       return pdfBuffer;
     } catch (err) {
-      if (shouldCloseBrowser && browser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
       console.error("[DocumentService] Error generating Bonafide:", err);
       throw err;
     }
   },
 
 
-  async generateLeavingCertificate(studentId, userId, templateId = null, providedBrowser = null) {
+  async generateLeavingCertificate(studentId, userId, templateId = null, providedBrowser = null, instituteId = null) {
     let shouldCloseBrowser = !providedBrowser;
     let browser = providedBrowser;
     try {
-      const student = await StudentModel.findById(studentId);
+      const student = await StudentModel.findById(studentId, instituteId);
       if (!student) throw new Error("Student not found");
 
-      const schoolProfile = await SchoolProfileModel.getProfile();
+      const schoolProfile = await SchoolProfileModel.getProfile(student.institute_id);
       if (!schoolProfile) throw new Error("School profile not configured");
 
       let selectedTemplate = templateId || schoolProfile.selected_leaving_certificate_template || 'template1';
@@ -482,7 +498,7 @@ export const DocumentService = {
       });
 
       if (!browser) {
-        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run'] });
       }
 
       const page = await browser.newPage();
@@ -495,25 +511,25 @@ export const DocumentService = {
       });
 
       await page.close();
-      if (shouldCloseBrowser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
 
       if (userId) await this.logDocumentGeneration(studentId, 'LEAVING_CERTIFICATE', selectedTemplate, userId);
       return pdfBuffer;
     } catch (err) {
-      if (shouldCloseBrowser && browser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
       console.error("[DocumentService] Error generating Leaving Certificate:", err);
       throw err;
     }
   },
 
-  async generateMarkSheet(studentId, userId = null, providedBrowser = null, templateId = null) {
+  async generateMarkSheet(studentId, userId = null, providedBrowser = null, templateId = null, instituteId = null) {
     let browser = providedBrowser;
     let shouldCloseBrowser = !providedBrowser;
     try {
-      const student = await StudentModel.findById(studentId);
+      const student = await StudentModel.findById(studentId, instituteId);
       if (!student) throw new Error("Student not found");
 
-      const school = await SchoolProfileModel.getProfile();
+      const school = await SchoolProfileModel.getProfile(student.institute_id);
       if (!school) throw new Error("School profile not configured");
       
       let marks = [];
@@ -592,25 +608,25 @@ ${bodyHtml}
       });
 
       await page.close();
-      if (shouldCloseBrowser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
 
       if (userId) await this.logDocumentGeneration(studentId, 'MARK_SHEET', templateName, userId);
       return pdfBuffer;
     } catch (err) {
-      if (shouldCloseBrowser && browser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
       console.error("[DocumentService] Error generating mark sheet:", err);
       throw err;
     }
   },
 
-  async generateGeneralCertificate(studentId, userId = null, templateId = null, providedBrowser = null, eventId = null) {
+  async generateGeneralCertificate(studentId, userId = null, templateId = null, providedBrowser = null, eventId = null, instituteId = null) {
     let shouldCloseBrowser = !providedBrowser;
     let browser = providedBrowser;
     try {
-      const student = await StudentModel.findById(studentId);
+      const student = await StudentModel.findById(studentId, instituteId);
       if (!student) throw new Error("Student not found");
 
-      const schoolProfile = await SchoolProfileModel.getProfile();
+      const schoolProfile = await SchoolProfileModel.getProfile(student.institute_id);
       if (!schoolProfile) throw new Error("School profile not configured");
 
       let eventData = null;
@@ -661,7 +677,7 @@ ${bodyHtml}
       });
 
       if (!browser) {
-        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+        browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run'] });
       }
 
       const page = await browser.newPage();
@@ -675,19 +691,19 @@ ${bodyHtml}
       });
 
       await page.close();
-      if (shouldCloseBrowser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
 
       if (userId) await this.logDocumentGeneration(studentId, 'GENERAL_CERTIFICATE', selectedTemplate, userId);
       return pdfBuffer;
     } catch (err) {
-      if (shouldCloseBrowser && browser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
       console.error("[DocumentService] Error generating general certificate:", err);
       throw err;
     }
   },
 
 
-  async generateFeeReceipt(paymentId, userId = null, providedBrowser = null, templateId = null) {
+  async generateFeeReceipt(paymentId, userId = null, providedBrowser = null, templateId = null, instituteId = null) {
     let browser = providedBrowser;
     let shouldCloseBrowser = !providedBrowser;
     try {
@@ -737,11 +753,36 @@ ${bodyHtml}
       // Calculate total consolidated amount paid
       const amount = payments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
 
-      const student = await StudentModel.findById(payment.student_id);
+      const student = await StudentModel.findById(payment.student_id, instituteId);
       if (!student) throw new Error("Student not found");
 
-      const school = await SchoolProfileModel.getProfile();
+      const school = await SchoolProfileModel.getProfile(student.institute_id);
       if (!school) throw new Error("School profile not configured");
+
+      // Fetch the overall pending balance for all fee structures assigned to the student's class
+      const balanceQuery = await pool.query(
+        `SELECT 
+          fs.fee_struct_id,
+          fs.amount AS structure_amount,
+          COALESCE(
+            (
+              SELECT SUM(amount_paid) 
+              FROM fee_collection 
+              WHERE fee_struct_id = fs.fee_struct_id AND student_id = $1
+            ),
+            0
+          ) AS total_paid
+         FROM fee_structure fs
+         JOIN class_enrollment ce ON ce.class_id = fs.class_id AND ce.status_id = 1
+         WHERE ce.student_id = $1`,
+        [payment.student_id]
+      );
+
+      let totalBalance = 0;
+      balanceQuery.rows.forEach(row => {
+        const bal = Number(row.structure_amount) - Number(row.total_paid);
+        totalBalance += Math.max(0, bal);
+      });
 
       const templateName = templateId || school.selected_fee_receipt_template || 'template1';
       let templatePath = path.join(__dirname, '..', 'templates', 'fee-receipt', `${templateName}.ejs`);
@@ -758,6 +799,7 @@ ${bodyHtml}
         payment,
         amount,
         school,
+        balance: totalBalance,
         config: school.fee_receipt_config || {}
       });
 
@@ -779,18 +821,18 @@ ${bodyHtml}
       });
 
       await page.close();
-      if (shouldCloseBrowser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
 
       if (userId) await this.logDocumentGeneration(student.student_id, 'FEE_RECEIPT', templateName, userId);
       return pdfBuffer;
     } catch (err) {
-      if (shouldCloseBrowser && browser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
       console.error("[DocumentService] Error generating fee receipt:", err);
       throw err;
     }
   },
 
-  async generateTimetable(classId, userId = null, providedBrowser = null) {
+  async generateTimetable(classId, userId = null, providedBrowser = null, instituteId = null) {
     let browser = providedBrowser;
     let shouldCloseBrowser = !providedBrowser;
     try {
@@ -832,7 +874,7 @@ ${bodyHtml}
       const html = await this.renderWithBranding('TIMETABLE', templatePath, { 
         className,
         periods
-      });
+      }, instituteId);
 
       if (!browser) {
         browser = await puppeteer.launch({
@@ -852,11 +894,11 @@ ${bodyHtml}
       });
 
       await page.close();
-      if (shouldCloseBrowser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
 
       return pdfBuffer;
     } catch (err) {
-      if (shouldCloseBrowser && browser) await browser.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
       console.error("[DocumentService] Error generating timetable:", err);
       throw err;
     }
@@ -875,7 +917,7 @@ ${bodyHtml}
     }
   },
 
-  async generateBulkIdCards(studentIds, userId, templateId = 'template1') {
+  async generateBulkIdCards(studentIds, userId, templateId = 'template1', instituteId = null) {
     let browser = null;
     try {
       if (!Array.isArray(studentIds) || studentIds.length === 0) {
@@ -884,14 +926,14 @@ ${bodyHtml}
 
       browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run']
       });
 
       const mergedPdf = await PDFDocument.create();
 
       for (const id of studentIds) {
         try {
-          const pdfBuffer = await this.generateIdCard(id, userId, templateId, browser);
+          const pdfBuffer = await this.generateIdCard(id, userId, templateId, browser, instituteId);
           const pdfDoc = await PDFDocument.load(pdfBuffer);
           const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
           copiedPages.forEach((page) => mergedPdf.addPage(page));
@@ -900,18 +942,18 @@ ${bodyHtml}
         }
       }
 
-      await browser.close();
+      await this._safeBrowserClose(browser);
       const mergedPdfFile = await mergedPdf.save();
       return Buffer.from(mergedPdfFile);
     } catch (err) {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
       console.error("Error generating bulk ID cards:", err);
       throw err;
     }
   },
 
 
-  async generateBulkBonafide(studentIds, userId, templateId = 'template1') {
+  async generateBulkBonafide(studentIds, userId, templateId = 'template1', instituteId = null) {
     let browser = null;
     try {
       if (!Array.isArray(studentIds) || studentIds.length === 0) {
@@ -920,14 +962,14 @@ ${bodyHtml}
 
       browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run']
       });
 
       const mergedPdf = await PDFDocument.create();
 
       for (const id of studentIds) {
         try {
-          const pdfBuffer = await this.generateBonafide(id, userId, templateId, browser);
+          const pdfBuffer = await this.generateBonafide(id, userId, templateId, browser, instituteId);
           const pdfDoc = await PDFDocument.load(pdfBuffer);
           const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
           copiedPages.forEach((page) => mergedPdf.addPage(page));
@@ -936,17 +978,17 @@ ${bodyHtml}
         }
       }
 
-      await browser.close();
+      await this._safeBrowserClose(browser);
       const mergedPdfFile = await mergedPdf.save();
       return Buffer.from(mergedPdfFile);
     } catch (err) {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
       console.error("Error generating bulk Bonafides:", err);
       throw err;
     }
   },
 
-  async generateBulkGeneralCertificates(studentIds, userId, templateId = 'template1', eventId = null) {
+  async generateBulkGeneralCertificates(studentIds, userId, templateId = 'template1', eventId = null, instituteId = null) {
     let browser = null;
     try {
       if (!Array.isArray(studentIds) || studentIds.length === 0) {
@@ -955,14 +997,14 @@ ${bodyHtml}
 
       browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run']
       });
 
       const mergedPdf = await PDFDocument.create();
 
       for (const id of studentIds) {
         try {
-          const pdfBuffer = await this.generateGeneralCertificate(id, userId, templateId, browser, eventId);
+          const pdfBuffer = await this.generateGeneralCertificate(id, userId, templateId, browser, eventId, instituteId);
           const pdfDoc = await PDFDocument.load(pdfBuffer);
           const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
           copiedPages.forEach((page) => mergedPdf.addPage(page));
@@ -971,16 +1013,16 @@ ${bodyHtml}
         }
       }
 
-      await browser.close();
+      await this._safeBrowserClose(browser);
       const mergedPdfFile = await mergedPdf.save();
       return Buffer.from(mergedPdfFile);
     } catch (err) {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
       console.error("Error generating bulk General Certificates:", err);
       throw err;
     }
   },
-  async generateBulkLeavingCertificates(studentIds, userId, templateId = 'template1') {
+  async generateBulkLeavingCertificates(studentIds, userId, templateId = 'template1', instituteId = null) {
     let browser = null;
     try {
       if (!Array.isArray(studentIds) || studentIds.length === 0) {
@@ -989,14 +1031,14 @@ ${bodyHtml}
 
       browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run']
       });
 
       const mergedPdf = await PDFDocument.create();
 
       for (const id of studentIds) {
         try {
-          const pdfBuffer = await this.generateLeavingCertificate(id, userId, templateId, browser);
+          const pdfBuffer = await this.generateLeavingCertificate(id, userId, templateId, browser, instituteId);
           const pdfDoc = await PDFDocument.load(pdfBuffer);
           const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
           copiedPages.forEach((page) => mergedPdf.addPage(page));
@@ -1005,22 +1047,20 @@ ${bodyHtml}
         }
       }
 
-      await browser.close();
+      await this._safeBrowserClose(browser);
       const mergedPdfFile = await mergedPdf.save();
       return Buffer.from(mergedPdfFile);
     } catch (err) {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
       console.error("Error generating bulk Leaving Certificates:", err);
       throw err;
     }
   },
 
-
-
-  async getTemplatePreview(type, templateId) {
+  async getTemplatePreview(type, templateId, instituteId = null) {
     let browser = null;
     try {
-      const schoolProfile = await SchoolProfileModel.getProfile();
+      const schoolProfile = await SchoolProfileModel.getProfile(instituteId);
       if (!schoolProfile) throw new Error("School profile not configured");
 
       // Placeholder data
@@ -1035,46 +1075,108 @@ ${bodyHtml}
         primary_contact: "+91 9876543210",
         father_name: "Richard Doe",
         address: "123, Sample Street, New Delhi",
-        profile_url: "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg"
+        profile_url: null
       };
-
-      const logoUrl = schoolProfile.logo_url || "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg";
-      const signatureUrl = schoolProfile.signature_url || "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg";
 
       // Map frontend type names to folder names
       const folderMap = {
-        'id_card': 'id-card',
-        'bonafide': 'bonafide',
-        'mark_sheet': 'mark-sheet',
-        'general_certificate': 'general'
+        'id_card':             'id-card',
+        'bonafide':            'bonafide',
+        'mark_sheet':          'mark-sheet',
+        'general_certificate': 'general',
+        'fee_receipt':         'fee-receipt',
+        'leaving_certificate': 'leaving-certificate',
       };
       
       const folderName = folderMap[type] || type;
       const templatePath = path.join(__dirname, '..', 'templates', folderName, `${templateId}.ejs`);
       
+      if (!fs.existsSync(templatePath)) {
+        throw new Error(`Template not found: ${folderName}/${templateId}`);
+      }
+
       const docTypeMap = {
-        'id_card': 'ID_CARD',
-        'bonafide': 'BONAFIDE',
-        'mark_sheet': 'MARK_SHEET',
+        'id_card':             'ID_CARD',
+        'bonafide':            'BONAFIDE',
+        'mark_sheet':          'MARK_SHEET',
         'general_certificate': 'CERTIFICATE',
-        'fee_receipt': 'FEE_RECEIPT'
+        'fee_receipt':         'FEE_RECEIPT',
+        'leaving_certificate': 'LEAVING_CERTIFICATE',
       };
       const docType = docTypeMap[type] || 'OTHER';
 
+      // Pre-fetch school logo and signature as base64 so real branding appears
+      const [logoDataUrl, signatureDataUrl] = await Promise.all([
+        this._fetchImageAsBase64(schoolProfile.logo_url),
+        this._fetchImageAsBase64(schoolProfile.signature_url),
+      ]);
+
+      // Sample marks for mark-sheet preview
+      const sampleMarks = [
+        { subject_name: 'Mathematics',   max_marks: 100, obtained_marks: 85, grade: 'A' },
+        { subject_name: 'Science',        max_marks: 100, obtained_marks: 78, grade: 'B' },
+        { subject_name: 'English',        max_marks: 100, obtained_marks: 90, grade: 'A' },
+        { subject_name: 'Social Studies', max_marks: 100, obtained_marks: 72, grade: 'B' },
+        { subject_name: 'Hindi',          max_marks: 100, obtained_marks: 88, grade: 'A' },
+      ];
+
       let html = "";
-      if (docType === 'ID_CARD' || docType === 'BONAFIDE' || docType === 'FEE_RECEIPT') {
-         html = await ejs.renderFile(templatePath, { student, school: schoolProfile, payment: { receipt_no: '2026-0001', payment_date: new Date(), amount_paid: 4800, payment_mode: 'Cash' }, amount: 4800 });
+      if (docType === 'ID_CARD') {
+        // ID card templates require these three vars — pass them explicitly to avoid ReferenceError
+        html = await ejs.renderFile(templatePath, {
+          student,
+          school: schoolProfile,
+          photoDataUrl: null,
+          logoDataUrl,
+          signatureDataUrl,
+        });
+      } else if (docType === 'BONAFIDE') {
+        html = await ejs.renderFile(templatePath, {
+          student,
+          school: schoolProfile,
+          logoUrl: logoDataUrl || schoolProfile.logo_url || '',
+          signatureUrl: signatureDataUrl || schoolProfile.signature_url || '',
+          customTitle: null, customParagraph: null, customRemarks: null,
+        });
+      } else if (docType === 'LEAVING_CERTIFICATE') {
+        html = await ejs.renderFile(templatePath, {
+          student,
+          school: schoolProfile,
+          logoUrl: logoDataUrl || schoolProfile.logo_url || '',
+          signatureUrl: signatureDataUrl || schoolProfile.signature_url || '',
+          customTitle: null, customParagraph: null, customRemarks: null,
+        });
+      } else if (docType === 'MARK_SHEET') {
+        html = await ejs.renderFile(templatePath, {
+          student,
+          school: schoolProfile,
+          marks: sampleMarks,
+          totalMarks: 413,
+          maxTotal: 500,
+          percentage: '82.60',
+          logoUrl: logoDataUrl || schoolProfile.logo_url || '',
+          signatureUrl: signatureDataUrl || schoolProfile.signature_url || '',
+        });
+      } else if (docType === 'FEE_RECEIPT') {
+        html = await ejs.renderFile(templatePath, {
+          student,
+          school: schoolProfile,
+          logoUrl: logoDataUrl || schoolProfile.logo_url || '',
+          signatureUrl: signatureDataUrl || schoolProfile.signature_url || '',
+          payment: { receipt_no: '2026-0001', payment_date: new Date(), amount_paid: 4800, payment_mode: 'Cash' },
+          amount: 4800,
+        });
       } else {
-         html = await this.renderWithBranding(docType, templatePath, { student });
+        html = await this.renderWithBranding(docType, templatePath, { student, school: schoolProfile }, instituteId);
       }
 
       browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run']
       });
 
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
       let pdfOptions = {
         printBackground: true,
@@ -1082,8 +1184,10 @@ ${bodyHtml}
       };
 
       if (folderName === 'id-card') {
-        pdfOptions.width = '2.125in';
-        pdfOptions.height = '3.375in';
+        // Detect landscape (template2) vs portrait (template1) by templateId
+        const isLandscape = templateId === 'template2';
+        pdfOptions.width  = isLandscape ? '3.375in' : '2.125in';
+        pdfOptions.height = isLandscape ? '2.125in' : '3.375in';
       } else if (folderName === 'fee-receipt') {
         pdfOptions.format = 'A4';
         pdfOptions.landscape = true;
@@ -1092,10 +1196,10 @@ ${bodyHtml}
       }
 
       const pdfBuffer = await page.pdf(pdfOptions);
-      await browser.close();
+      await this._safeBrowserClose(browser);
       return pdfBuffer;
     } catch (err) {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
       console.error("Error generating template preview:", err);
       throw err;
     }
@@ -1123,13 +1227,13 @@ ${bodyHtml}
     }
   },
 
-  async generateMonthlyAttendancePDF(classId, month, year, userId) {
+  async generateMonthlyAttendancePDF(classId, month, year, userId, instituteId = null) {
     let browser = null;
     try {
       const yearInt = parseInt(year);
       const monthInt = parseInt(month);
 
-      const school = await SchoolProfileModel.getProfile();
+      const school = await SchoolProfileModel.getProfile(instituteId);
       const report = await AttendanceService.getMonthlyReport(classId, monthInt, yearInt);
       
       const sql = `
@@ -1170,7 +1274,7 @@ ${bodyHtml}
       });
 
       browser = await puppeteer.launch({
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run'],
         headless: "new"
       });
       const page = await browser.newPage();
@@ -1191,7 +1295,8 @@ ${bodyHtml}
           await DashboardService.addActivityEntry(
             userId,
             'attendance_report_download',
-            `Downloaded Monthly Attendance: ${classInfo ? classInfo.class_name + ' ' + classInfo.section_name : 'N/A'} - ${monthName} ${yearInt}`
+            `Downloaded Monthly Attendance: ${classInfo ? classInfo.class_name + ' ' + classInfo.section_name : 'N/A'} - ${monthName} ${yearInt}`,
+            instituteId
           );
         } catch (e) { console.error("Logging error:", e); }
       }
@@ -1201,20 +1306,20 @@ ${bodyHtml}
       console.error('generateMonthlyAttendancePDF error:', error);
       throw error;
     } finally {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
     }
   },
 
-  async generateBulkMarkSheets(studentIds, userId, templateId = null) {
+  async generateBulkMarkSheets(studentIds, userId, templateId = null, instituteId = null) {
     let browser = null;
     try {
       if (!Array.isArray(studentIds) || studentIds.length === 0) throw new Error("No student IDs");
-      browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+      browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run'] });
       const mergedPdf = await PDFDocument.create();
 
       for (const id of studentIds) {
         try {
-          const pdfBuffer = await this.generateMarkSheet(id, userId, browser, templateId);
+          const pdfBuffer = await this.generateMarkSheet(id, userId, browser, templateId, instituteId);
           const pdfDoc = await PDFDocument.load(pdfBuffer);
           const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
           copiedPages.forEach((page) => mergedPdf.addPage(page));
@@ -1223,19 +1328,130 @@ ${bodyHtml}
         }
       }
 
-      await browser.close();
+      await this._safeBrowserClose(browser);
       return Buffer.from(await mergedPdf.save());
     } catch (err) {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
       throw err;
     }
   },
 
-  async generateBulkFeeReceipts(studentIds, userId, templateId = null) {
+  /**
+   * Generate a marksheet PDF for a specific student and exam.
+   * Uses the school's selected marksheet template (template1 or template2).
+   * Falls back to all marks if examName is not provided.
+   */
+  async generateMarksheetForExam(studentId, examName, userId = null, providedBrowser = null, instituteId = null) {
+    let browser = providedBrowser;
+    let shouldCloseBrowser = !providedBrowser;
+    try {
+      const student = await StudentModel.findById(studentId, instituteId);
+      if (!student) throw new Error("Student not found");
+
+      const school = await SchoolProfileModel.getProfile(student.institute_id);
+      if (!school) throw new Error("School profile not configured");
+
+      // Fetch marks for this specific exam
+      let marks = [];
+      if (examName) {
+        const { rows } = await pool.query(
+          `SELECT
+             sub.subject_name,
+             e.total_score AS max_marks,
+             eg.marks_obtained AS obtained_marks,
+             eg.grade
+           FROM exam_grades eg
+           JOIN exam e ON e.exam_id = eg.exam_id
+           JOIN subject sub ON sub.subject_id = e.subject_id
+           WHERE eg.student_id = $1 AND LOWER(e.exam_name) = LOWER($2) AND e.is_deleted = false
+           ORDER BY sub.subject_name`,
+          [studentId, examName]
+        );
+        marks = rows;
+      } else {
+        marks = await ExamsModel.getStudentFullReport(studentId);
+      }
+
+      const totalMarks = marks.reduce((sum, m) => sum + Number(m.obtained_marks || 0), 0);
+      const maxTotal = marks.reduce((sum, m) => sum + Number(m.max_marks || 0), 0);
+      const percentage = maxTotal > 0 ? ((totalMarks / maxTotal) * 100).toFixed(2) : 0;
+
+      const templateName = school.selected_mark_sheet_template || 'template2';
+      const templatePath = path.join(__dirname, '..', 'templates', 'mark-sheet', `${templateName}.ejs`);
+
+      if (!fs.existsSync(templatePath)) {
+        throw new Error(`Marksheet template not found: ${templateName}`);
+      }
+
+      const marksheetConfig = (school.document_config && school.document_config['MARK_SHEET']) || {
+        header: true, footer: true, border: true, stamp: true, signature: true
+      };
+
+      const bodyHtml = await ejs.renderFile(templatePath, {
+        student,
+        marks,
+        totalMarks,
+        maxTotal,
+        percentage,
+        school,
+        config: marksheetConfig,
+        examName: examName || 'All Exams'
+      });
+
+      let html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;">
+${bodyHtml}
+</body>
+</html>`;
+
+      // For template1, wrap with branding layout
+      if (templateName === 'template1') {
+        const layoutPath = path.join(__dirname, '..', 'templates', 'common', 'branding_layout.ejs');
+        if (fs.existsSync(layoutPath)) {
+          html = await ejs.renderFile(layoutPath, {
+            body: bodyHtml,
+            school,
+            config: marksheetConfig,
+            docType: 'MARK_SHEET'
+          });
+        }
+      }
+
+      if (!browser) {
+        browser = await puppeteer.launch({
+          headless: 'new',
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+      }
+
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' }
+      });
+
+      await page.close();
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
+
+      if (userId) await this.logDocumentGeneration(studentId, 'MARK_SHEET', templateName, userId);
+      return pdfBuffer;
+    } catch (err) {
+      if (shouldCloseBrowser) await this._safeBrowserClose(browser);
+      console.error("[DocumentService] Error generating exam marksheet:", err);
+      throw err;
+    }
+  },
+
+  async generateBulkFeeReceipts(studentIds, userId, templateId = null, instituteId = null) {
     let browser = null;
     try {
       if (!Array.isArray(studentIds) || studentIds.length === 0) throw new Error("No student IDs");
-      browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+      browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run'] });
       const mergedPdf = await PDFDocument.create();
 
       for (const id of studentIds) {
@@ -1249,7 +1465,7 @@ ${bodyHtml}
             continue;
           }
           const paymentId = res.rows[0].collection_id;
-          const pdfBuffer = await this.generateFeeReceipt(paymentId, userId, browser, templateId);
+          const pdfBuffer = await this.generateFeeReceipt(paymentId, userId, browser, templateId, instituteId);
           const pdfDoc = await PDFDocument.load(pdfBuffer);
           const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
           copiedPages.forEach((page) => mergedPdf.addPage(page));
@@ -1258,7 +1474,7 @@ ${bodyHtml}
         }
       }
 
-      await browser.close();
+      await this._safeBrowserClose(browser);
       if (mergedPdf.getPageCount() === 0) {
         throw new Error("NO_PAYMENTS_FOUND");
       }
@@ -1267,7 +1483,7 @@ ${bodyHtml}
       // PDFDocument.save() still works for empty docs, returning an empty PDF.
       return Buffer.from(savedPdf);
     } catch (err) {
-      if (browser) await browser.close();
+      await this._safeBrowserClose(browser);
       throw err;
     }
   }

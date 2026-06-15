@@ -22,20 +22,20 @@ export const FeesService = {
     return FeesModel.deleteCategory(id);
   },
 
-  getFeeStructures() {
-    return FeesModel.getFeeStructures();
+  getFeeStructures(instituteId) {
+    return FeesModel.getFeeStructures(instituteId);
   },
 
-  async createFeeStructure(data) {
+  async createFeeStructure(data, instituteId) {
     const { class_id, fee_cat_id, amount } = data; // class_id here actually contains the STANDARD (e.g. "10") from the frontend form now.
     
     if (!class_id || !fee_cat_id || !amount) {
       throw new Error("class_id (standard), fee_cat_id and amount are required");
     }
 
-    // 1. Fetch all classes
+    // 1. Fetch all classes in this institute
     const { ClassModel } = await import("../models/class_Model.js");
-    const allClasses = await ClassModel.getAll();
+    const allClasses = await ClassModel.getAll(instituteId);
 
     // 2. Filter classes that match the requested Standard (class_id carries the standard string)
     const matchingClasses = allClasses.filter(c => String(c.class_name).trim() === String(class_id).trim());
@@ -53,7 +53,7 @@ export const FeesService = {
         section_id: cls.section_id
       };
       
-      const created = await FeesModel.createFeeStructure(payload);
+      const created = await FeesModel.createFeeStructure(payload, instituteId);
       results.push(created);
     }
 
@@ -85,12 +85,12 @@ export const FeesService = {
     return FeesModel.getStudentDetailedFeeStatus(studentId);
   },
 
-  updateFeeStructure(standardName, feeCatId, newAmount) {
-    return FeesModel.updateFeeStructure(standardName, feeCatId, newAmount);
+  updateFeeStructure(standardName, feeCatId, newAmount, instituteId) {
+    return FeesModel.updateFeeStructure(standardName, feeCatId, newAmount, instituteId);
   },
 
-  deleteFeeStructure(standardName, feeCatId) {
-    return FeesModel.deleteFeeStructure(standardName, feeCatId);
+  deleteFeeStructure(standardName, feeCatId, instituteId) {
+    return FeesModel.deleteFeeStructure(standardName, feeCatId, instituteId);
   }
 
 };

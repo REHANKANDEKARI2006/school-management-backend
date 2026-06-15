@@ -8,7 +8,7 @@ const EventsService = {
 
   // ───────────── CREATE EVENT WITH FULL EXCHANGE FLOW ─────────────
 
-  async createEventWithExchange(data) {
+  async createEventWithExchange(data, instituteId) {
     console.log("SERVICE: Creating event with exchange...", data.event_name);
     const classAssignments = data.class_assignments || [];
     const allExchanges = [];
@@ -28,7 +28,7 @@ const EventsService = {
 
         for (const ca of classAssignments) {
           const displaced = await EventsModel.getDisplacedPeriods(
-            ca.class_id, dateStr, data.start_time, data.end_time
+            ca.class_id, dateStr, data.start_time, data.end_time, instituteId
           );
 
           for (const p of displaced) {
@@ -50,7 +50,8 @@ const EventsService = {
     const { event, assignments, exchanges } = await EventsModel.createEventWithClasses(
       data, 
       classAssignments, 
-      allExchanges
+      allExchanges,
+      instituteId
     );
 
     // Step 3: Post-creation Notifications (Non-blocking)
@@ -58,7 +59,7 @@ const EventsService = {
       for (const ex of allExchanges) {
         if (!ex.teacher_user_id) continue;
 
-        const className = await getClassName(ex.class_id);
+        const className = await getClassName(ex.class_id, instituteId);
         const dateStr = ex.exchange_date;
 
         await NotificationModel.createNotification({
@@ -77,24 +78,24 @@ const EventsService = {
 
   // ───────────── EVENT RETRIEVAL ─────────────
 
-  async getEventDetail(id) {
-    return await EventsModel.getEventById(id);
+  async getEventDetail(id, instituteId) {
+    return await EventsModel.getEventById(id, instituteId);
   },
 
-  async getAllEvents(class_id = null) {
-    return await EventsModel.getAllEvents(class_id);
+  async getAllEvents(class_id = null, instituteId) {
+    return await EventsModel.getAllEvents(class_id, instituteId);
   },
 
   async getEventStatuses() {
     return await EventsModel.getEventStatuses();
   },
 
-  async updateEvent(id, data) {
-    return await EventsModel.updateEvent(id, data);
+  async updateEvent(id, data, instituteId) {
+    return await EventsModel.updateEvent(id, data, instituteId);
   },
 
-  async deleteEvent(id) {
-    return await EventsModel.deleteEvent(id);
+  async deleteEvent(id, instituteId) {
+    return await EventsModel.deleteEvent(id, instituteId);
   },
 
   async generateCertificate(eventId) {
@@ -106,18 +107,18 @@ const EventsService = {
   /**
    * Get attendance page data for a coordinator
    */
-  async getEventAttendanceData(eventId, classId) {
-    const event = await EventsModel.getEventById(eventId);
+  async getEventAttendanceData(eventId, classId, instituteId) {
+    const event = await EventsModel.getEventById(eventId, instituteId);
     if (!event) throw new Error("Event not found");
 
-    const assignment = await EventsModel.getClassAssignment(eventId, classId);
+    const assignment = await EventsModel.getClassAssignment(eventId, classId, instituteId);
     if (!assignment) throw new Error("Class not assigned to this event");
 
     // Get existing attendance (if any)
-    const existingAttendance = await EventsModel.getEventAttendance(eventId, classId);
+    const existingAttendance = await EventsModel.getEventAttendance(eventId, classId, instituteId);
 
     // Get student list
-    const students = await EventsModel.getStudentsForClass(classId);
+    const students = await EventsModel.getStudentsForClass(classId, instituteId);
 
     return {
       event: {
@@ -140,15 +141,15 @@ const EventsService = {
   /**
    * Submit event attendance + auto-populate regular class attendance
    */
-  async submitEventAttendance(eventId, classId, records, teacherStaffId) {
+  async submitEventAttendance(eventId, classId, records, teacherStaffId, instituteId) {
     // Sanitize: treat 0 / null / undefined / NaN as NULL to avoid FK violations
     const safeStaffId = teacherStaffId && Number(teacherStaffId) > 0 ? Number(teacherStaffId) : null;
 
     // 1. Save event attendance
-    const savedRecords = await EventsModel.saveEventAttendance(eventId, classId, records, safeStaffId);
+    const savedRecords = await EventsModel.saveEventAttendance(eventId, classId, records, safeStaffId, instituteId);
 
     // 2. Auto-populate regular attendance for displaced periods
-    await this.autoPopulateRegularAttendance(eventId, classId, records, safeStaffId);
+    await this.autoPopulateRegularAttendance(eventId, classId, records, safeStaffId, instituteId);
 
     // 3. Build summary
     const presentCount = records.filter(r => r.status === 'present').length;
@@ -171,18 +172,18 @@ const EventsService = {
    * Auto-populate regular attendance records for displaced periods
    * This ensures student attendance % is not negatively affected by events
    */
-  async autoPopulateRegularAttendance(eventId, classId, attendanceRecords, teacherStaffId) {
+  async autoPopulateRegularAttendance(eventId, classId, attendanceRecords, teacherStaffId, instituteId) {
     try {
       // Get the event info
-      const event = await EventsModel.getEventById(eventId);
+      const event = await EventsModel.getEventById(eventId, instituteId);
       if (!event) return;
 
       // Get displaced periods for this event + class
-      const exchanges = await EventsModel.getExchangesForEventClass(eventId, classId);
+      const exchanges = await EventsModel.getExchangesForEventClass(eventId, classId, instituteId);
       if (exchanges.length === 0) return;
 
       // Get section_id for this class
-      const classRes = await pool.query('SELECT section_id FROM class WHERE class_id = $1', [classId]);
+      const classRes = await pool.query('SELECT section_id FROM class WHERE class_id = $1 AND institute_id = $2', [classId, instituteId]);
       const sectionId = classRes.rows[0]?.section_id;
       if (!sectionId) return;
 
@@ -203,8 +204,9 @@ const EventsService = {
             SELECT subject_id FROM schedule 
             WHERE class_id = $1 AND period_number = $2 
             AND day_of_week = EXTRACT(ISODOW FROM $3::DATE)
+            AND institute_id = $4
             LIMIT 1
-          `, [classId, ex.original_period_number, dateStr]);
+          `, [classId, ex.original_period_number, dateStr, instituteId]);
 
           const subjectId = schedRes.rows[0]?.subject_id;
           if (!subjectId) continue;
@@ -212,12 +214,12 @@ const EventsService = {
           // Create or get attendance session
           const sessionRes = await pool.query(`
             INSERT INTO attendance_session
-            (class_id, section_id, subject_id, attendance_date, created_by, faculty_id)
-            VALUES ($1, $2, $3, $4::DATE, $5, $5)
+            (class_id, section_id, subject_id, attendance_date, created_by, faculty_id, institute_id)
+            VALUES ($1, $2, $3, $4::DATE, $5, $5, $6)
             ON CONFLICT (class_id, section_id, subject_id, attendance_date)
             DO UPDATE SET updated_at = now()
             RETURNING session_id
-          `, [classId, sectionId, subjectId, dateStr, teacherStaffId]);
+          `, [classId, sectionId, subjectId, dateStr, teacherStaffId, instituteId]);
 
           const sessionId = sessionRes.rows[0].session_id;
 
@@ -247,14 +249,14 @@ const EventsService = {
   /**
    * Unlock attendance for editing (admin only)
    */
-  async unlockAttendanceEdit(eventId, classId) {
-    const result = await EventsModel.unlockAttendance(eventId, classId);
+  async unlockAttendanceEdit(eventId, classId, instituteId) {
+    const result = await EventsModel.unlockAttendance(eventId, classId, instituteId);
 
     // Notify coordinator
     if (result?.coordinator_teacher_id) {
       const staffRes = await pool.query(
-        'SELECT user_id FROM staff WHERE staff_id = $1',
-        [result.coordinator_teacher_id]
+        'SELECT user_id FROM staff WHERE staff_id = $1 AND institute_id = $2',
+        [result.coordinator_teacher_id, instituteId]
       );
       if (staffRes.rows[0]) {
         await NotificationModel.createNotification({
@@ -271,14 +273,14 @@ const EventsService = {
 
   // ───────────── COORDINATOR DASHBOARD ─────────────
 
-  async getCoordinatorDashboardEvents(staffId) {
-    return await EventsModel.getCoordinatorEventsToday(staffId);
+  async getCoordinatorDashboardEvents(staffId, instituteId) {
+    return await EventsModel.getCoordinatorEventsToday(staffId, instituteId);
   },
 
   // ───────────── PERIOD EXCHANGES ─────────────
 
-  async getDisplacedPeriods(eventId) {
-    return await EventsModel.getPeriodExchanges(eventId);
+  async getDisplacedPeriods(eventId, instituteId) {
+    return await EventsModel.getPeriodExchanges(eventId, instituteId);
   },
 
   // ───────────── EVENT PHOTOS ─────────────
@@ -286,7 +288,7 @@ const EventsService = {
   /**
    * Upload multiple photos to an event
    */
-  async uploadEventPhotos(eventId, files) {
+  async uploadEventPhotos(eventId, files, instituteId) {
     if (!files || files.length === 0) throw new Error("No files provided");
 
     const cleanEventId = parseInt(eventId);
@@ -297,26 +299,28 @@ const EventsService = {
       public_id: f.filename || f.public_id
     }));
 
-    return await EventsModel.saveEventPhotos(cleanEventId, photoData);
+    return await EventsModel.saveEventPhotos(cleanEventId, photoData, instituteId);
   },
 
   /**
    * Retrieve photos for an event
    */
-  async getEventPhotos(eventId) {
-    return await EventsModel.getEventPhotos(eventId);
+  async getEventPhotos(eventId, instituteId) {
+    return await EventsModel.getEventPhotos(eventId, instituteId);
   },
 
   /**
    * Delete a photo from Cloudinary and DB
    */
-  async deleteEventPhoto(photoId, publicId) {
+  async deleteEventPhoto(photoId, publicId, instituteId) {
     // 1. Look up the photo record to get the public_id if not provided
     let cloudinaryPublicId = publicId;
     if (!cloudinaryPublicId) {
       const photoRecord = await pool.query(
-        `SELECT public_id FROM event_photos WHERE id = $1`,
-        [photoId]
+        `SELECT ep.public_id FROM event_photos ep 
+         JOIN events e ON e.event_id = ep.event_id 
+         WHERE ep.id = $1 AND e.institute_id = $2`,
+        [photoId, instituteId]
       );
       cloudinaryPublicId = photoRecord.rows[0]?.public_id || null;
     }
@@ -333,7 +337,7 @@ const EventsService = {
     }
 
     // 3. Delete from DB
-    return await EventsModel.deleteEventPhoto(photoId);
+    return await EventsModel.deleteEventPhoto(photoId, instituteId);
   }
 };
 
@@ -355,13 +359,13 @@ function formatDate(dateStr) {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-async function getClassName(classId) {
+async function getClassName(classId, instituteId) {
   const res = await pool.query(`
     SELECT c.class_name, sec.section_name
     FROM class c
     LEFT JOIN section sec ON sec.section_id = c.section_id
-    WHERE c.class_id = $1
-  `, [classId]);
+    WHERE c.class_id = $1 AND c.institute_id = $2
+  `, [classId, instituteId]);
   if (res.rows.length === 0) return 'Unknown Class';
   const r = res.rows[0];
   return r.section_name ? `${r.class_name} (${r.section_name})` : r.class_name;

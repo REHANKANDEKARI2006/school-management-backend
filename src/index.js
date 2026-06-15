@@ -48,7 +48,11 @@ import leaveRoutes from "./routes/leave_routes.js";
 import notificationRoutes from "./routes/notification_routes.js";
 import promotionRoutes from "./routes/promotion_routes.js";
 import documentTemplateRoutes from "./routes/document_template_routes.js";
+import resultsRoutes from "./routes/results_routes.js";
 
+
+import authMiddleware from "./middleware/auth_middleware.js";
+import instituteMiddleware from "./middleware/institute_middleware.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,7 +60,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
    origin: true,
    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Institute-ID'],
    exposedHeaders: ["Content-Disposition", "Authorization"],
    credentials: true,
    preflightContinue: false,
@@ -67,33 +71,34 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/public', express.static('public'));
 
 app.use("/api/auth", authRoutes);
-app.use("/api/students", studentRoutes);
-app.use("/api/faculty", facultyRoutes);
-app.use("/api/classes", classRoutes);
-app.use("/api/attendance", attendanceRoutes);
-app.use("/api/fees", feesRoutes);
-app.use("/api/schedule", scheduleRoutes);
-app.use("/api/exams", examsRoutes);
-app.use("/api/events", eventsRoutes);
-app.use("/api/materials", materialsRoutes);
-app.use("/api/notices", noticeRoutes);
-app.use("/api/blood-groups", bloodGroupRoutes);
-app.use("/api/sections", sectionRoutes);
-app.use("/api/departments", departmentRoutes);
-app.use("/api/subjects", subjectRoutes);
-app.use("/api/question-papers", questionPaperRoutes);
-app.use("/api/paper-format-templates", paperFormatTemplatesRoutes);
-app.use("/api/question-bank", questionBankRoutes);
-app.use("/api/school-profile", schoolProfileRoutes);
-app.use("/api/documents", documentRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/user-status", userStatusRoutes);
-app.use("/api/holidays", holidayRoutes);
-app.use("/api/leaves", leaveRoutes);
-app.use("/api/notifications", notificationRoutes);
-app.use("/api/promotion", promotionRoutes);
-app.use("/api/document-templates", documentTemplateRoutes);
+app.use("/api/students", authMiddleware, instituteMiddleware, studentRoutes);
+app.use("/api/faculty", authMiddleware, instituteMiddleware, facultyRoutes);
+app.use("/api/classes", authMiddleware, instituteMiddleware, classRoutes);
+app.use("/api/attendance", authMiddleware, instituteMiddleware, attendanceRoutes);
+app.use("/api/fees", authMiddleware, instituteMiddleware, feesRoutes);
+app.use("/api/schedule", authMiddleware, instituteMiddleware, scheduleRoutes);
+app.use("/api/exams", authMiddleware, instituteMiddleware, examsRoutes);
+app.use("/api/events", authMiddleware, instituteMiddleware, eventsRoutes);
+app.use("/api/materials", authMiddleware, instituteMiddleware, materialsRoutes);
+app.use("/api/notices", authMiddleware, instituteMiddleware, noticeRoutes);
+app.use("/api/blood-groups", authMiddleware, instituteMiddleware, bloodGroupRoutes);
+app.use("/api/sections", authMiddleware, instituteMiddleware, sectionRoutes);
+app.use("/api/departments", authMiddleware, instituteMiddleware, departmentRoutes);
+app.use("/api/subjects", authMiddleware, instituteMiddleware, subjectRoutes);
+app.use("/api/question-papers", authMiddleware, instituteMiddleware, questionPaperRoutes);
+app.use("/api/paper-format-templates", authMiddleware, instituteMiddleware, paperFormatTemplatesRoutes);
+app.use("/api/question-bank", authMiddleware, instituteMiddleware, questionBankRoutes);
+app.use("/api/school-profile", authMiddleware, instituteMiddleware, schoolProfileRoutes);
+app.use("/api/documents", authMiddleware, instituteMiddleware, documentRoutes);
+app.use("/api/dashboard", authMiddleware, instituteMiddleware, dashboardRoutes);
+app.use("/api/upload", authMiddleware, instituteMiddleware, uploadRoutes);
+app.use("/api/user-status", authMiddleware, instituteMiddleware, userStatusRoutes);
+app.use("/api/holidays", authMiddleware, instituteMiddleware, holidayRoutes);
+app.use("/api/leaves", authMiddleware, instituteMiddleware, leaveRoutes);
+app.use("/api/notifications", authMiddleware, instituteMiddleware, notificationRoutes);
+app.use("/api/promotion", authMiddleware, instituteMiddleware, promotionRoutes);
+app.use("/api/document-templates", authMiddleware, instituteMiddleware, documentTemplateRoutes);
+app.use("/api/results", authMiddleware, instituteMiddleware, resultsRoutes);
 
 
 // Global Error Handler

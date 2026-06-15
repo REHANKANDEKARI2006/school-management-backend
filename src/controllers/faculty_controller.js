@@ -6,7 +6,8 @@ export const FacultyController = {
 
   async getAllFaculty(req, res) {
     try {
-      const data = await FacultyService.getAllFaculty(req.user);
+      const authUser = { ...req.user, institute_id: req.instituteId };
+      const data = await FacultyService.getAllFaculty(authUser);
       res.status(200).json({ success: true, data });
     } catch (err) {
       console.error("DEBUG: getAllFaculty - ERROR:", err);
@@ -16,7 +17,7 @@ export const FacultyController = {
 
   async getFacultyById(req, res) {
     try {
-      const data = await FacultyService.getFacultyById(req.params.id);
+      const data = await FacultyService.getFacultyById(req.params.id, req.instituteId);
       res.status(200).json({ success: true, data });
     } catch (err) {
       res.status(err.status || 500).json({ success: false, message: err.message });
@@ -40,14 +41,15 @@ export const FacultyController = {
 
   async createFaculty(req, res) {
     try {
-      if (!req.user || !req.user.institute_id) {
+      if (!req.user || !req.instituteId) {
         return res.status(401).json({
           success: false,
           message: "Unauthorized: institute missing",
         });
       }
 
-      const data = await FacultyService.createFaculty(req.body, req.user);
+      const authUser = { ...req.user, institute_id: req.instituteId };
+      const data = await FacultyService.createFaculty(req.body, authUser);
 
       // ── Auto-send invitation email for new user accounts ──────────────
       let emailSent = false;
@@ -62,6 +64,7 @@ export const FacultyController = {
             name: data.fullName || req.body.email,
             role: roleLabel,
             token: data.invite_token,
+            instituteId: req.instituteId,
           });
           console.log(`✅ Invitation email sent to ${req.body.email} for new faculty.`);
           emailSent = true;
@@ -91,7 +94,7 @@ export const FacultyController = {
 
   async updateFaculty(req, res) {
     try {
-      const data = await FacultyService.updateFaculty(req.params.id, req.body);
+      const data = await FacultyService.updateFaculty(req.params.id, req.body, req.instituteId);
       res.status(200).json({ success: true, data });
     } catch (err) {
       console.error("❌ UPDATE FACULTY ERROR:", err);
@@ -101,7 +104,7 @@ export const FacultyController = {
 
   async deleteFaculty(req, res) {
     try {
-      const data = await FacultyService.deleteFaculty(req.params.id);
+      const data = await FacultyService.deleteFaculty(req.params.id, req.instituteId);
       res.status(200).json({ success: true, data });
     } catch (err) {
       res.status(err.status || 500).json({ success: false, message: err.message });

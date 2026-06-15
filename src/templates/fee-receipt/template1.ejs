@@ -44,6 +44,14 @@ body {
     text-transform: uppercase;
     margin: 0 0 5px 0;
 }
+.org-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    margin: -3px 0 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
 .school-address {
     font-size: 11px;
     margin: 0 0 3px 0;
@@ -189,7 +197,10 @@ const amtWords = numberToWords(amount || payment.amount_paid || 0);
     <!-- Student Copy -->
     <div class="receipt-half">
         <div class="header">
-            <h1 class="school-name"><%= school.organization_name || school.school_name %></h1>
+            <h1 class="school-name"><%= school.school_name %></h1>
+            <% if (school.organization_name && school.organization_name !== school.school_name) { %>
+                <p class="org-name"><%= school.organization_name %></p>
+            <% } %>
             <p class="school-address"><%= school.address %></p>
             <p class="school-contact">Phone: <%= school.phone %></p>
         </div>
@@ -266,7 +277,7 @@ const amtWords = numberToWords(amount || payment.amount_paid || 0);
                 </tr>
                 <tr class="totals-row">
                     <td colspan="2">Balance Amount</td>
-                    <td>0.00</td>
+                    <td><%= typeof balance !== 'undefined' ? Number(balance).toFixed(2) : '0.00' %></td>
                 </tr>
             </tbody>
         </table>
@@ -295,7 +306,10 @@ const amtWords = numberToWords(amount || payment.amount_paid || 0);
     <!-- School Copy (Identical to Student Copy) -->
     <div class="receipt-half">
         <div class="header">
-            <h1 class="school-name"><%= school.organization_name || school.school_name %></h1>
+            <h1 class="school-name"><%= school.school_name %></h1>
+            <% if (school.organization_name && school.organization_name !== school.school_name) { %>
+                <p class="org-name"><%= school.organization_name %></p>
+            <% } %>
             <p class="school-address"><%= school.address %></p>
             <p class="school-contact">Phone: <%= school.phone %></p>
         </div>
@@ -372,7 +386,7 @@ const amtWords = numberToWords(amount || payment.amount_paid || 0);
                 </tr>
                 <tr class="totals-row">
                     <td colspan="2">Balance Amount</td>
-                    <td>0.00</td>
+                    <td><%= typeof balance !== 'undefined' ? Number(balance).toFixed(2) : '0.00' %></td>
                 </tr>
             </tbody>
         </table>

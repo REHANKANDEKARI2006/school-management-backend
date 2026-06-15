@@ -22,7 +22,6 @@ class EmailService {
 
   /**
    * Verify SMTP connection — call this on server startup.
-   * Logs success or exact error so misconfiguration is immediately visible.
    */
   async verify() {
     try {
@@ -41,11 +40,11 @@ class EmailService {
     }
   }
 
-  async sendEmail({ to, subject, templateName, templateData }) {
-    let html = ""; // Declare outside try so catch block can reference it safely
+  async sendEmail({ to, subject, templateName, templateData, instituteId }) {
+    let html = "";
     try {
-      // Fetch school branding info
-      const schoolProfile = await SchoolProfileModel.getProfile();
+      // Fetch school branding info (falls back to Sunshine Public School ID 3 instead of ID 1)
+      const schoolProfile = await SchoolProfileModel.getProfile(instituteId || 3);
       const branding = {
         schoolName: schoolProfile?.school_name || "CampusConnect",
         logoUrl: schoolProfile?.logo_url || "https://res.cloudinary.com/dmrin51u8/image/upload/v1713550000/logo_placeholder.png",
@@ -63,36 +62,19 @@ class EmailService {
         html,
       };
 
-      console.log(`📤 Sending email to: ${to} | Subject: ${subject}`);
+      console.log(`✉️ Sending email to: ${to} (Subject: "${subject}", School: "${branding.schoolName}")`);
       const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Email sent successfully! MessageId: ${info.messageId}`);
-      return { success: true, messageId: info.messageId };
+      console.log(`✅ Email sent successfully: ${info.messageId}`);
+      return info;
     } catch (error) {
-      console.error("❌ Email sending FAILED:");
-      console.error(`   To      : ${to}`);
-      console.error(`   Subject : ${subject}`);
-      console.error(`   Code    : ${error.code}`);
-      console.error(`   Message : ${error.message}`);
-      if (error.code === "EAUTH") {
-        console.error("   → SMTP AUTH error: EMAIL_PASS must be a Gmail App Password (not your regular password).");
-        console.error("     Generate one at: Google Account → Security → 2-Step Verification → App Passwords");
-      }
-      // Fallback: dump email content to console so invites aren't silently lost
-      console.log("📋 FALLBACK — Email content (copy link manually if needed):");
-      console.log(`   To: ${to}`);
-      console.log(`   Subject: ${subject}`);
-      if (html && html.length > 0) {
-        // Extract the set-password URL from html if present
-        const urlMatch = html.match(/href="(http[^"]+)"/);
-        if (urlMatch) console.log(`   Action URL: ${urlMatch[1]}`);
-      }
+      console.error(`❌ Failed to send email to ${to}:`, error.message);
       throw error;
     }
   }
 
   // ── Specific email helpers ──────────────────────────────────────────────
 
-  async sendInvitation({ to, name, role, token, loginEmail }) {
+  async sendInvitation({ to, name, role, token, loginEmail, instituteId }) {
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     const setPasswordUrl = `${frontendUrl}/auth/set-password?token=${token}`;
     return this.sendEmail({
@@ -100,53 +82,78 @@ class EmailService {
       subject: `You've been invited to CampusConnect — Set your password`,
       templateName: "invitation",
       templateData: { name, role, setPasswordUrl, loginEmail: loginEmail || to },
+      instituteId
     });
   }
 
-  async sendPasswordChangedConfirmation({ to, name }) {
-    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/`;
+  async sendMasterAdminSetup({ to, name, token, instituteId }) {
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const setPasswordUrl = `${frontendUrl}/auth/set-password?token=${token}`;
+    return this.sendEmail({
+      to,
+      subject: `CampusConnect — Set your Master Admin password`,
+      templateName: "master_admin_setup",
+      templateData: { name, setPasswordUrl, loginEmail: to },
+      instituteId
+    });
+  }
+
+  async sendPasswordChangedConfirmation({ to, name, instituteId }) {
+    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/login`;
     return this.sendEmail({
       to,
       subject: "Your CampusConnect password has been set successfully",
       templateName: "password_changed",
       templateData: { name, loginUrl },
+      instituteId
     });
   }
 
-  async sendForgotPassword({ to, name, token }) {
+  async sendForgotPassword({ to, name, token, instituteId }) {
     const resetPasswordUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/reset-password?token=${token}`;
     return this.sendEmail({
       to,
       subject: "Reset your CampusConnect password",
       templateName: "forgot_password",
       templateData: { name, resetPasswordUrl },
+      instituteId
     });
   }
 
-  async sendDeactivationNotification({ to, name }) {
+  async sendDeactivationNotification({ to, name, instituteId }) {
     return this.sendEmail({
       to,
       subject: "Your CampusConnect account has been deactivated",
       templateName: "deactivation",
       templateData: { name },
+      instituteId
     });
   }
 
-  async sendStudentEnrollmentConfirmation({ to, guardianName, studentName, className, enrollmentDate }) {
+  async sendStudentEnrollmentConfirmation({ to, guardianName, studentName, className, enrollmentDate, instituteId }) {
+    // Attempt to load school profile to resolve dynamically in subject line if possible
+    let schoolName = "our school";
+    try {
+      const schoolProfile = await SchoolProfileModel.getProfile(instituteId);
+      if (schoolProfile?.school_name) schoolName = schoolProfile.school_name;
+    } catch (e) {}
+
     return this.sendEmail({
       to,
-      subject: `Enrollment Confirmation: ${studentName} at ${this.schoolName || "our school"}`,
+      subject: `Enrollment Confirmation: ${studentName} at ${schoolName}`,
       templateName: "student_enrollment_confirmation",
       templateData: { guardianName, studentName, className, enrollmentDate },
+      instituteId
     });
   }
 
-  async sendStudentStatusUpdateNotification({ to, studentName, statusName }) {
+  async sendStudentStatusUpdateNotification({ to, studentName, statusName, instituteId }) {
     return this.sendEmail({
       to,
       subject: `Status Update: ${studentName}'s account status has been updated`,
       templateName: "student_status_update",
       templateData: { studentName, statusName },
+      instituteId
     });
   }
 }

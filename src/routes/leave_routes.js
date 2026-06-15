@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Public endpoints
 router.get('/types', LeaveController.getLeaveTypes);
+router.get('/stream', LeaveController.stream);
 
 // Admin stats & calendar
 router.get('/admin-stats',          authMiddleware, LeaveController.getAdminStats);

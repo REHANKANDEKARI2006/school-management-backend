@@ -1,22 +1,26 @@
 import { Router } from "express";
 import { StudentController } from "../controllers/student_controller.js";
 import authMiddleware from "../middleware/auth_middleware.js";
+import instituteMiddleware from "../middleware/institute_middleware.js";
 import { allowRoles } from "../middleware/role_middleware.js";
 import upload from "../middlewares/upload.js";
 
 const router = Router();
 
+// Apply auth and institute isolation middlewares globally
+router.use(authMiddleware);
+router.use(instituteMiddleware);
+
 // 📸 Upload photo (Admin + Teacher + Principal)
 router.post(
   "/upload-photo",
-  authMiddleware,
   allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
-  (req, res, next) => {
+  (req, res, functionWrapper) => {
     upload.single("file")(req, res, function (err) {
       if (err) {
         return res.status(500).json({ success: false, message: err.message || "File upload failed" });
       }
-      next();
+      functionWrapper();
     });
   },
   StudentController.uploadPhoto
@@ -25,7 +29,6 @@ router.post(
 // 👀 View students (Admin + Teacher + Principal)
 router.get(
   "/",
-  authMiddleware,
   allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
   StudentController.getAllStudents
 );
@@ -33,7 +36,6 @@ router.get(
 // 👀 View single student
 router.get(
   "/:id",
-  authMiddleware,
   allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
   StudentController.getStudentById
 );
@@ -41,7 +43,6 @@ router.get(
 // ➕ Create student (Admin + Class Teacher + Principal)
 router.post(
   "/",
-  authMiddleware,
   allowRoles(1, 2, 4, 10, 11),
   StudentController.createStudent
 );
@@ -49,7 +50,6 @@ router.post(
 // ✏️ Update student (Admin + Teacher + Mentor + Principal)
 router.put(
   "/:id",
-  authMiddleware,
   allowRoles(1, 2, 3, 4, 5, 10, 11, 16, 17, 21),
   StudentController.updateStudent
 );
@@ -57,7 +57,6 @@ router.put(
 // ❌ Soft delete (Admin + Class Teacher + Principal)
 router.delete(
   "/:id",
-  authMiddleware,
   allowRoles(1, 2, 4, 10, 11),
   StudentController.deleteStudent
 );

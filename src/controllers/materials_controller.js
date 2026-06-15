@@ -1,12 +1,14 @@
 import MaterialsService from "../services/materials_service.js";
 import { cloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+import https from "https";
+import http from "http";
 
 export const MaterialsController = {
 
   async getAllMaterials(req, res) {
     try {
       const { class_id } = req.query;
-      const data = await MaterialsService.getAllMaterials(class_id);
+      const data = await MaterialsService.getAllMaterials(class_id, req.instituteId);
       res.json({ success: true, data });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -15,7 +17,7 @@ export const MaterialsController = {
 
   async getMaterial(req, res) {
     try {
-      const data = await MaterialsService.getMaterialById(req.params.id);
+      const data = await MaterialsService.getMaterialById(req.params.id, req.instituteId);
       res.json({ success: true, data });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
@@ -25,7 +27,7 @@ export const MaterialsController = {
   async addMaterial(req, res) {
     console.log("Adding material with payload:", req.body);
     try {
-      const material = await MaterialsService.addMaterial(req.body);
+      const material = await MaterialsService.addMaterial(req.body, req.instituteId);
       res.json({
         success: true,
         message: "Material added successfully",
@@ -41,7 +43,8 @@ export const MaterialsController = {
     try {
       const material = await MaterialsService.updateMaterial(
         req.params.id,
-        req.body
+        req.body,
+        req.instituteId
       );
       res.json({
         success: true,
@@ -56,7 +59,7 @@ export const MaterialsController = {
   async deleteMaterial(req, res) {
     try {
       const materialId = req.params.id;
-      const material = await MaterialsService.getMaterialById(materialId);
+      const material = await MaterialsService.getMaterialById(materialId, req.instituteId);
 
       if (!material) {
         return res.status(404).json({ success: false, message: "Material not found" });
@@ -68,7 +71,7 @@ export const MaterialsController = {
       }
 
       // Then delete from the database
-      await MaterialsService.deleteMaterial(materialId);
+      await MaterialsService.deleteMaterial(materialId, req.instituteId);
 
       res.json({
         success: true,
@@ -103,7 +106,7 @@ export const MaterialsController = {
       res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
 
       const materialId = parseInt(req.params.id);
-      const material = await MaterialsService.getMaterialById(materialId);
+      const material = await MaterialsService.getMaterialById(materialId, req.instituteId);
 
       if (!material || !material.file_path) {
         return res.status(404).json({
@@ -126,38 +129,55 @@ export const MaterialsController = {
       // 2. Cloudinary Link Handling (Generate Signed Download URL instead of proxy)
       let fileUrl = material.file_path;
 
-      // Extract public_id
-      const extractPublicId = (url) => {
-        const parts = url.split("/upload/");
-        if (parts.length === 2) {
-          let pathAfterUpload = parts[1];
-          const versionMatch = pathAfterUpload.match(/^v\d+\//);
-          if (versionMatch) {
-            pathAfterUpload = pathAfterUpload.replace(versionMatch[0], "");
+      // Extract publicId and resourceType dynamically
+      const extractFileInfo = (url) => {
+        const match = url.match(/\/(image|raw|video)\/upload\/(?:v\d+\/)?(.+)$/);
+        if (match) {
+          const resourceType = match[1];
+          let publicId = match[2];
+          if (resourceType === "image" || resourceType === "video") {
+            publicId = publicId.replace(/\.[^/.]+$/, "");
           }
-          return pathAfterUpload;
+          return {
+            resourceType,
+            publicId
+          };
         }
         return null;
       };
 
-      if (fileUrl.includes("res.cloudinary.com")) {
-        const publicId = extractPublicId(fileUrl);
-        if (publicId) {
-          // Cloudinary has explicit "Strict PDF Delivery" which blocks standard downloads.
-          // Generating an authenticated download URL using the Cloudinary API bypasses this restriction
-          // and forces an attachment download.
-          const downloadUrl = cloudinary.utils.private_download_url(
-              publicId, '', 
-              { resource_type: "raw", type: "upload", attachment: true }
-          );
+      if (fileUrl) {
+        const fileUrls = fileUrl.split(",");
+        const signedUrls = [];
 
-          console.log(`[Download] Generated direct Cloudinary download URL for: ${publicId}`);
-          return res.json({
-            success: true,
-            isExternal: true,
-            url: downloadUrl
-          });
+        for (const url of fileUrls) {
+          if (url.includes("drive.google.com")) {
+            signedUrls.push(url);
+          } else if (url.includes("res.cloudinary.com")) {
+            const fileInfo = extractFileInfo(url);
+            if (fileInfo) {
+              const { resourceType, publicId } = fileInfo;
+              const isView = req.query.view === "true";
+              const downloadUrl = cloudinary.utils.private_download_url(
+                  publicId, '', 
+                  { resource_type: resourceType, type: "upload", attachment: !isView }
+              );
+              signedUrls.push(downloadUrl);
+            } else {
+              signedUrls.push(url);
+            }
+          } else {
+            signedUrls.push(url);
+          }
         }
+
+        console.log(`[Download] Generated signed urls for material ${materialId}: count = ${signedUrls.length}`);
+        return res.json({
+          success: true,
+          isExternal: true,
+          url: signedUrls[0],
+          urls: signedUrls
+        });
       }
 
       // If for some reason it's an unrecognized file_path, just return the direct URL to the frontend
@@ -180,7 +200,7 @@ export const MaterialsController = {
   async diagnosticDownload(req, res) {
     try {
       const materialId = parseInt(req.params.id);
-      const material = await MaterialsService.getMaterialById(materialId);
+      const material = await MaterialsService.getMaterialById(materialId, req.instituteId);
 
       if (!material || !material.file_path) {
         return res.status(404).json({ success: false, message: "[Diagnostic] Material DB record not found or no file_path." });

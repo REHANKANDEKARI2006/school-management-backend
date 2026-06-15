@@ -17,16 +17,17 @@ export const FacultyModel = {
     return res.rows;
   },
 
-  async findById(id) {
+  async findById(id, instituteId) {
     const query = `
       SELECT s.*, us.status_name, d.dept_name, sub.subject_name
       FROM staff s
+      JOIN "user" u ON s.user_id = u.user_id
       LEFT JOIN user_status us ON s.user_status_id = us.user_status_id
       LEFT JOIN department d ON s.dept_id = d.dept_id
       LEFT JOIN subject sub ON s.subject_id = sub.subject_id
-      WHERE s.staff_id = $1;
+      WHERE s.staff_id = $1 AND u.institute_id = $2;
     `;
-    const res = await pool.query(query, [id]);
+    const res = await pool.query(query, [id, instituteId]);
     return res.rows[0];
   },
 

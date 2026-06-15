@@ -5,7 +5,7 @@ export const ClassController = {
 
   async getAllClasses(req, res) {
     try {
-      const data = await ClassService.getAllClasses();
+      const data = await ClassService.getAllClasses(req.instituteId);
       res.status(200).json({
         success: true,
         data
@@ -20,7 +20,7 @@ export const ClassController = {
 
   async getAllClassesForAdmin(req, res) {
       try {
-        const data = await ClassService.getAllClassesForAdmin();
+        const data = await ClassService.getAllClassesForAdmin(req.instituteId);
         res.status(200).json({ success: true, data });
       } catch (err) {
         res.status(500).json({
@@ -33,7 +33,7 @@ export const ClassController = {
 
   async getClassById(req, res) {
     try {
-      const data = await ClassService.getClassById(req.params.id);
+      const data = await ClassService.getClassById(req.params.id, req.instituteId);
       res.status(200).json({
         success: true,
         data
@@ -48,7 +48,7 @@ export const ClassController = {
 
   async createClass(req, res) {
     try {
-      const data = await ClassService.createClass(req.body);
+      const data = await ClassService.createClass(req.body, req.instituteId);
       res.status(201).json({
         success: true,
         data
@@ -75,7 +75,7 @@ export const ClassController = {
         });
       }
 
-      const data = await ClassService.updateClass(classId, req.body);
+      const data = await ClassService.updateClass(classId, req.body, req.instituteId);
       res.status(200).json({
         success: true,
         data
@@ -101,7 +101,7 @@ export const ClassController = {
         });
       }
 
-      const data = await ClassService.deleteClass(req.params.id);
+      const data = await ClassService.deleteClass(req.params.id, req.instituteId);
       res.status(200).json({
         success: true,
         data

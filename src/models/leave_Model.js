@@ -17,26 +17,28 @@ export const LeaveModel = {
   },
 
   // ── Leave Balance ──────────────────────────────────────
-  async getLeaveBalance(teacher_id, academic_year = '2025-2026') {
+  async getLeaveBalance(teacher_id, academic_year = '2025-2026', instituteId) {
     const { rows } = await db.query(
       `SELECT lb.id, lb.teacher_id, lb.leave_type_id, lb.academic_year,
               lb.total_days, lb.used_days, lb.remaining_days, lb.updated_at,
               lt.name AS leave_type_name, lt.is_paid, lt.max_days_per_year
        FROM leave_balance lb
        JOIN leave_types lt ON lt.id = lb.leave_type_id
-       WHERE lb.teacher_id = $1 AND lb.academic_year = $2
+       JOIN staff s ON s.staff_id = lb.teacher_id
+       JOIN "user" u ON u.user_id = s.user_id
+       WHERE lb.teacher_id = $1 AND lb.academic_year = $2 AND u.institute_id = $3
        ORDER BY lb.leave_type_id`,
-      [teacher_id, academic_year]
+      [teacher_id, academic_year, instituteId]
     );
     return rows;
   },
 
-  async initBalancesForYear(academic_year = '2025-2026') {
+  async initBalancesForYear(academic_year = '2025-2026', instituteId) {
     const client = await db.connect();
     try {
       await client.query('BEGIN');
       const { rows: staffRows } = await client.query(
-        `SELECT staff_id FROM staff WHERE user_status_id = 1`
+        `SELECT s.staff_id FROM staff s JOIN "user" u ON u.user_id = s.user_id WHERE s.user_status_id = 1 AND u.institute_id = $1`, [instituteId]
       );
       const { rows: typeRows } = await client.query(
         `SELECT id, name, max_days_per_year FROM leave_types`
@@ -91,18 +93,18 @@ export const LeaveModel = {
   },
 
   // ── Leave Applications ─────────────────────────────────
-  async createApplication(data) {
+  async createApplication(data, instituteId) {
     const { teacher_id, leave_type_id, from_date, to_date, total_days, reason, document_url } = data;
     const { rows } = await db.query(`
       INSERT INTO leave_applications
-        (teacher_id, leave_type_id, from_date, to_date, total_days, reason, document_url, status, applied_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', now())
+        (teacher_id, leave_type_id, from_date, to_date, total_days, reason, document_url, status, applied_at, institute_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', now(), $8)
       RETURNING *
-    `, [teacher_id, leave_type_id, from_date, to_date, total_days, reason || null, document_url || null]);
+    `, [teacher_id, leave_type_id, from_date, to_date, total_days, reason || null, document_url || null, instituteId]);
     return rows[0];
   },
 
-  async getApplicationsByTeacher(teacher_id) {
+  async getApplicationsByTeacher(teacher_id, instituteId) {
     const { rows } = await db.query(`
       SELECT la.*,
              lt.name        AS leave_type_name,
@@ -116,13 +118,13 @@ export const LeaveModel = {
       LEFT JOIN "user" u ON u.user_id = la.actioned_by_user_id
       LEFT JOIN staff s_app ON s_app.user_id = la.actioned_by_user_id
       LEFT JOIN user_role ur ON ur.role_id = u.role_id
-      WHERE la.teacher_id = $1
+      WHERE la.teacher_id = $1 AND la.institute_id = $2
       ORDER BY la.applied_at DESC
-    `, [teacher_id]);
+    `, [teacher_id, instituteId]);
     return rows;
   },
 
-  async getApplicationById(id) {
+  async getApplicationById(id, instituteId) {
     const { rows } = await db.query(`
       SELECT la.*,
              lt.name           AS leave_type_name,
@@ -148,8 +150,8 @@ export const LeaveModel = {
       LEFT JOIN "user" u_app ON u_app.user_id = la.actioned_by_user_id
       LEFT JOIN staff s_app  ON s_app.user_id = la.actioned_by_user_id
       LEFT JOIN user_role ur ON ur.role_id = u_app.role_id
-      WHERE la.id = $1
-    `, [id]);
+      WHERE la.id = $1 AND la.institute_id = $2
+    `, [id, instituteId]);
     return rows[0] || null;
   },
 
@@ -166,9 +168,8 @@ export const LeaveModel = {
       FROM leave_applications la
       JOIN leave_types lt ON lt.id = la.leave_type_id
       JOIN staff s        ON s.staff_id = la.teacher_id
-      JOIN "user" u       ON u.user_id = s.user_id
       WHERE la.status = 'pending'
-        AND u.institute_id = $1
+        AND la.institute_id = $1
       ORDER BY la.applied_at ASC
     `, [institute_id]);
     return rows;
@@ -182,8 +183,7 @@ export const LeaveModel = {
       FROM leave_applications la
       JOIN leave_types lt ON lt.id = la.leave_type_id
       JOIN staff s        ON s.staff_id = la.teacher_id
-      JOIN "user" u       ON u.user_id = s.user_id
-      WHERE u.institute_id = $1
+      WHERE la.institute_id = $1
     `;
     const values = [institute_id];
     let idx = 2;
@@ -219,7 +219,7 @@ export const LeaveModel = {
     return rows;
   },
 
-  async updateApplicationStatus(id, status, actioned_by_user_id, remarks = null, client) {
+  async updateApplicationStatus(id, status, actioned_by_user_id, remarks = null, client, instituteId) {
     const q = client || db;
     const { rows } = await q.query(`
       UPDATE leave_applications
@@ -227,19 +227,19 @@ export const LeaveModel = {
           actioned_by_user_id = $3,
           actioned_at = now(),
           admin_remarks = $4
-      WHERE id = $1
+      WHERE id = $1 AND institute_id = $5
       RETURNING *
-    `, [id, status, actioned_by_user_id, remarks]);
+    `, [id, status, actioned_by_user_id, remarks, instituteId]);
     return rows[0];
   },
 
-  async cancelApplication(id, teacher_id) {
+  async cancelApplication(id, teacher_id, instituteId) {
     const { rows } = await db.query(`
       UPDATE leave_applications
       SET status = 'cancelled', actioned_at = now()
-      WHERE id = $1 AND teacher_id = $2 AND status = 'pending'
+      WHERE id = $1 AND teacher_id = $2 AND status = 'pending' AND institute_id = $3
       RETURNING *
-    `, [id, teacher_id]);
+    `, [id, teacher_id, instituteId]);
     return rows[0] || null;
   },
 
@@ -247,19 +247,19 @@ export const LeaveModel = {
   async getAdminStats(institute_id) {
     const { rows } = await db.query(`
       SELECT
-        (SELECT COUNT(*) FROM leave_applications la JOIN staff s ON s.staff_id = la.teacher_id JOIN "user" u ON u.user_id = s.user_id WHERE la.status = 'pending' AND u.institute_id = $1) AS pending_count,
-        (SELECT COUNT(*) FROM leave_applications la JOIN staff s ON s.staff_id = la.teacher_id JOIN "user" u ON u.user_id = s.user_id
-         WHERE la.status = 'approved' AND u.institute_id = $1
+        (SELECT COUNT(*) FROM leave_applications la WHERE la.status = 'pending' AND la.institute_id = $1) AS pending_count,
+        (SELECT COUNT(*) FROM leave_applications la
+         WHERE la.status = 'approved' AND la.institute_id = $1
            AND EXTRACT(month FROM la.actioned_at) = EXTRACT(month FROM CURRENT_DATE)
            AND EXTRACT(year  FROM la.actioned_at) = EXTRACT(year  FROM CURRENT_DATE)
         ) AS approved_month,
-        (SELECT COUNT(*) FROM leave_applications la JOIN staff s ON s.staff_id = la.teacher_id JOIN "user" u ON u.user_id = s.user_id
-         WHERE la.status = 'rejected' AND u.institute_id = $1
+        (SELECT COUNT(*) FROM leave_applications la
+         WHERE la.status = 'rejected' AND la.institute_id = $1
            AND EXTRACT(month FROM la.actioned_at) = EXTRACT(month FROM CURRENT_DATE)
            AND EXTRACT(year  FROM la.actioned_at) = EXTRACT(year  FROM CURRENT_DATE)
         ) AS rejected_month,
-        (SELECT COUNT(DISTINCT la.teacher_id) FROM leave_applications la JOIN staff s ON s.staff_id = la.teacher_id JOIN "user" u ON u.user_id = s.user_id
-         WHERE la.status = 'approved' AND u.institute_id = $1
+        (SELECT COUNT(DISTINCT la.teacher_id) FROM leave_applications la
+         WHERE la.status = 'approved' AND la.institute_id = $1
            AND la.from_date <= CURRENT_DATE
            AND la.to_date   >= CURRENT_DATE
         ) AS on_leave_today
@@ -276,9 +276,8 @@ export const LeaveModel = {
       FROM leave_applications la
       JOIN leave_types lt ON lt.id = la.leave_type_id
       JOIN staff s        ON s.staff_id = la.teacher_id
-      JOIN "user" u       ON u.user_id = s.user_id
       WHERE la.status = 'approved'
-        AND u.institute_id = $1
+        AND la.institute_id = $1
         AND (
           (EXTRACT(year FROM la.from_date) = $2 AND EXTRACT(month FROM la.from_date) = $3)
           OR
@@ -290,14 +289,15 @@ export const LeaveModel = {
   },
 
   // ── Approved leaves overlapping a date range (for suggestion engine) ──
-  async getApprovedLeavesInRange(from_date, to_date) {
+  async getApprovedLeavesInRange(from_date, to_date, instituteId) {
     const { rows } = await db.query(`
       SELECT teacher_id, from_date, to_date
       FROM leave_applications
       WHERE status = 'approved'
         AND from_date <= $2
         AND to_date   >= $1
-    `, [from_date, to_date]);
+        AND institute_id = $3
+    `, [from_date, to_date, instituteId]);
     return rows;
   }
 };

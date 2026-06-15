@@ -2,7 +2,7 @@ import pool from "../config/db.js";
 
 const ExamsModel = {
 
-  async createExam(data) {
+  async createExam(data, instituteId) {
     const {
       exam_name,
       exam_type_id,
@@ -19,8 +19,8 @@ const ExamsModel = {
     const query = `
       INSERT INTO exam
       (exam_name, exam_type_id, class_id, subject_id, date_time,
-       duration_mins, total_score, min_marks, max_marks, exam_status_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       duration_mins, total_score, min_marks, max_marks, exam_status_id, institute_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
     `;
 
@@ -34,14 +34,15 @@ const ExamsModel = {
       total_score,
       min_marks || null,
       max_marks || null,
-      exam_status_id
+      exam_status_id,
+      instituteId
     ];
 
     const { rows } = await pool.query(query, values);
     return rows[0];
   },
 
-  async getAllExams(class_id = null) {
+  async getAllExams(class_id = null, instituteId) {
     let query = `
       SELECT
         e.exam_id,
@@ -75,12 +76,12 @@ const ExamsModel = {
       LEFT JOIN section s ON s.section_id = c.section_id
       LEFT JOIN subject sub ON sub.subject_id = e.subject_id
       LEFT JOIN exam_status es ON es.exam_status_id = e.exam_status_id
-      WHERE e.is_deleted = false
+      WHERE e.is_deleted = false AND e.institute_id = $1
     `;
 
-    const values = [];
+    const values = [instituteId];
     if (class_id) {
-      query += ` AND e.class_id = $1 `;
+      query += ` AND e.class_id = $2 `;
       values.push(class_id);
     }
 
@@ -90,7 +91,7 @@ const ExamsModel = {
     return rows;
   },
 
-  async getExamById(id) {
+  async getExamById(id, instituteId) {
     const query = `
       SELECT
         e.*,
@@ -113,20 +114,20 @@ const ExamsModel = {
       LEFT JOIN section s ON s.section_id = c.section_id
       LEFT JOIN subject sub ON sub.subject_id = e.subject_id
       LEFT JOIN exam_status es ON es.exam_status_id = e.exam_status_id
-      WHERE e.exam_id = $1 AND e.is_deleted = false
+      WHERE e.exam_id = $1 AND e.is_deleted = false AND e.institute_id = $2
     `;
-    const { rows } = await pool.query(query, [id]);
+    const { rows } = await pool.query(query, [id, instituteId]);
     return rows[0] || null;
   },
 
-  async updateExam(id, data) {
+  async updateExam(id, data, instituteId) {
     const query = `
       UPDATE exam
       SET exam_name=$1, date_time=$2, duration_mins=$3,
           total_score=$4, min_marks=$5, max_marks=$6,
           exam_status_id=$7, class_id=$8, subject_id=$9,
           exam_type_id=$10, updated_at=now()
-      WHERE exam_id=$11
+      WHERE exam_id=$11 AND institute_id=$12
       RETURNING *
     `;
 
@@ -141,17 +142,24 @@ const ExamsModel = {
       data.class_id,
       data.subject_id,
       data.exam_type_id,
-      id
+      id,
+      instituteId
     ];
 
     const { rows } = await pool.query(query, values);
     return rows[0];
   },
 
-  async deleteExam(id) {
+  async deleteExam(id, instituteId) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      
+      // Verify first
+      const check = await client.query("SELECT 1 FROM exam WHERE exam_id = $1 AND institute_id = $2", [id, instituteId]);
+      if (check.rows.length === 0) {
+        throw new Error("Exam not found or unauthorized");
+      }
       
       // Delete child records first
       await client.query("DELETE FROM exam_grades WHERE exam_id = $1", [id]);
@@ -183,8 +191,17 @@ const ExamsModel = {
     return rows;
   },
 
-  async addGrades(exam_id, data) {
+  async addGrades(exam_id, data, instituteId) {
     const { student_id, marks_obtained, grade } = data;
+
+    // Verify first
+    const check = await pool.query(
+      "SELECT 1 FROM exam WHERE exam_id = $1 AND institute_id = $2",
+      [exam_id, instituteId]
+    );
+    if (check.rows.length === 0) {
+      throw new Error("Exam not found or unauthorized");
+    }
 
     // Upsert: update if already exists, insert if not
     const query = `
@@ -200,7 +217,7 @@ const ExamsModel = {
     return rows[0];
   },
 
-  async getGrades(exam_id) {
+  async getGrades(exam_id, instituteId) {
     const query = `
       SELECT
         eg.grade_id,
@@ -213,17 +230,27 @@ const ExamsModel = {
         st.stu_last_name
       FROM exam_grades eg
       JOIN student st ON st.student_id = eg.student_id
-      WHERE eg.exam_id = $1
+      JOIN exam e ON e.exam_id = eg.exam_id
+      WHERE eg.exam_id = $1 AND e.institute_id = $2
       ORDER BY st.stu_first_name
     `;
-    const { rows } = await pool.query(query, [exam_id]);
+    const { rows } = await pool.query(query, [exam_id, instituteId]);
     return rows;
   },
 
-  async addBulkGrades(exam_id, grades) {
+  async addBulkGrades(exam_id, grades, instituteId) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      
+      const check = await client.query(
+        "SELECT 1 FROM exam WHERE exam_id = $1 AND institute_id = $2",
+        [exam_id, instituteId]
+      );
+      if (check.rows.length === 0) {
+        throw new Error("Exam not found or unauthorized");
+      }
+
       const results = [];
       for (const item of grades) {
         const { student_id, marks_obtained, grade } = item;
@@ -247,7 +274,7 @@ const ExamsModel = {
     }
   },
 
-  async getStudentFullReport(student_id) {
+  async getStudentFullReport(student_id, instituteId) {
     const query = `
       SELECT
         sub.subject_name,
@@ -257,10 +284,12 @@ const ExamsModel = {
       FROM exam_grades eg
       JOIN exam e ON e.exam_id = eg.exam_id
       JOIN subject sub ON sub.subject_id = e.subject_id
-      WHERE eg.student_id = $1
+      JOIN student st ON st.student_id = eg.student_id
+      JOIN "user" u ON u.user_id = st.student_user_id
+      WHERE eg.student_id = $1 AND u.institute_id = $2
       ORDER BY sub.subject_name
     `;
-    const { rows } = await pool.query(query, [student_id]);
+    const { rows } = await pool.query(query, [student_id, instituteId]);
     return rows;
   }
 

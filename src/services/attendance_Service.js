@@ -3,13 +3,13 @@ import { HolidayService } from "./holiday_service.js";
 
 export const AttendanceService = {
 
-  async getDashboard(date) {
-    const classes = await AttendanceModel.getDashboard(date);
+  async getDashboard(date, instituteId) {
+    const classes = await AttendanceModel.getDashboard(date, instituteId);
     
     // Check if the date is a holiday or Sunday
     const dateObj = new Date(date);
     const year = dateObj.getFullYear();
-    const holidays = await HolidayService.getHolidays(year);
+    const holidays = await HolidayService.getHolidays(year, instituteId);
     
     // Format date string to YYYY-MM-DD local time instead of UTC to avoid timezone issues
     const yearStr = dateObj.getFullYear();
@@ -32,13 +32,13 @@ export const AttendanceService = {
     };
   },
 
-  async getTeacherDashboard(date, userId) {
-    const classes = await AttendanceModel.getTeacherDashboard(date, userId);
+  async getTeacherDashboard(date, userId, instituteId) {
+    const classes = await AttendanceModel.getTeacherDashboard(date, userId, instituteId);
     
     // Check if the date is a holiday or Sunday
     const dateObj = new Date(date);
     const year = dateObj.getFullYear();
-    const holidays = await HolidayService.getHolidays(year);
+    const holidays = await HolidayService.getHolidays(year, instituteId);
     
     // Format date string to YYYY-MM-DD local time instead of UTC to avoid timezone issues
     const yearStr = dateObj.getFullYear();
@@ -77,8 +77,8 @@ export const AttendanceService = {
     return await AttendanceModel.checkSession(params);
   },
 
-  async createSession(data) {
-    return await AttendanceModel.createSession(data);
+  async createSession(data, instituteId) {
+    return await AttendanceModel.createSession(data, instituteId);
   },
 
   async createRecords(data) {
@@ -105,9 +105,9 @@ export const AttendanceService = {
     return await AttendanceModel.getStudentDailyAttendanceWithSchedule(studentId, date);
   },
 
-  async getMonthlyReport(classId, month, year) {
+  async getMonthlyReport(classId, month, year, instituteId) {
     const { students, records } = await AttendanceModel.getMonthlyAttendanceReport(classId, month, year);
-    const holidays = await HolidayService.getHolidaysByMonth(year, month);
+    const holidays = await HolidayService.getHolidaysByMonth(year, month, instituteId);
 
     // Group records by student and day
     const reportData = students.map(student => {

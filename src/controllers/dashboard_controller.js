@@ -4,7 +4,8 @@ import pool from "../config/db.js";
 export const DashboardController = {
   async getDashboardSummary(req, res) {
     try {
-      const { user_id, role_id, institute_id } = req.user;
+      const { user_id, role_id } = req.user;
+      const institute_id = req.instituteId;
       console.log(`DEBUG: Dashboard access - User: ${user_id}, Role: ${role_id}, Inst: ${institute_id}`);
       
       let summary;

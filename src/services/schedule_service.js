@@ -3,15 +3,15 @@ import ScheduleModel from "../models/schedule_model.js";
 
 const ScheduleService = {
 
-  getSchoolSchedule() {
-    return ScheduleModel.getAll();
+  getSchoolSchedule(instituteId) {
+    return ScheduleModel.getAll(instituteId);
   },
 
-  getMySchedule(filters) {
-    return ScheduleModel.getByFilter(filters);
+  getMySchedule(filters, instituteId) {
+    return ScheduleModel.getByFilter(filters, instituteId);
   },
 
-  createSchedule(data) {
+  createSchedule(data, instituteId) {
     const {
       class_id,
       staff_id,
@@ -40,22 +40,22 @@ const ScheduleService = {
       end_time,
       room_id,
       is_break
-    });
+    }, instituteId);
   },
 
-  replaceClassSchedule(class_id, scheduleArray) {
+  replaceClassSchedule(class_id, scheduleArray, instituteId) {
     if (!class_id || !Array.isArray(scheduleArray)) {
       throw new Error("Invalid bulk schedule payload");
     }
-    return ScheduleModel.replaceClassSchedule(class_id, scheduleArray);
+    return ScheduleModel.replaceClassSchedule(class_id, scheduleArray, instituteId);
   },
 
-  updateSchedule(id, data) {
-    return ScheduleModel.update(id, data);
+  updateSchedule(id, data, instituteId) {
+    return ScheduleModel.update(id, data, instituteId);
   },
 
-  deleteSchedule(id) {
-    return ScheduleModel.delete(id);
+  deleteSchedule(id, instituteId) {
+    return ScheduleModel.delete(id, instituteId);
   }
 
 };

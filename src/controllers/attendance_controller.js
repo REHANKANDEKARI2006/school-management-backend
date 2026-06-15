@@ -12,9 +12,9 @@ export const AttendanceController = {
 
       let data;
       if (isTeacher) {
-        data = await AttendanceService.getTeacherDashboard(date, user_id);
+        data = await AttendanceService.getTeacherDashboard(date, user_id, req.instituteId);
       } else {
-        data = await AttendanceService.getDashboard(date);
+        data = await AttendanceService.getDashboard(date, req.instituteId);
       }
       res.status(200).json({ success: true, data });
     } catch (err) {
@@ -28,6 +28,12 @@ export const AttendanceController = {
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
 
+      // Verify class belongs to institute
+      const classRes = await pool.query('SELECT institute_id FROM class WHERE class_id = $1', [Number(class_id)]);
+      if (classRes.rows.length === 0 || classRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Access to this school's class is denied." });
+      }
+
       if (isTeacher) {
         const isScheduled = await AttendanceService.verifyTeacherSchedule(user_id, Number(class_id), Number(subject_id));
         if (!isScheduled) {
@@ -35,7 +41,8 @@ export const AttendanceController = {
         }
       }
 
-      const data = await AttendanceService.checkSession(req.query);
+      const params = { ...req.query, institute_id: req.instituteId };
+      const data = await AttendanceService.checkSession(params);
       res.status(200).json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -47,6 +54,12 @@ export const AttendanceController = {
       const { class_id, subject_id, attendance_date } = req.body;
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      // Verify class belongs to institute
+      const classRes = await pool.query('SELECT institute_id FROM class WHERE class_id = $1', [Number(class_id)]);
+      if (classRes.rows.length === 0 || classRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Access to this school's class is denied." });
+      }
 
       if (isTeacher) {
         // Enforce same-day creation policy for teachers
@@ -61,7 +74,8 @@ export const AttendanceController = {
         }
       }
 
-      const data = await AttendanceService.createSession(req.body);
+      const sessionData = { ...req.body, institute_id: req.instituteId };
+      const data = await AttendanceService.createSession(sessionData, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
@@ -75,10 +89,16 @@ export const AttendanceController = {
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
 
+      // Verify session belongs to institute
+      const sessionRes = await pool.query('SELECT attendance_date, institute_id FROM attendance_session WHERE session_id = $1', [Number(finalSessionId)]);
+      if (sessionRes.rows.length === 0 || sessionRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Access to this school's session is denied." });
+      }
+
+      const sessionDate = sessionRes.rows[0]?.attendance_date;
+
       if (isTeacher) {
         // Enforce same-day policy for teachers
-        const sessionRes = await pool.query('SELECT attendance_date FROM attendance_session WHERE session_id = $1', [Number(finalSessionId)]);
-        const sessionDate = sessionRes.rows[0]?.attendance_date;
         if (sessionDate) {
           const todayStr = new Date().toLocaleDateString('en-CA');
           const formattedSessionDate = new Date(sessionDate).toLocaleDateString('en-CA');
@@ -101,7 +121,8 @@ export const AttendanceController = {
           await DashboardService.addActivityEntry(
               req.user.user_id,
               'attendance_marked',
-              `Attendance marked for Session ID: ${finalSessionId}`
+              `Attendance marked for Session ID: ${finalSessionId}`,
+              req.instituteId
           );
       } catch (e) { console.error(e); }
 
@@ -116,6 +137,12 @@ export const AttendanceController = {
       const { classId } = req.query;
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
+
+      // Verify class belongs to institute
+      const classRes = await pool.query('SELECT institute_id FROM class WHERE class_id = $1', [Number(classId)]);
+      if (classRes.rows.length === 0 || classRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Access to this school's class is denied." });
+      }
 
       if (isTeacher) {
         const isAuthorized = await AttendanceService.verifyTeacherClass(user_id, Number(classId));
@@ -138,6 +165,12 @@ export const AttendanceController = {
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
 
+      // Verify session belongs to institute
+      const sessionRes = await pool.query('SELECT institute_id FROM attendance_session WHERE session_id = $1', [Number(finalSessionId)]);
+      if (sessionRes.rows.length === 0 || sessionRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Access to this school's session is denied." });
+      }
+
       if (isTeacher) {
         const isAuthorized = await AttendanceService.verifyTeacherSession(user_id, Number(finalSessionId));
         if (!isAuthorized) {
@@ -159,10 +192,16 @@ export const AttendanceController = {
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
 
+      // Verify session belongs to institute
+      const sessionRes = await pool.query('SELECT attendance_date, institute_id FROM attendance_session WHERE session_id = $1', [Number(finalSessionId)]);
+      if (sessionRes.rows.length === 0 || sessionRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Access to this school's session is denied." });
+      }
+
+      const sessionDate = sessionRes.rows[0]?.attendance_date;
+
       if (isTeacher) {
         // Enforce same-day policy for teachers
-        const sessionRes = await pool.query('SELECT attendance_date FROM attendance_session WHERE session_id = $1', [Number(finalSessionId)]);
-        const sessionDate = sessionRes.rows[0]?.attendance_date;
         if (sessionDate) {
           const todayStr = new Date().toLocaleDateString('en-CA');
           const formattedSessionDate = new Date(sessionDate).toLocaleDateString('en-CA');
@@ -188,6 +227,15 @@ export const AttendanceController = {
     try {
       const { studentId } = req.params;
       const { date } = req.query;
+
+      // Verify student belongs to institute
+      const studentRes = await pool.query(
+        'SELECT u.institute_id FROM student s JOIN "user" u ON s.student_user_id = u.user_id WHERE s.student_id = $1',
+        [Number(studentId)]
+      );
+      if (studentRes.rows.length === 0 || studentRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Student does not belong to this school." });
+      }
       
       let data;
       if (date) {
@@ -209,7 +257,7 @@ export const AttendanceController = {
         return res.status(403).json({ success: false, message: "Only students can access this" });
       }
 
-      // 1. Get student_id from user_id
+      // 1. Get student_id from user_id (implicitly verified to be in correct school since they are logged in)
       const student = await StudentService.getStudentByUserId(user_id);
       if (!student) {
         return res.status(404).json({ success: false, message: "Student record not found" });
@@ -228,6 +276,12 @@ export const AttendanceController = {
     try {
       const { classId, month, year } = req.query;
       const { user_id, role_id } = req.user;
+
+      // Verify class belongs to institute
+      const classRes = await pool.query('SELECT institute_id FROM class WHERE class_id = $1', [Number(classId)]);
+      if (classRes.rows.length === 0 || classRes.rows[0].institute_id !== req.instituteId) {
+        return res.status(403).json({ success: false, message: "Forbidden: Access to this school's class is denied." });
+      }
 
       // Access control: Teachers (roles 3, 4, 5) are completely forbidden from monthly attendance reports
       const isTeacher = [3, 4, 5].includes(Number(role_id));
@@ -248,7 +302,7 @@ export const AttendanceController = {
         }
       }
 
-      const data = await AttendanceService.getMonthlyReport(classId, month, year);
+      const data = await AttendanceService.getMonthlyReport(classId, month, year, req.instituteId);
       res.status(200).json({ success: true, data });
     } catch (err) {
       console.error("getMonthlyReport Error:", err);

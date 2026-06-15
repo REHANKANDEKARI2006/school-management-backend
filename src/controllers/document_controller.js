@@ -25,7 +25,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateIdCard(studentId, user_id, templateId);
+      const pdfBuffer = await DocumentService.generateIdCard(studentId, user_id, templateId, null, req.instituteId);
 
       // Log activity
       try {
@@ -33,7 +33,8 @@ export const DocumentController = {
           await DashboardService.addActivityEntry(
               user_id,
               'id_card_generated',
-              `ID Card generated for Student ID: ${studentId}`
+              `ID Card generated for Student ID: ${studentId}`,
+              req.instituteId
           );
       } catch (e) { console.error(e); }
 
@@ -70,7 +71,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBonafide(studentId, user_id, templateId);
+      const pdfBuffer = await DocumentService.generateBonafide(studentId, user_id, templateId, null, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bonafide_${studentId}.pdf"`);
@@ -103,7 +104,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateLeavingCertificate(studentId, user_id, templateId);
+      const pdfBuffer = await DocumentService.generateLeavingCertificate(studentId, user_id, templateId, null, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Leaving_Certificate_${studentId}.pdf"`);
@@ -143,7 +144,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBulkLeavingCertificates(studentIds, user_id, templateId || 'template1');
+      const pdfBuffer = await DocumentService.generateBulkLeavingCertificates(studentIds, user_id, templateId || 'template1', req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_Leaving_Certificates.pdf"`);
@@ -185,7 +186,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBulkIdCards(studentIds, user_id, templateId || 'template1');
+      const pdfBuffer = await DocumentService.generateBulkIdCards(studentIds, user_id, templateId || 'template1', req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_ID_Cards.pdf"`);
@@ -224,7 +225,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBulkBonafide(studentIds, user_id, templateId || 'template1');
+      const pdfBuffer = await DocumentService.generateBulkBonafide(studentIds, user_id, templateId || 'template1', req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_Bonafide.pdf"`);
@@ -242,7 +243,7 @@ export const DocumentController = {
       const user_id = req.user?.user_id;
       const templateId = req.query.template || null;
       
-      const pdfBuffer = await DocumentService.generateFeeReceipt(paymentId, user_id, null, templateId);
+      const pdfBuffer = await DocumentService.generateFeeReceipt(paymentId, user_id, null, templateId, req.instituteId);
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Fee_Receipt_${paymentId}.pdf"`);
@@ -262,7 +263,7 @@ export const DocumentController = {
         return res.status(400).json({ success: false, message: "No student IDs provided" });
       }
 
-      const pdfBuffer = await DocumentService.generateBulkGeneralCertificates(studentIds, user_id, templateId || 'template1', eventId);
+      const pdfBuffer = await DocumentService.generateBulkGeneralCertificates(studentIds, user_id, templateId || 'template1', eventId, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_Certificates.pdf"`);
@@ -279,7 +280,7 @@ export const DocumentController = {
       const userId = req.user?.user_id || null;
       const templateId = req.query.template || null;
       const eventId = req.query.eventId || null;
-      const pdfBuffer = await DocumentService.generateGeneralCertificate(studentId, userId, templateId, null, eventId);
+      const pdfBuffer = await DocumentService.generateGeneralCertificate(studentId, userId, templateId, null, eventId, req.instituteId);
 
       // Log activity
       try {
@@ -287,7 +288,8 @@ export const DocumentController = {
           await DashboardService.addActivityEntry(
               userId,
               'tc_issued',
-              `General Certificate / TC issued for Student ID: ${studentId}`
+              `General Certificate / TC issued for Student ID: ${studentId}`,
+              req.instituteId
           );
       } catch (e) { console.error(e); }
 
@@ -314,7 +316,7 @@ export const DocumentController = {
   async previewTemplate(req, res) {
     try {
       const { type, templateId } = req.params;
-      const pdfBuffer = await DocumentService.getTemplatePreview(type, templateId);
+      const pdfBuffer = await DocumentService.getTemplatePreview(type, templateId, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename=preview_${templateId}.pdf`);
@@ -347,7 +349,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateMarkSheet(studentId, user_id, null, templateId);
+      const pdfBuffer = await DocumentService.generateMarkSheet(studentId, user_id, null, templateId, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="MarkSheet_${studentId}.pdf"`);
@@ -364,7 +366,7 @@ export const DocumentController = {
     try {
       const { classId } = req.params;
       const userId = req.user?.user_id || null;
-      const pdfBuffer = await DocumentService.generateTimetable(classId, userId);
+      const pdfBuffer = await DocumentService.generateTimetable(classId, userId, null, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Timetable_${classId}.pdf"`);
@@ -399,7 +401,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateMonthlyAttendancePDF(classId, month, year, user_id);
+      const pdfBuffer = await DocumentService.generateMonthlyAttendancePDF(classId, month, year, user_id, req.instituteId);
 
       const sql = `SELECT class_name FROM class WHERE class_id = $1`;
       const classRes = await pool.query(sql, [classId]);
@@ -445,7 +447,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateBulkMarkSheets(studentIds, user_id, templateId);
+      const pdfBuffer = await DocumentService.generateBulkMarkSheets(studentIds, user_id, templateId, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_Mark_Sheets.pdf"`);
@@ -465,7 +467,7 @@ export const DocumentController = {
         return res.status(400).json({ success: false, message: "No student IDs provided" });
       }
 
-      const pdfBuffer = await DocumentService.generateBulkFeeReceipts(studentIds, user_id, templateId);
+      const pdfBuffer = await DocumentService.generateBulkFeeReceipts(studentIds, user_id, templateId, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Bulk_Fee_Receipts.pdf"`);

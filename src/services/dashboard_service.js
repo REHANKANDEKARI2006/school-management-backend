@@ -249,19 +249,21 @@ class DashboardServiceClass {
     const res = await pool.query(`
       (SELECT CONCAT('event_', event_id) as id, event_name as title, event_date as time, 'event' as category, event_start_date, event_end_date
        FROM events
-       WHERE event_date >= CURRENT_DATE - INTERVAL '1 month'
+       WHERE institute_id = $2
+         AND event_date >= CURRENT_DATE - INTERVAL '1 month'
          AND event_date <= CURRENT_DATE + INTERVAL '12 months')
       UNION ALL
       (SELECT CONCAT('exam_', e.exam_id) as id, e.exam_name as title, e.date_time as time, 'exam' as category, e.date_time as event_start_date, e.date_time as event_end_date
        FROM exam e
        JOIN schedule s ON s.class_id = e.class_id AND s.subject_id = e.subject_id
        WHERE s.staff_id = $1 
+         AND s.institute_id = $2
          AND e.date_time >= CURRENT_DATE - INTERVAL '1 month'
          AND e.date_time <= CURRENT_DATE + INTERVAL '12 months'
        GROUP BY e.exam_id, e.exam_name, e.date_time)
       ORDER BY time ASC
       LIMIT 100
-    `, [staffId]);
+    `, [staffId, instituteId]);
 
     const mappedHolidays = holidays.map(h => ({
       id: `h_${h.date}_${h.name}`,
@@ -371,6 +373,25 @@ class DashboardServiceClass {
             GROUP BY student_id, fee_struct_id
         ) fc ON fc.student_id = s.student_id AND fc.fee_struct_id = fs.fee_struct_id
         WHERE u.institute_id = $1 AND COALESCE(fc.total_paid, 0) < fs.amount AND fs.due_date < CURRENT_DATE
+      `,
+      totalFees: `
+        SELECT SUM(fc.amount_paid) FROM fee_collection fc
+        JOIN student s ON s.student_id = fc.student_id
+        JOIN "user" u ON u.user_id = s.student_user_id
+        WHERE u.institute_id = $1
+      `,
+      monthAttendance: `
+        SELECT 
+          COUNT(ar.student_id) FILTER (WHERE ar.status_id = 1) as present,
+          COUNT(ar.student_id) as total
+        FROM attendance_record ar
+        JOIN attendance_session ats ON ats.session_id = ar.session_id
+        JOIN staff st ON st.staff_id = ats.faculty_id
+        JOIN "user" u ON u.user_id = st.user_id
+        WHERE u.institute_id = $1 
+          AND ats.attendance_date >= DATE_TRUNC('month', CURRENT_DATE)
+          AND ats.attendance_date <= CURRENT_DATE
+          AND ar.student_id IS NOT NULL
       `
     };
 
@@ -382,7 +403,9 @@ class DashboardServiceClass {
       pool.query(queries.todayAttendance, [instituteId, today]),
       pool.query(queries.monthFees, [instituteId, monthStart]),
       pool.query(queries.pendingDues, [instituteId]),
-      pool.query(queries.overdueStudents, [instituteId])
+      pool.query(queries.overdueStudents, [instituteId]),
+      pool.query(queries.totalFees, [instituteId]),
+      pool.query(queries.monthAttendance, [instituteId])
     ]);
 
     return {
@@ -398,7 +421,12 @@ class DashboardServiceClass {
       },
       feesMonth: parseFloat(results[5].rows[0].sum || 0),
       pendingDuesCount: parseInt(results[6].rows[0].count || 0),
-      overdueStudentsCount: parseInt(results[7].rows[0].count || 0)
+      overdueStudentsCount: parseInt(results[7].rows[0].count || 0),
+      totalFees: parseFloat(results[8].rows[0].sum || 0),
+      monthAttendance: {
+        present: parseInt(results[9].rows[0].present || 0),
+        total: parseInt(results[9].rows[0].total || 0)
+      }
     };
   }
 
@@ -410,17 +438,24 @@ class DashboardServiceClass {
       WHERE u.institute_id = $1 AND s.is_deleted = FALSE
       GROUP BY gender_id
     `, [instituteId]);
-    const genderMap = { 1: 0, 2: 0 }; // 1: Boy, 2: Girl
+    const genderMap = { 1: 0, 2: 0, null: 0 };
     res.rows.forEach(r => {
-        if (r.gender_id === 1 || r.gender_id === 2) {
-            genderMap[r.gender_id] = parseInt(r.count);
+        const gid = r.gender_id;
+        if (gid === 1 || gid === 2) {
+            genderMap[gid] = parseInt(r.count);
+        } else {
+            genderMap[null] += parseInt(r.count);
         }
     });
 
-    return [
+    const output = [
         { name: 'Boys', value: genderMap[1], fill: '#2563eb' },
         { name: 'Girls', value: genderMap[2], fill: '#f472b6' }
     ];
+    if (genderMap[null] > 0) {
+        output.push({ name: 'Unspecified', value: genderMap[null], fill: '#f59e0b' });
+    }
+    return output;
   }
 
   async getAttendanceSummary(today, instituteId) {
@@ -448,18 +483,28 @@ class DashboardServiceClass {
   }
 
   async getFinanceStats(instituteId) {
-    // Return monthly fee collection for the last 6 months for the Bar Chart
     const res = await pool.query(`
+      WITH months AS (
+        SELECT 
+          TO_CHAR(m, 'Mon') AS month,
+          TO_CHAR(m, 'YYYYMM') AS year_month
+        FROM generate_series(
+          DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months',
+          DATE_TRUNC('month', CURRENT_DATE),
+          INTERVAL '1 month'
+        ) m
+      )
       SELECT 
-        TO_CHAR(fc.payment_date, 'Mon') as month,
-        SUM(fc.amount_paid) as income,
-        TO_CHAR(fc.payment_date, 'YYYYMM') as year_month
-      FROM fee_collection fc
-      JOIN student s ON s.student_id = fc.student_id
-      JOIN "user" u ON u.user_id = s.student_user_id
-      WHERE u.institute_id = $1 AND fc.payment_date > NOW() - INTERVAL '6 months'
-      GROUP BY month, year_month
-      ORDER BY year_month ASC
+        m.month,
+        COALESCE(SUM(
+          CASE WHEN u.institute_id = $1 THEN fc.amount_paid ELSE 0 END
+        ), 0) AS income
+      FROM months m
+      LEFT JOIN fee_collection fc ON TO_CHAR(fc.payment_date, 'YYYYMM') = m.year_month
+      LEFT JOIN student s ON s.student_id = fc.student_id
+      LEFT JOIN "user" u ON u.user_id = s.student_user_id
+      GROUP BY m.month, m.year_month
+      ORDER BY m.year_month ASC
     `, [instituteId]);
 
     return res.rows.map(r => ({
@@ -480,18 +525,16 @@ class DashboardServiceClass {
     const res = await pool.query(`
       (SELECT CONCAT('event_', event_id) as id, event_name as title, event_date as time, description, venue as location, 'event' as category, event_start_date, event_end_date
        FROM events
-       WHERE event_date >= CURRENT_DATE - INTERVAL '1 month'
+       WHERE institute_id = $1
+         AND event_date >= CURRENT_DATE - INTERVAL '1 month'
          AND event_date <= CURRENT_DATE + INTERVAL '12 months')
       UNION ALL
       (SELECT CONCAT('exam_', sub.exam_id) as id, sub.exam_name as title, sub.date_time as time, 'School Examination' as description, 'Exam Hall' as location, 'exam' as category, sub.date_time as event_start_date, sub.date_time as event_end_date
        FROM (
          SELECT DISTINCT ON (e.exam_name, e.date_time) e.exam_id, e.exam_name, e.date_time
          FROM exam e
-         JOIN class c ON c.class_id = e.class_id
-         JOIN staff st ON st.staff_id = c.staff_id
-         JOIN "user" u ON u.user_id = st.user_id
-         WHERE u.institute_id = $1
-       ORDER BY e.exam_name, e.date_time, e.exam_id
+         WHERE e.institute_id = $1
+         ORDER BY e.exam_name, e.date_time, e.exam_id
        ) sub
        WHERE sub.date_time >= CURRENT_DATE - INTERVAL '1 month'
          AND sub.date_time <= CURRENT_DATE + INTERVAL '12 months')
@@ -517,8 +560,7 @@ class DashboardServiceClass {
     const { rows } = await pool.query(`
       SELECT notice_id as id, title, content as description, post_date as date
       FROM notices n
-      JOIN "user" u ON u.user_id = n.author_id
-      WHERE u.institute_id = $1
+      WHERE n.institute_id = $1 AND n.is_deleted = false
       ORDER BY post_date DESC
       LIMIT 5
     `, [instituteId]);
@@ -557,8 +599,7 @@ class DashboardServiceClass {
       const res = await pool.query(`
         SELECT al.action_type, al.description, al.created_at as time
         FROM activity_log al
-        JOIN "user" u ON u.user_id = al.user_id
-        WHERE u.institute_id = $1
+        WHERE al.institute_id = $1
         ${userId ? 'AND al.user_id = $2' : ''}
         ORDER BY al.created_at DESC
         LIMIT 10
@@ -566,11 +607,16 @@ class DashboardServiceClass {
       return res.rows;
   }
 
-  async addActivityEntry(userId, actionType, description) {
+  async addActivityEntry(userId, actionType, description, instituteId = null) {
     try {
+      let finalInstituteId = instituteId;
+      if (!finalInstituteId && userId) {
+        const userRes = await pool.query('SELECT institute_id FROM "user" WHERE user_id = $1', [userId]);
+        finalInstituteId = userRes.rows[0]?.institute_id || null;
+      }
       await pool.query(
-        'INSERT INTO activity_log (user_id, action_type, description) VALUES ($1, $2, $3)',
-        [userId, actionType, description]
+        'INSERT INTO activity_log (user_id, action_type, description, institute_id) VALUES ($1, $2, $3, $4)',
+        [userId, actionType, description, finalInstituteId]
       );
     } catch (e) {
       console.error('Failed to log activity:', e);
@@ -766,9 +812,10 @@ class DashboardServiceClass {
       pool.query(`
         SELECT notice_id as id, title, content as description, post_date as date
         FROM notices
+        WHERE institute_id = $1
         ORDER BY post_date DESC
         LIMIT 5
-      `),
+      `, [s.institute_id]),
 
       // Rolling 30-Day Attendance Summary (Real-time)
       pool.query(`

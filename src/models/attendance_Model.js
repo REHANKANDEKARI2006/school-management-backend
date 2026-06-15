@@ -9,7 +9,7 @@ const pool = new Pool({
 
 export const AttendanceModel = {
 
-  async getDashboard(date) {
+  async getDashboard(date, instituteId) {
     const sql = `
       SELECT 
         c.class_id,
@@ -42,10 +42,11 @@ export const AttendanceModel = {
         FROM attendance_record
         GROUP BY session_id
       ) ar_stats ON ar_stats.session_id = ats.session_id
+      WHERE c.institute_id = $2
       GROUP BY c.class_id, c.class_name, s.section_id, s.section_name, sub.subject_id, sub.subject_name, ats.session_id, ar_stats.present_count, ar_stats.absent_count
       ORDER BY c.class_id, sub.subject_id;
     `;
-    const { rows } = await pool.query(sql, [date]);
+    const { rows } = await pool.query(sql, [date, instituteId]);
     return rows;
   },
 
@@ -73,7 +74,7 @@ export const AttendanceModel = {
     return rows[0] || null;
   },
 
-  async createSession(data) {
+  async createSession(data, instituteId) {
     let finalSectionId = data.section_id;
     if (!finalSectionId) {
       const classRes = await pool.query('SELECT section_id FROM class WHERE class_id = $1', [data.class_id]);
@@ -82,8 +83,8 @@ export const AttendanceModel = {
 
     const sql = `
       INSERT INTO attendance_session
-      (class_id, section_id, subject_id, attendance_date, created_by, faculty_id)
-      VALUES ($1,$2,$3,$4,$5,$6)
+      (class_id, section_id, subject_id, attendance_date, created_by, faculty_id, institute_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
       ON CONFLICT (class_id, section_id, subject_id, attendance_date)
       DO UPDATE SET faculty_id = EXCLUDED.faculty_id, updated_at = now()
       RETURNING *;
@@ -94,7 +95,8 @@ export const AttendanceModel = {
       data.subject_id,
       data.attendance_date,
       data.created_by,
-      data.faculty_id
+      data.faculty_id,
+      Number(instituteId)
     ];
     const { rows } = await pool.query(sql, values);
     return rows[0];
@@ -291,7 +293,7 @@ export const AttendanceModel = {
     return { students, records };
   },
 
-  async getTeacherDashboard(date, userId) {
+  async getTeacherDashboard(date, userId, instituteId) {
     const sql = `
       SELECT 
         c.class_id,
@@ -330,10 +332,11 @@ export const AttendanceModel = {
       WHERE sch.staff_id = (SELECT staff_id FROM staff WHERE user_id = $2 LIMIT 1)
         AND sch.day_of_week = EXTRACT(ISODOW FROM $1::DATE)
         AND sch.is_break = false
+        AND c.institute_id = $3
       GROUP BY c.class_id, c.class_name, s.section_id, s.section_name, sub.subject_id, sub.subject_name, sch.start_time, sch.end_time, c.room_number, ats.session_id, ar_stats.present_count, ar_stats.absent_count
       ORDER BY sch.start_time ASC;
     `;
-    const { rows } = await pool.query(sql, [date, userId]);
+    const { rows } = await pool.query(sql, [date, userId, instituteId]);
     return rows;
   },
 

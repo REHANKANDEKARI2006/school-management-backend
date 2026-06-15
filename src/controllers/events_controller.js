@@ -14,7 +14,7 @@ export const createEvent = async (req, res) => {
         message: "Access denied: Teachers are not permitted to perform this action."
       });
     }
-    const data = await EventsService.createEventWithExchange(req.body);
+    const data = await EventsService.createEventWithExchange(req.body, req.instituteId);
     res.status(201).json({
       success: true,
       message: "Event created successfully",
@@ -43,7 +43,7 @@ export const getAllEvents = async (req, res) => {
   try {
     let { class_id } = req.query;
     const cleanClassId = class_id && !isNaN(parseInt(class_id)) ? parseInt(class_id) : null;
-    const data = await EventsService.getAllEvents(cleanClassId);
+    const data = await EventsService.getAllEvents(cleanClassId, req.instituteId);
     
     const enrichedData = data.map(event => ({
       ...event,
@@ -66,7 +66,7 @@ export const getAllEvents = async (req, res) => {
 // Get Event Detail
 export const getEventDetail = async (req, res) => {
   try {
-    const data = await EventsService.getEventDetail(req.params.id);
+    const data = await EventsService.getEventDetail(req.params.id, req.instituteId);
     if (!data) {
       return res.status(404).json({ success: false, message: "Event not found" });
     }
@@ -97,7 +97,7 @@ export const updateEvent = async (req, res) => {
         message: "Access denied: Teachers are not permitted to perform this action."
       });
     }
-    const data = await EventsService.updateEvent(req.params.id, req.body);
+    const data = await EventsService.updateEvent(req.params.id, req.body, req.instituteId);
     res.json({
       success: true,
       message: "Event updated successfully",
@@ -122,7 +122,7 @@ export const deleteEvent = async (req, res) => {
         message: "Access denied: Teachers are not permitted to perform this action."
       });
     }
-    await EventsService.deleteEvent(req.params.id);
+    await EventsService.deleteEvent(req.params.id, req.instituteId);
     res.json({
       success: true,
       message: "Event deleted successfully"
@@ -169,7 +169,7 @@ export const getCoordinatorEvents = async (req, res) => {
     if (!staffId) {
       return res.status(400).json({ success: false, message: "staff_id required" });
     }
-    const data = await EventsService.getCoordinatorDashboardEvents(staffId);
+    const data = await EventsService.getCoordinatorDashboardEvents(staffId, req.instituteId);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -182,7 +182,7 @@ export const getCoordinatorEvents = async (req, res) => {
 export const getEventAttendanceData = async (req, res) => {
   try {
     const { id, classId } = req.params;
-    const data = await EventsService.getEventAttendanceData(id, classId);
+    const data = await EventsService.getEventAttendanceData(id, classId, req.instituteId);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -200,7 +200,7 @@ export const submitEventAttendance = async (req, res) => {
     }
 
     const data = await EventsService.submitEventAttendance(
-      parseInt(id), parseInt(classId), records, staff_id
+      parseInt(id), parseInt(classId), records, staff_id, req.instituteId
     );
 
     res.json({
@@ -218,7 +218,7 @@ export const submitEventAttendance = async (req, res) => {
 export const unlockAttendance = async (req, res) => {
   try {
     const { id, classId } = req.params;
-    const data = await EventsService.unlockAttendanceEdit(parseInt(id), parseInt(classId));
+    const data = await EventsService.unlockAttendanceEdit(parseInt(id), parseInt(classId), req.instituteId);
     res.json({ success: true, message: "Attendance unlocked for editing", data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -228,7 +228,7 @@ export const unlockAttendance = async (req, res) => {
 // Get displaced periods for an event
 export const getDisplacedPeriods = async (req, res) => {
   try {
-    const data = await EventsService.getDisplacedPeriods(req.params.id);
+    const data = await EventsService.getDisplacedPeriods(req.params.id, req.instituteId);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -245,7 +245,7 @@ export const uploadPhotos = async (req, res) => {
       return res.status(400).json({ success: false, message: "No photos uploaded" });
     }
 
-    const data = await EventsService.uploadEventPhotos(id, req.files);
+    const data = await EventsService.uploadEventPhotos(id, req.files, req.instituteId);
     res.status(201).json({
       success: true,
       message: `${req.files.length} photos uploaded successfully`,
@@ -265,7 +265,7 @@ export const uploadPhotos = async (req, res) => {
 export const getPhotos = async (req, res) => {
   try {
     const { id } = req.params;
-    const data = await EventsService.getEventPhotos(id);
+    const data = await EventsService.getEventPhotos(id, req.instituteId);
     res.json({
       success: true,
       message: "Photos fetched successfully",
@@ -280,7 +280,7 @@ export const getPhotos = async (req, res) => {
 export const deletePhoto = async (req, res) => {
   try {
     const { photoId } = req.params;
-    const data = await EventsService.deleteEventPhoto(photoId, null);
+    const data = await EventsService.deleteEventPhoto(photoId, null, req.instituteId);
     res.json({
       success: true,
       message: "Photo deleted successfully",

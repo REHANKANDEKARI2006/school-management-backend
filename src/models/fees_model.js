@@ -56,7 +56,7 @@ export const FeesModel = {
     );
   },
 
-  async getFeeStructures() {
+  async getFeeStructures(instituteId) {
     const res = await pool.query(`
       SELECT
         fs.*,
@@ -65,12 +65,13 @@ export const FeesModel = {
       FROM fee_structure fs
       JOIN class c ON c.class_id = fs.class_id
       JOIN fee_category fc ON fc.fee_category_id = fs.fee_cat_id
+      WHERE fs.institute_id = $1
       ORDER BY fs.fee_struct_id
-    `);
+    `, [instituteId]);
     return res.rows;
   },
 
-  async createFeeStructure(data) {
+  async createFeeStructure(data, instituteId) {
     const {
       class_id,
       section_id,
@@ -83,11 +84,11 @@ export const FeesModel = {
     const res = await pool.query(
       `
       INSERT INTO fee_structure
-        (class_id, section_id, fee_cat_id, amount, due_date, session_year)
-      VALUES ($1,$2,$3,$4,$5,$6)
+        (class_id, section_id, fee_cat_id, amount, due_date, session_year, institute_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
       `,
-      [class_id, section_id ?? null, fee_cat_id, amount, due_date ?? null, session_year ?? null]
+      [class_id, section_id ?? null, fee_cat_id, amount, due_date ?? null, session_year ?? null, Number(instituteId)]
     );
 
     return res.rows[0];
@@ -209,29 +210,31 @@ export const FeesModel = {
     return res.rows;
   },
 
-  async updateFeeStructure(standardName, feeCatId, newAmount) {
+  async updateFeeStructure(standardName, feeCatId, newAmount, instituteId) {
     const { rows } = await pool.query(
       `
       UPDATE fee_structure
       SET amount = $1
       WHERE fee_cat_id = $2
-        AND class_id IN (SELECT class_id FROM class WHERE class_name = $3)
+        AND class_id IN (SELECT class_id FROM class WHERE class_name = $3 AND institute_id = $4)
+        AND institute_id = $4
       RETURNING *
       `,
-      [newAmount, feeCatId, standardName]
+      [newAmount, feeCatId, standardName, Number(instituteId)]
     );
     return rows;
   },
 
-  async deleteFeeStructure(standardName, feeCatId) {
+  async deleteFeeStructure(standardName, feeCatId, instituteId) {
     const { rows } = await pool.query(
       `
       DELETE FROM fee_structure
       WHERE fee_cat_id = $1
-        AND class_id IN (SELECT class_id FROM class WHERE class_name = $2)
+        AND class_id IN (SELECT class_id FROM class WHERE class_name = $2 AND institute_id = $3)
+        AND institute_id = $3
       RETURNING *
       `,
-      [feeCatId, standardName]
+      [feeCatId, standardName, Number(instituteId)]
     );
     return rows;
   }

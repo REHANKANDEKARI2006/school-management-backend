@@ -54,7 +54,7 @@ export const SubstituteModel = {
   },
 
   // For "My Substitute Duties" section — teacher sees their upcoming duties
-  async getAssignmentsBySubstituteTeacher(staff_id) {
+  async getAssignmentsBySubstituteTeacher(staff_id, instituteId) {
     const { rows } = await db.query(`
       SELECT sa.*,
              s_orig.staff_first_name  AS original_first_name,
@@ -68,10 +68,13 @@ export const SubstituteModel = {
       JOIN leave_applications la ON la.id = sa.leave_application_id
       JOIN leave_types lt        ON lt.id = la.leave_type_id
       LEFT JOIN class c          ON c.class_id = sa.class_id
+      JOIN staff s_sub           ON s_sub.staff_id = sa.substitute_teacher_id
+      JOIN "user" u_sub          ON u_sub.user_id = s_sub.user_id
       WHERE sa.substitute_teacher_id = $1
+        AND u_sub.institute_id = $2
         AND sa.assignment_date >= CURRENT_DATE
       ORDER BY sa.assignment_date ASC, sa.period_number ASC
-    `, [staff_id]);
+    `, [staff_id, instituteId]);
     return rows;
   },
 

@@ -83,7 +83,7 @@ export const StudentModel = {
   /* =========================
      FIND BY ID
   ========================= */
-  async findById(id) {
+  async findById(id, instituteId) {
     const { rows } = await pool.query(
       `
       SELECT
@@ -105,8 +105,10 @@ export const StudentModel = {
         c.class_id,
         c.class_name,
         sec.section_name,
-        ust.status_name
+        ust.status_name,
+        u.institute_id
       FROM student s
+      INNER JOIN "user" u ON u.user_id = s.student_user_id
       LEFT JOIN blood_group bg ON bg.bg_id = s.bg_id
       LEFT JOIN guardian g ON g.student_id = s.student_id
       LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
@@ -114,12 +116,34 @@ export const StudentModel = {
       LEFT JOIN section sec ON sec.section_id = c.section_id
       LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
       WHERE s.student_id = $1
+        AND u.institute_id = $2
         AND s.is_deleted = FALSE
-      
       `,
-      [id]
+      [id, instituteId]
     );
-    return rows[0] || null;
+    const student = rows[0] || null;
+    if (student && student.class_id) {
+      const rollRes = await pool.query(
+        `WITH enrolled_students AS (
+          SELECT 
+            st.student_id,
+            ROW_NUMBER() OVER (ORDER BY st.stu_first_name, st.stu_last_name) as roll_number
+          FROM student st
+          JOIN class_enrollment ce ON ce.student_id = st.student_id AND ce.status_id = 1
+          WHERE ce.class_id = $1 AND st.is_deleted = FALSE
+        )
+        SELECT roll_number FROM enrolled_students WHERE student_id = $2`,
+        [student.class_id, student.student_id]
+      );
+      if (rollRes.rows.length > 0) {
+        student.roll_number = String(rollRes.rows[0].roll_number);
+      } else {
+        student.roll_number = null;
+      }
+    } else if (student) {
+      student.roll_number = null;
+    }
+    return student;
   },
 
   /* =========================
@@ -323,7 +347,8 @@ export const StudentModel = {
           name: `${stu_first_name} ${stu_last_name}`,
           role: "Student",
           token: inviteToken,
-          loginEmail: safeGuardianEmail
+          loginEmail: safeGuardianEmail,
+          instituteId: authUser.institute_id
         });
 
         // 2. Send Confirmation to Guardian
@@ -339,6 +364,7 @@ export const StudentModel = {
           studentName: `${stu_first_name} ${stu_last_name}`,
           className: className,
           enrollmentDate: new Date(joined_date || Date.now()).toLocaleDateString(),
+          instituteId: authUser.institute_id
         });
         emailSent = true;
       } catch (emailErr) {
@@ -383,12 +409,16 @@ export const StudentModel = {
 
       const finalProfileUrl = profile_url || avatar;
 
-      // Fetch old status
+      // Fetch old status and institute_id
       const oldStudentRes = await client.query(
-        'SELECT user_status_id FROM student WHERE student_id = $1',
+        `SELECT s.user_status_id, u.institute_id 
+         FROM student s 
+         JOIN "user" u ON s.student_user_id = u.user_id 
+         WHERE s.student_id = $1`,
         [id]
       );
       const oldStatusId = oldStudentRes.rows[0]?.user_status_id;
+      const instituteId = oldStudentRes.rows[0]?.institute_id;
 
       await client.query(
         `
@@ -476,7 +506,8 @@ export const StudentModel = {
           await emailService.sendStudentStatusUpdateNotification({
             to: parentEmail,
             studentName,
-            statusName
+            statusName,
+            instituteId
           });
         } catch (emailErr) {
           console.error("❌ Failed to send student status update email:", emailErr.message);

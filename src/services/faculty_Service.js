@@ -10,8 +10,8 @@ export const FacultyService = {
   },
 
 
-  async getFacultyById(id) {
-    const faculty = await FacultyModel.findById(Number(id));
+  async getFacultyById(id, instituteId) {
+    const faculty = await FacultyModel.findById(Number(id), instituteId);
     if (!faculty)
       throw Object.assign(new Error("Faculty not found"), { status: 404 });
     return faculty;
@@ -26,7 +26,10 @@ export const FacultyService = {
   },
 
 
-  async updateFaculty(id, payload) {
+  async updateFaculty(id, payload, instituteId) {
+    // Verify faculty belongs to institute
+    await this.getFacultyById(id, instituteId);
+
     // Map 'avatar' to 'profile_url' for database consistency
     if (payload.avatar && !payload.profile_url) {
       payload.profile_url = payload.avatar;
@@ -36,7 +39,10 @@ export const FacultyService = {
     return await FacultyModel.updateFacultyTransaction(Number(id), payload);
   },
 
-  async deleteFaculty(id) {
+  async deleteFaculty(id, instituteId) {
+    // Verify faculty belongs to institute
+    await this.getFacultyById(id, instituteId);
+    
     return await FacultyModel.softDelete(Number(id));
   },
 };

@@ -7,7 +7,7 @@ export const getTemplatesByType = async (req, res) => {
     const { type } = req.params;
     if (!type) return res.status(400).json({ success: false, message: 'Type is required' });
 
-    const templates = await DocumentTemplateModel.getTemplatesByType(type);
+    const templates = await DocumentTemplateModel.getTemplatesByType(type, req.instituteId);
     res.status(200).json({ success: true, data: templates });
   } catch (error) {
     console.error('Error fetching document templates:', error);
@@ -20,7 +20,7 @@ export const getTemplateById = async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ success: false, message: 'ID is required' });
 
-    const template = await DocumentTemplateModel.getTemplateById(id);
+    const template = await DocumentTemplateModel.getTemplateById(id, req.instituteId);
     res.status(200).json({ success: true, data: template });
   } catch (error) {
     console.error('Error fetching document template by ID:', error);
@@ -39,7 +39,7 @@ export const saveTemplate = async (req, res) => {
     const sanitizedContent = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 
     const saved = await DocumentTemplateModel.createTemplate(
-      document_type, template_name, base_template_id, language, sanitizedContent, character_limit || null
+      document_type, template_name, base_template_id, language, sanitizedContent, character_limit || null, req.instituteId
     );
 
     res.status(200).json({ success: true, data: saved, message: 'Template saved successfully' });
@@ -54,7 +54,7 @@ export const deleteTemplate = async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ success: false, message: 'ID is required' });
 
-    const deleted = await DocumentTemplateModel.deleteTemplate(id);
+    const deleted = await DocumentTemplateModel.deleteTemplate(id, req.instituteId);
     if (!deleted) return res.status(404).json({ success: false, message: 'Template not found' });
     
     res.status(200).json({ success: true, message: 'Template deleted successfully' });
@@ -67,7 +67,7 @@ export const deleteTemplate = async (req, res) => {
 export const getCustomContent = async (req, res) => {
   try {
     const { docType, templateId, language } = req.params;
-    const content = await TemplateCustomContentModel.getContent(docType, templateId, language);
+    const content = await TemplateCustomContentModel.getContent(docType, templateId, language, req.instituteId);
     res.status(200).json({ success: true, data: content });
   } catch (error) {
     console.error('Error fetching custom content:', error);
@@ -88,7 +88,8 @@ export const saveCustomContent = async (req, res) => {
 
     const saved = await TemplateCustomContentModel.upsertContent(
       document_type, template_id, language, 
-      stripHtml(title), stripHtml(paragraph), stripHtml(remarks)
+      stripHtml(title), stripHtml(paragraph), stripHtml(remarks),
+      req.instituteId
     );
 
     res.status(200).json({ success: true, data: saved, message: 'Custom content saved successfully' });
@@ -105,7 +106,8 @@ export const previewHtml = async (req, res) => {
     
     const html = await DocumentService.generatePreviewHtml(
       document_type, template_id, language,
-      stripHtml(title), stripHtml(paragraph), stripHtml(remarks)
+      stripHtml(title), stripHtml(paragraph), stripHtml(remarks),
+      req.instituteId
     );
     
     res.status(200).json({ success: true, html });

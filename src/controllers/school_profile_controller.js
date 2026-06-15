@@ -4,7 +4,7 @@ import pool from "../config/db.js";
 export const SchoolProfileController = {
   async getProfile(req, res) {
     try {
-      const data = await SchoolProfileService.getProfile();
+      const data = await SchoolProfileService.getProfile(req.instituteId);
       res.status(200).json({ success: true, data });
     } catch (err) {
       console.error(err);
@@ -14,7 +14,7 @@ export const SchoolProfileController = {
 
   async upsertProfile(req, res) {
     try {
-      const data = await SchoolProfileService.upsertProfile(req.body);
+      const data = await SchoolProfileService.upsertProfile(req.instituteId, req.body);
       res.status(200).json({ success: true, message: "School profile updated successfully", data });
     } catch (err) {
       console.error(err);
@@ -28,7 +28,7 @@ export const SchoolProfileController = {
         return res.status(400).json({ success: false, message: "No file uploaded" });
       }
       // Instantly update the database to ensure real-time application across all documents
-      await pool.query('UPDATE school_profile SET logo_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [req.file.path]);
+      await pool.query('UPDATE school_profile SET logo_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [req.file.path, req.instituteId]);
       
       res.status(200).json({
         success: true,
@@ -47,7 +47,7 @@ export const SchoolProfileController = {
         return res.status(400).json({ success: false, message: "No file uploaded" });
       }
       // Instantly update the database to ensure real-time application across all documents
-      await pool.query('UPDATE school_profile SET signature_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [req.file.path]);
+      await pool.query('UPDATE school_profile SET signature_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [req.file.path, req.instituteId]);
 
       res.status(200).json({
         success: true,
@@ -65,6 +65,9 @@ export const SchoolProfileController = {
       if (!req.file) {
         return res.status(400).json({ success: false, message: "No file uploaded" });
       }
+      // Instantly update the database to ensure real-time application across all documents
+      await pool.query('UPDATE school_profile SET secondary_logo_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [req.file.path, req.instituteId]);
+
       res.status(200).json({
         success: true,
         message: "Secondary Logo uploaded successfully",
@@ -82,7 +85,7 @@ export const SchoolProfileController = {
         return res.status(400).json({ success: false, message: "No file uploaded" });
       }
       // Instantly update the database to ensure real-time application across all documents
-      await pool.query('UPDATE school_profile SET stamp_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [req.file.path]);
+      await pool.query('UPDATE school_profile SET stamp_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [req.file.path, req.instituteId]);
 
       res.status(200).json({
         success: true,

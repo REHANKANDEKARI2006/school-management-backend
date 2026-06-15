@@ -3,33 +3,25 @@ import MaterialsModel from "../models/materials_model.js";
 
 const MaterialsService = {
 
-  async addMaterial(data) {
-    return await MaterialsModel.create(data);
+  async addMaterial(data, instituteId) {
+    return await MaterialsModel.create(data, instituteId);
   },
 
-  async getAllMaterials(class_id = null) {
-    return await MaterialsModel.findAll(class_id);
+  async getAllMaterials(class_id = null, instituteId) {
+    return await MaterialsModel.findAll(class_id, instituteId);
   },
 
-  async getMaterialById(id) {
-    return await MaterialsModel.findById(id);
+  async getMaterialById(id, instituteId) {
+    return await MaterialsModel.findById(id, instituteId);
   },
 
-  async updateMaterial(id, data) {
-    return await MaterialsModel.update(id, data);
+  async updateMaterial(id, data, instituteId) {
+    return await MaterialsModel.update(id, data, instituteId);
   },
 
-  async deleteMaterial(id) {
-    return await MaterialsModel.delete(id);
-  },
-
-//     async getMaterialById(id) {
-//     const result = await pool.query(
-//       "SELECT * FROM materials WHERE material_id = $1",
-//       [id]
-//     );
-//     return result.rows[0];
-//   }
+  async deleteMaterial(id, instituteId) {
+    return await MaterialsModel.delete(id, instituteId);
+  }
 };
 
 export default MaterialsService;

@@ -9,12 +9,12 @@ export const StudentService = {
     return await StudentModel.getByClassId(classId, instituteId);
   },
 
-  async getStudentById(studentId) {
+  async getStudentById(studentId, instituteId) {
     const id = Number(studentId);
     if (isNaN(id))
       throw Object.assign(new Error("Invalid student id"), { status: 400 });
 
-    const s = await StudentModel.findById(id);
+    const s = await StudentModel.findById(id, instituteId);
     if (!s)
       throw Object.assign(new Error("Student not found"), { status: 404 });
 
@@ -29,19 +29,29 @@ export const StudentService = {
     return await StudentModel.createStudent(data, authUser);
   },
 
-  async updateStudent(studentId, newValues) {
+  async updateStudent(studentId, newValues, instituteId) {
     const id = Number(studentId);
     if (isNaN(id))
       throw Object.assign(new Error("Invalid student id"), { status: 400 });
+
+    const existing = await StudentModel.findById(id, instituteId);
+    if (!existing) {
+      throw Object.assign(new Error("Student not found"), { status: 404 });
+    }
 
     delete newValues.student_id;
     return await StudentModel.updateById(id, newValues);
   },
 
-  async deleteStudent(studentId) {
+  async deleteStudent(studentId, instituteId) {
     const id = Number(studentId);
     if (isNaN(id))
       throw Object.assign(new Error("Invalid student id"), { status: 400 });
+
+    const existing = await StudentModel.findById(id, instituteId);
+    if (!existing) {
+      throw Object.assign(new Error("Student not found"), { status: 404 });
+    }
 
     const updated = await StudentModel.softDeleteById(id);
     if (!updated)

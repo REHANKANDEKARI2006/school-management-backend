@@ -25,11 +25,10 @@ export const StudentController = {
 
   async getAllStudents(req, res) {
     try {
-      const { user_id, role_id, institute_id } = req.user;
+      const institute_id = req.instituteId;
       let { class_id } = req.query;
 
       // Isolation: Admin see all, Teachers see all in institute (unless class_id filter passed)
-      // Removed previous teacher restriction that limited them to only their assigned class
       
       let data;
       if (class_id) {
@@ -48,13 +47,9 @@ export const StudentController = {
 
   async getStudentById(req, res) {
     try {
-      const { user_id, role_id } = req.user;
       const studentId = req.params.id;
 
-      const data = await StudentService.getStudentById(studentId);
-
-      // (Teachers are allowed to view any student's profile in their institute, 
-      // but editing/deleting is restricted to their assigned class below)
+      const data = await StudentService.getStudentById(studentId, req.instituteId);
 
       res.json({ success: true, data });
     } catch (err) {
@@ -67,17 +62,19 @@ export const StudentController = {
 
   async createStudent(req, res) {
     try {
-      // ✅ REQUIRED FIX (correct & safe)
-      if (!req.user || !req.user.user_id || !req.user.institute_id) {
+      if (!req.user || !req.user.user_id || !req.instituteId) {
         return res.status(401).json({
           success: false,
           message: "Unauthorized: user or institute not found",
         });
       }
 
+      // Ensure authUser has correct active institute_id
+      const authUser = { ...req.user, institute_id: req.instituteId };
+
       const data = await StudentService.createStudent(
         req.body,
-        req.user   // ✅ FULL auth user (user_id + institute_id)
+        authUser
       );
 
       // Log activity
@@ -85,7 +82,8 @@ export const StudentController = {
       await DashboardService.addActivityEntry(
         req.user.user_id, 
         'student_enrolled', 
-        `New student enrolled: ${req.body.stu_first_name} ${req.body.stu_last_name}`
+        `New student enrolled: ${req.body.stu_first_name} ${req.body.stu_last_name}`,
+        req.instituteId
       );
 
       res.status(201).json({
@@ -112,7 +110,7 @@ export const StudentController = {
       // Isolation Check
       const isTeacher = [3, 4, 5].includes(role_id);
       if (isTeacher) {
-        const student = await StudentService.getStudentById(studentId);
+        const student = await StudentService.getStudentById(studentId, req.instituteId);
         const staffRes = await pool.query(
           `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
           [user_id]
@@ -122,9 +120,12 @@ export const StudentController = {
         if (Number(student.class_id) !== Number(assignedClassId)) {
           return res.status(403).json({ success: false, message: "Unauthorized: You can only update students within your assigned class" });
         }
+      } else {
+        // Double check student exists in this school
+        await StudentService.getStudentById(studentId, req.instituteId);
       }
 
-      const data = await StudentService.updateStudent(studentId, req.body);
+      const data = await StudentService.updateStudent(studentId, req.body, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(err.status || 500).json({
@@ -142,7 +143,7 @@ export const StudentController = {
       // Isolation Check
       const isTeacher = [3, 4, 5].includes(role_id);
       if (isTeacher) {
-        const student = await StudentService.getStudentById(studentId);
+        const student = await StudentService.getStudentById(studentId, req.instituteId);
         const staffRes = await pool.query(
           `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
           [user_id]
@@ -152,9 +153,12 @@ export const StudentController = {
         if (Number(student.class_id) !== Number(assignedClassId)) {
           return res.status(403).json({ success: false, message: "Unauthorized: You can only manage students within your assigned class" });
         }
+      } else {
+        // Double check student exists in this school
+        await StudentService.getStudentById(studentId, req.instituteId);
       }
 
-      const data = await StudentService.deleteStudent(studentId);
+      const data = await StudentService.deleteStudent(studentId, req.instituteId);
       res.json({ success: true, data });
     } catch (err) {
       res.status(err.status || 500).json({

@@ -9,6 +9,11 @@ export async function seedMasterAdmin() {
     const password = process.env.MASTER_ADMIN_PASSWORD;
     const name = process.env.MASTER_ADMIN_NAME;
 
+    if (process.env.AUTO_SEED_MASTER_ADMIN !== "true") {
+      console.log("ℹ️ Auto-seeding Master Admin is disabled. Skipping seed.");
+      return;
+    }
+
     if (!email || !password) {
       console.warn("⚠️ MASTER_ADMIN_EMAIL or MASTER_ADMIN_PASSWORD not set in environment variables. Skipping seed.");
       return;

@@ -47,7 +47,7 @@ export const PromotionModel = {
   },
 
   /* ─── Get all classes ordered for dropdown selection ─── */
-  async getAllClassesOrdered() {
+  async getAllClassesOrdered(instituteId) {
     const { rows } = await pool.query(`
       SELECT
         c.class_id,
@@ -58,13 +58,13 @@ export const PromotionModel = {
       FROM class c
       LEFT JOIN section s ON s.section_id = c.section_id
       LEFT JOIN class_enrollment ce ON ce.class_id = c.class_id AND ce.status_id = 1
-      WHERE c.room_number IS NOT NULL
+      WHERE c.room_number IS NOT NULL AND c.institute_id = $1
       GROUP BY c.class_id, c.class_name, s.section_name, c.section_id
       ORDER BY
         CASE WHEN c.class_name ~ '^[0-9]+$' THEN c.class_name::int ELSE 9999 END,
         c.class_name,
         s.section_name
-    `);
+    `, [instituteId]);
     return rows;
   },
 

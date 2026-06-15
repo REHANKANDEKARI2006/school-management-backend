@@ -3,7 +3,7 @@ import db from "../config/db.js";
 
 const ScheduleModel = {
 
-  async getAll() {
+  async getAll(instituteId) {
     const { rows } = await db.query(`
       SELECT 
         sch.*,
@@ -18,13 +18,14 @@ const ScheduleModel = {
       LEFT JOIN section sec ON c.section_id = sec.section_id
       LEFT JOIN subject sub ON sch.subject_id = sub.subject_id
       LEFT JOIN staff st ON sch.staff_id = st.staff_id
+      WHERE sch.institute_id = $1
       ORDER BY sch.class_id, sch.day_of_week, sch.period_number, sch.start_time
-    `);
+    `, [instituteId]);
     return rows;
   },
 
-  async getByFilter({ staff_id, class_id, week_start, query_date }) {
-    const values = [];
+  async getByFilter({ staff_id, class_id, week_start, query_date }, instituteId) {
+    const values = [instituteId];
 
     // Build the reference date for substitute lookup
     let dateParam;
@@ -65,7 +66,7 @@ const ScheduleModel = {
         CASE WHEN sa.id IS NOT NULL
              THEN st.staff_first_name || ' ' || st.staff_last_name
              ELSE NULL
-        END AS substitute_for,
+         END AS substitute_for,
         -- Event overlay info
         epe.id               AS event_exchange_id,
         e.event_id,
@@ -86,6 +87,7 @@ const ScheduleModel = {
         AND sa.class_id            = sch.class_id
         AND sa.assignment_date    >= ${weekStr}
         AND sa.assignment_date     < ${weekStr} + interval '7 days'
+        AND EXTRACT(ISODOW FROM sa.assignment_date) = sch.day_of_week
         AND sa.status             IN ('pending_acceptance', 'accepted')
       LEFT JOIN staff sub_st ON sub_st.staff_id = sa.substitute_teacher_id
       -- Join event_period_exchanges for the relevant week
@@ -98,7 +100,7 @@ const ScheduleModel = {
       LEFT JOIN events e ON e.event_id = epe.event_id
       LEFT JOIN event_class_assignments eca ON eca.event_id = e.event_id AND eca.class_id = sch.class_id
       LEFT JOIN staff cord_st ON cord_st.staff_id = eca.coordinator_teacher_id
-      WHERE 1=1
+      WHERE sch.institute_id = $1
     `;
 
     if (staff_id) {
@@ -118,7 +120,7 @@ const ScheduleModel = {
     return rows;
   },
 
-  async create(data) {
+  async create(data, instituteId) {
     const {
       class_id,
       staff_id,
@@ -134,8 +136,8 @@ const ScheduleModel = {
 
     const { rows } = await db.query(
       `INSERT INTO schedule
-      (class_id, staff_id, subject_id, schedule_date, day_of_week, period_number, start_time, end_time, room_id, is_break)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      (class_id, staff_id, subject_id, schedule_date, day_of_week, period_number, start_time, end_time, room_id, is_break, institute_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *`,
       [
         class_id,
@@ -147,27 +149,28 @@ const ScheduleModel = {
         start_time,
         end_time,
         room_id || null,
-        is_break || false
+        is_break || false,
+        instituteId
       ]
     );
 
     return rows[0];
   },
 
-  async replaceClassSchedule(class_id, scheduleArray) {
+  async replaceClassSchedule(class_id, scheduleArray, instituteId) {
     const client = await db.connect();
     try {
       await client.query("BEGIN");
 
       // Clear existing schedule for this class
-      await client.query("DELETE FROM schedule WHERE class_id = $1", [class_id]);
+      await client.query("DELETE FROM schedule WHERE class_id = $1 AND institute_id = $2", [class_id, instituteId]);
 
       // Bulk insert the new schedule
       for (const item of scheduleArray) {
         await client.query(
           `INSERT INTO schedule
-          (class_id, staff_id, subject_id, schedule_date, day_of_week, period_number, start_time, end_time, room_id, is_break)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          (class_id, staff_id, subject_id, schedule_date, day_of_week, period_number, start_time, end_time, room_id, is_break, institute_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [
             class_id,
             item.staff_id || null,
@@ -178,7 +181,8 @@ const ScheduleModel = {
             item.start_time,
             item.end_time,
             item.room_id || null,
-            item.is_break || false
+            item.is_break || false,
+            instituteId
           ]
         );
       }
@@ -193,7 +197,7 @@ const ScheduleModel = {
     }
   },
 
-  async update(id, data) {
+  async update(id, data, instituteId) {
     const fields = [];
     const values = [];
     let index = 1;
@@ -211,20 +215,21 @@ const ScheduleModel = {
     const query = `
       UPDATE schedule
       SET ${fields.join(", ")}
-      WHERE schedule_id = $${index}
+      WHERE schedule_id = $${index} AND institute_id = $${index + 1}
       RETURNING *
     `;
 
     values.push(id);
+    values.push(instituteId);
 
     const { rows } = await db.query(query, values);
     return rows[0];
   },
 
-  async delete(id) {
+  async delete(id, instituteId) {
     await db.query(
-      "DELETE FROM schedule WHERE schedule_id = $1",
-      [id]
+      "DELETE FROM schedule WHERE schedule_id = $1 AND institute_id = $2",
+      [id, instituteId]
     );
   }
 

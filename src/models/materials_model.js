@@ -4,20 +4,20 @@ import pool from "../config/db.js";
 const MaterialsModel = {
 
   // Create Material
-  async create({ material_name, subject_id, class_id, file_path, upload_date }) {
+  async create({ material_name, subject_id, class_id, file_path, upload_date }, instituteId) {
     const query = `
       INSERT INTO materials
-      (material_name, subject_id, class_id, file_path, upload_date)
-      VALUES ($1, $2, $3, $4, $5)
+      (material_name, subject_id, class_id, file_path, upload_date, institute_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *;
     `;
-    const values = [material_name, subject_id, class_id, file_path, upload_date];
+    const values = [material_name, subject_id, class_id, file_path, upload_date, instituteId];
     const { rows } = await pool.query(query, values);
     return rows[0];
   },
 
   // Get All Materials
-  async findAll(class_id = null) {
+  async findAll(class_id = null, instituteId) {
     let query = `
       SELECT 
         m.material_id, 
@@ -34,11 +34,12 @@ const MaterialsModel = {
       JOIN class c ON c.class_id = m.class_id
       LEFT JOIN section s ON s.section_id = c.section_id
       JOIN subject sub ON sub.subject_id = m.subject_id
+      WHERE m.institute_id = $1
     `;
     
-    const values = [];
+    const values = [instituteId];
     if (class_id) {
-      query += ` WHERE m.class_id = $1 `;
+      query += ` AND m.class_id = $2 `;
       values.push(class_id);
     }
     
@@ -49,20 +50,20 @@ const MaterialsModel = {
   },
 
   // Get Material By ID
-  async findById(id) {
+  async findById(id, instituteId) {
     const query = `
       SELECT m.*, c.class_name, s.section_name 
       FROM materials m
       JOIN class c ON c.class_id = m.class_id
       LEFT JOIN section s ON s.section_id = c.section_id
-      WHERE m.material_id = $1
+      WHERE m.material_id = $1 AND m.institute_id = $2
     `;
-    const { rows } = await pool.query(query, [id]);
+    const { rows } = await pool.query(query, [id, instituteId]);
     return rows[0];
   },
 
   // Update Material
-  async update(id, fields) {
+  async update(id, fields, instituteId) {
     const keys = Object.keys(fields);
     if (keys.length === 0) return null;
 
@@ -73,19 +74,19 @@ const MaterialsModel = {
     const query = `
       UPDATE materials
       SET ${setClause}, updated_at = now()
-      WHERE material_id = $${keys.length + 1}
+      WHERE material_id = $${keys.length + 1} AND institute_id = $${keys.length + 2}
       RETURNING *;
     `;
 
-    const values = [...Object.values(fields), id];
+    const values = [...Object.values(fields), id, instituteId];
     const { rows } = await pool.query(query, values);
     return rows[0];
   },
 
   // Delete Material
-  async delete(id) {
-    const query = `DELETE FROM materials WHERE material_id = $1`;
-    await pool.query(query, [id]);
+  async delete(id, instituteId) {
+    const query = `DELETE FROM materials WHERE material_id = $1 AND institute_id = $2`;
+    await pool.query(query, [id, instituteId]);
     return true;
   }
 };

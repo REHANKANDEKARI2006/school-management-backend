@@ -9,7 +9,7 @@ const EventsModel = {
   /**
    * Create event with class assignments in a transaction
    */
-  async createEventWithClasses(data, classAssignments = [], exchanges = []) {
+  async createEventWithClasses(data, classAssignments = [], exchanges = [], instituteId) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -19,8 +19,8 @@ const EventsModel = {
       const eventRes = await client.query(`
         INSERT INTO events 
         (event_name, description, event_date, event_start_date, event_end_date,
-         start_time, end_time, venue, event_status_id, event_type, displaced_period_action)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         start_time, end_time, venue, event_status_id, event_type, displaced_period_action, institute_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *;
       `, [
         data.event_name,
@@ -33,7 +33,8 @@ const EventsModel = {
         data.venue,
         data.event_status_id || 2, // default to Scheduled
         data.event_type || 'School Event',
-        data.displaced_period_action || 'cancel'
+        data.displaced_period_action || 'cancel',
+        instituteId
       ]);
 
       const event = eventRes.rows[0];
@@ -88,8 +89,6 @@ const EventsModel = {
     } catch (err) {
       await client.query("ROLLBACK");
       console.error("DATABASE_ERROR in createEventWithClasses (ROOT LEVEL):", err);
-      console.error("ERROR_DETAIL:", err.detail || "No detail");
-      console.error("ERROR_HINT:", err.hint || "No hint");
       throw err;
     } finally {
       client.release();
@@ -99,14 +98,14 @@ const EventsModel = {
   /**
    * Get single event with full detail
    */
-  async getEventById(id) {
+  async getEventById(id, instituteId) {
     // Event base
     const eventRes = await pool.query(`
       SELECT e.*, s.event_status_name
       FROM events e
       LEFT JOIN event_status s ON e.event_status_id = s.event_status_id
-      WHERE e.event_id = $1
-    `, [id]);
+      WHERE e.event_id = $1 AND e.institute_id = $2
+    `, [id, instituteId]);
     
     if (eventRes.rows.length === 0) return null;
     const event = eventRes.rows[0];
@@ -174,7 +173,7 @@ const EventsModel = {
   /**
    * Get all events with optional filters
    */
-  async getAllEvents(class_id = null) {
+  async getAllEvents(class_id = null, instituteId) {
     let query = `
       SELECT e.*, s.event_status_name,
         (SELECT COUNT(*) FROM event_class_assignments eca WHERE eca.event_id = e.event_id) AS class_count,
@@ -182,13 +181,13 @@ const EventsModel = {
          WHERE eca2.event_id = e.event_id AND eca2.attendance_status = 'submitted') AS classes_submitted
       FROM events e
       LEFT JOIN event_status s ON e.event_status_id = s.event_status_id
-      WHERE 1=1
+      WHERE e.institute_id = $1
     `;
-    const values = [];
+    const values = [instituteId];
 
     if (class_id) {
       query += ` AND (
-        e.event_id IN (SELECT event_id FROM event_class_assignments WHERE class_id = $1)
+        e.event_id IN (SELECT event_id FROM event_class_assignments WHERE class_id = $2)
         OR NOT EXISTS (SELECT 1 FROM event_class_assignments WHERE event_id = e.event_id)
       )`;
       values.push(class_id);
@@ -211,7 +210,7 @@ const EventsModel = {
   /**
    * Update event (basic fields only)
    */
-  async updateEvent(id, data) {
+  async updateEvent(id, data, instituteId) {
     const query = `
       UPDATE events SET
         event_name = $1,
@@ -226,7 +225,7 @@ const EventsModel = {
         event_type = $10,
         displaced_period_action = $11,
         updated_at = now()
-      WHERE event_id = $12
+      WHERE event_id = $12 AND institute_id = $13
       RETURNING *;
     `;
     const values = [
@@ -241,7 +240,8 @@ const EventsModel = {
       data.event_status_id,
       data.event_type || 'School Event',
       data.displaced_period_action || 'cancel',
-      id
+      id,
+      instituteId
     ];
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -250,8 +250,8 @@ const EventsModel = {
   /**
    * Delete event (cascades to class_assignments, period_exchanges, attendance)
    */
-  async deleteEvent(id) {
-    await pool.query(`DELETE FROM events WHERE event_id = $1`, [id]);
+  async deleteEvent(id, instituteId) {
+    await pool.query(`DELETE FROM events WHERE event_id = $1 AND institute_id = $2`, [id, instituteId]);
     return true;
   },
 
@@ -261,7 +261,7 @@ const EventsModel = {
    * Find displaced periods for a class on a specific date within event time range
    * Returns schedule rows that fall within the event's start_time → end_time
    */
-  async getDisplacedPeriods(classId, eventDate, startTime, endTime) {
+  async getDisplacedPeriods(classId, eventDate, startTime, endTime, instituteId) {
     // Get day_of_week from the event date (ISO: 1=Mon, 7=Sun)
     const dayRes = await pool.query(
       `SELECT EXTRACT(ISODOW FROM $1::DATE) AS dow`,
@@ -282,19 +282,24 @@ const EventsModel = {
         AND sch.is_break = false
         AND sch.start_time < $4::TIME
         AND sch.end_time > $3::TIME
+        AND sch.institute_id = $5
       ORDER BY sch.period_number
     `;
     
-    const result = await pool.query(query, [classId, dayOfWeek, startTime, endTime]);
+    const result = await pool.query(query, [classId, dayOfWeek, startTime, endTime, instituteId]);
     return result.rows;
   },
 
   /**
    * Bulk create period exchange records
    */
-  async createPeriodExchanges(exchanges) {
+  async createPeriodExchanges(exchanges, instituteId) {
     const results = [];
     for (const ex of exchanges) {
+      // Verify event ownership
+      const check = await pool.query("SELECT 1 FROM events WHERE event_id = $1 AND institute_id = $2", [ex.event_id, instituteId]);
+      if (check.rows.length === 0) continue;
+
       const res = await pool.query(`
         INSERT INTO event_period_exchanges
         (event_id, class_id, original_period_number, original_teacher_id, original_subject, exchange_date, status)
@@ -318,19 +323,20 @@ const EventsModel = {
   /**
    * Get period exchanges for an event
    */
-  async getPeriodExchanges(eventId) {
+  async getPeriodExchanges(eventId, instituteId) {
     const res = await pool.query(`
       SELECT epe.*,
         c.class_name, sec.section_name,
         st.staff_first_name AS teacher_first_name,
         st.staff_last_name AS teacher_last_name
       FROM event_period_exchanges epe
+      JOIN events e ON e.event_id = epe.event_id
       JOIN class c ON c.class_id = epe.class_id
       LEFT JOIN section sec ON sec.section_id = c.section_id
       LEFT JOIN staff st ON st.staff_id = epe.original_teacher_id
-      WHERE epe.event_id = $1
+      WHERE epe.event_id = $1 AND e.institute_id = $2
       ORDER BY epe.exchange_date, c.class_name, epe.original_period_number
-    `, [eventId]);
+    `, [eventId, instituteId]);
     return res.rows;
   },
 
@@ -339,7 +345,7 @@ const EventsModel = {
   /**
    * Get students for a class (for attendance marking)
    */
-  async getStudentsForClass(classId) {
+  async getStudentsForClass(classId, instituteId) {
     const res = await pool.query(`
       SELECT 
         s.student_id,
@@ -347,18 +353,23 @@ const EventsModel = {
         'N/A' AS roll_number,
         c.class_name
       FROM student s
+      JOIN "user" u ON u.user_id = s.student_user_id
       JOIN class_enrollment ce ON ce.student_id = s.student_id
       JOIN class c ON c.class_id = ce.class_id
-      WHERE ce.class_id = $1 AND s.is_deleted = false
+      WHERE ce.class_id = $1 AND s.is_deleted = false AND u.institute_id = $2
       ORDER BY s.stu_first_name, s.stu_last_name
-    `, [classId]);
+    `, [classId, instituteId]);
     return res.rows;
   },
 
   /**
    * Save event attendance records (bulk upsert)
    */
-  async saveEventAttendance(eventId, classId, records, markedBy) {
+  async saveEventAttendance(eventId, classId, records, markedBy, instituteId) {
+    const check = await pool.query("SELECT 1 FROM events WHERE event_id = $1 AND institute_id = $2", [eventId, instituteId]);
+    if (check.rows.length === 0) {
+      throw new Error("Event not found or unauthorized");
+    }
     const client = await pool.connect();
     // Sanitize markedBy: treat 0, null, undefined, NaN as NULL to avoid FK violation
     const safeMarkedBy = markedBy && Number(markedBy) > 0 ? Number(markedBy) : null;
@@ -399,25 +410,26 @@ const EventsModel = {
   /**
    * Get event attendance for a specific class
    */
-  async getEventAttendance(eventId, classId) {
+  async getEventAttendance(eventId, classId, instituteId) {
     const res = await pool.query(`
       SELECT ea.*,
         s.stu_first_name || ' ' || s.stu_last_name AS student_name,
         'N/A' AS roll_number,
         st.staff_first_name || ' ' || st.staff_last_name AS marked_by_name
       FROM event_attendance ea
+      JOIN events e ON e.event_id = ea.event_id
       JOIN student s ON s.student_id = ea.student_id
       LEFT JOIN staff st ON st.staff_id = ea.marked_by
-      WHERE ea.event_id = $1 AND ea.class_id = $2
+      WHERE ea.event_id = $1 AND ea.class_id = $2 AND e.institute_id = $3
       ORDER BY s.stu_first_name, s.stu_last_name
-    `, [eventId, classId]);
+    `, [eventId, classId, instituteId]);
     return res.rows;
   },
 
   /**
    * Get coordinator's events for today (dashboard prompt)
    */
-  async getCoordinatorEventsToday(staffId) {
+  async getCoordinatorEventsToday(staffId, instituteId) {
     const res = await pool.query(`
       SELECT e.event_id, e.event_name, e.start_time, e.end_time, e.venue,
         e.event_start_date, e.event_end_date, e.event_type,
@@ -427,18 +439,22 @@ const EventsModel = {
       JOIN events e ON e.event_id = eca.event_id
       JOIN class c ON c.class_id = eca.class_id
       LEFT JOIN section sec ON sec.section_id = c.section_id
-      WHERE eca.coordinator_teacher_id = $1
+      WHERE eca.coordinator_teacher_id = $1 AND e.institute_id = $2
         AND CURRENT_DATE BETWEEN COALESCE(e.event_start_date, e.event_date)
                                AND COALESCE(e.event_end_date, e.event_start_date, e.event_date)
       ORDER BY e.start_time
-    `, [staffId]);
+    `, [staffId, instituteId]);
     return res.rows;
   },
 
   /**
    * Unlock attendance for editing (admin only)
    */
-  async unlockAttendance(eventId, classId) {
+  async unlockAttendance(eventId, classId, instituteId) {
+    const check = await pool.query("SELECT 1 FROM events WHERE event_id = $1 AND institute_id = $2", [eventId, instituteId]);
+    if (check.rows.length === 0) {
+      throw new Error("Event not found or unauthorized");
+    }
     const res = await pool.query(`
       UPDATE event_class_assignments
       SET attendance_status = 'in_progress'
@@ -451,28 +467,30 @@ const EventsModel = {
   /**
    * Get class assignment for a specific event + class combo
    */
-  async getClassAssignment(eventId, classId) {
+  async getClassAssignment(eventId, classId, instituteId) {
     const res = await pool.query(`
       SELECT eca.*, 
         st.staff_first_name, st.staff_last_name,
         c.class_name, sec.section_name
       FROM event_class_assignments eca
+      JOIN events e ON e.event_id = eca.event_id
       JOIN class c ON c.class_id = eca.class_id
       LEFT JOIN section sec ON sec.section_id = c.section_id
       LEFT JOIN staff st ON st.staff_id = eca.coordinator_teacher_id
-      WHERE eca.event_id = $1 AND eca.class_id = $2
-    `, [eventId, classId]);
+      WHERE eca.event_id = $1 AND eca.class_id = $2 AND e.institute_id = $3
+    `, [eventId, classId, instituteId]);
     return res.rows[0] || null;
   },
 
   /**
    * Get displaced periods for event + class (for regular attendance auto-population)
    */
-  async getExchangesForEventClass(eventId, classId) {
+  async getExchangesForEventClass(eventId, classId, instituteId) {
     const res = await pool.query(`
-      SELECT * FROM event_period_exchanges
-      WHERE event_id = $1 AND class_id = $2
-    `, [eventId, classId]);
+      SELECT epe.* FROM event_period_exchanges epe
+      JOIN events e ON e.event_id = epe.event_id
+      WHERE epe.event_id = $1 AND epe.class_id = $2 AND e.institute_id = $3
+    `, [eventId, classId, instituteId]);
     return res.rows;
   },
 
@@ -481,7 +499,11 @@ const EventsModel = {
   /**
    * Bulk insert event photos
    */
-  async saveEventPhotos(eventId, photos) {
+  async saveEventPhotos(eventId, photos, instituteId) {
+    const check = await pool.query("SELECT 1 FROM events WHERE event_id = $1 AND institute_id = $2", [eventId, instituteId]);
+    if (check.rows.length === 0) {
+      throw new Error("Event not found or unauthorized");
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -507,10 +529,12 @@ const EventsModel = {
   /**
    * Get all photos for an event
    */
-  async getEventPhotos(eventId) {
+  async getEventPhotos(eventId, instituteId) {
     const res = await pool.query(
-      `SELECT * FROM event_photos WHERE event_id = $1 ORDER BY created_at DESC`,
-      [eventId]
+      `SELECT ep.* FROM event_photos ep 
+       JOIN events e ON e.event_id = ep.event_id
+       WHERE ep.event_id = $1 AND e.institute_id = $2 ORDER BY ep.created_at DESC`,
+      [eventId, instituteId]
     );
     return res.rows;
   },
@@ -518,7 +542,15 @@ const EventsModel = {
   /**
    * Delete a specific photo record
    */
-  async deleteEventPhoto(photoId) {
+  async deleteEventPhoto(photoId, instituteId) {
+    const photoCheck = await pool.query(
+      `SELECT 1 FROM event_photos ep
+       JOIN events e ON e.event_id = ep.event_id
+       WHERE ep.id = $1 AND e.institute_id = $2`, [photoId, instituteId]
+    );
+    if (photoCheck.rows.length === 0) {
+      throw new Error("Photo not found or unauthorized");
+    }
     const res = await pool.query(
       `DELETE FROM event_photos WHERE id = $1 RETURNING *`,
       [photoId]
