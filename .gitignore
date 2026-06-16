@@ -41,7 +41,6 @@ Thumbs.db
 *.tsbuildinfo
 
 # Lockfiles (optional depending on your workflow)
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 bun.lockb
