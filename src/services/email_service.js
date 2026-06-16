@@ -3,6 +3,7 @@ import ejs from "ejs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { SchoolProfileModel } from "../models/school_profile_model.js";
+import axios from "axios";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,10 @@ class EmailService {
    * Verify SMTP connection — call this on server startup.
    */
   async verify() {
+    if (process.env.EMAIL_BRIDGE_URL) {
+      console.log("ℹ️ Production Email Bridge configured. Bypassing local SMTP startup verification.");
+      return true;
+    }
     try {
       await this.transporter.verify();
       console.log("✅ Email service SMTP verified — ready to send emails.");
@@ -54,6 +59,23 @@ class EmailService {
       // Compile EJS template
       const templatePath = path.join(__dirname, `../templates/auth/${templateName}.ejs`);
       html = await ejs.renderFile(templatePath, { ...templateData, branding });
+
+      // If EMAIL_BRIDGE_URL is set, send via HTTP POST request to Vercel
+      if (process.env.EMAIL_BRIDGE_URL) {
+        console.log(`✉️ Sending email to: ${to} via Vercel SMTP Bridge...`);
+        const response = await axios.post(process.env.EMAIL_BRIDGE_URL, {
+          to,
+          subject,
+          html,
+          secret: process.env.EMAIL_BRIDGE_SECRET,
+        });
+        if (response.data && response.data.success) {
+          console.log(`✅ Email sent successfully via bridge: ${response.data.messageId}`);
+          return response.data;
+        } else {
+          throw new Error(response.data?.error || "Unknown bridge failure");
+        }
+      }
 
       const mailOptions = {
         from: process.env.EMAIL_FROM || `"CampusConnect" <${process.env.EMAIL_USER}>`,
