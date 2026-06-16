@@ -2,7 +2,6 @@ import nodemailer from "nodemailer";
 import ejs from "ejs";
 import path from "path";
 import { fileURLToPath } from "url";
-import axios from "axios";
 import { SchoolProfileModel } from "../models/school_profile_model.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,10 +24,6 @@ class EmailService {
    * Verify SMTP connection — call this on server startup.
    */
   async verify() {
-    if (process.env.RESEND_API_KEY) {
-      console.log("✅ Email service: RESEND_API_KEY is configured. Using Resend REST API.");
-      return true;
-    }
     try {
       await this.transporter.verify();
       console.log("✅ Email service SMTP verified — ready to send emails.");
@@ -60,28 +55,6 @@ class EmailService {
       const templatePath = path.join(__dirname, `../templates/auth/${templateName}.ejs`);
       html = await ejs.renderFile(templatePath, { ...templateData, branding });
 
-      if (process.env.RESEND_API_KEY) {
-        console.log(`✉️ Sending email to: ${to} (Subject: "${subject}", School: "${branding.schoolName}") via Resend API`);
-        const fromAddress = process.env.RESEND_FROM || "onboarding@resend.dev";
-        const response = await axios.post(
-          "https://api.resend.com/emails",
-          {
-            from: fromAddress,
-            to: [to],
-            subject,
-            html,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        console.log(`✅ Email sent successfully via Resend: ${response.data.id}`);
-        return { messageId: response.data.id };
-      }
-
       const mailOptions = {
         from: process.env.EMAIL_FROM || `"CampusConnect" <${process.env.EMAIL_USER}>`,
         to,
@@ -94,8 +67,7 @@ class EmailService {
       console.log(`✅ Email sent successfully: ${info.messageId}`);
       return info;
     } catch (error) {
-      const errMsg = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-      console.error(`❌ Failed to send email to ${to}:`, errMsg);
+      console.error(`❌ Failed to send email to ${to}:`, error.message);
       throw error;
     }
   }
