@@ -13,11 +13,21 @@ class HolidayServiceClass {
 
   // Get Google Calendar API client
   async getGoogleClient() {
-    const keyPath = process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH;
-    const auth = new google.auth.GoogleAuth({
-      keyFile: keyPath,
+    const options = {
       scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-    });
+    };
+    
+    if (process.env.GOOGLE_CALENDAR_CREDENTIALS) {
+      try {
+        options.credentials = JSON.parse(process.env.GOOGLE_CALENDAR_CREDENTIALS);
+      } catch (err) {
+        console.error('[HolidayService] Failed to parse GOOGLE_CALENDAR_CREDENTIALS JSON:', err.message);
+      }
+    } else {
+      options.keyFile = process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH;
+    }
+
+    const auth = new google.auth.GoogleAuth(options);
     return google.calendar({ version: 'v3', auth });
   }
 
