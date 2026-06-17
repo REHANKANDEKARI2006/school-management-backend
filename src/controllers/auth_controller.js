@@ -890,15 +890,28 @@ export const resendInvitation = async (req, res) => {
     const roleRes = await pool.query("SELECT role_code FROM user_role WHERE role_id = $1", [user.role_id]);
     const role_code = roleRes.rows[0].role_code;
 
-    await emailService.sendInvitation({
-      to: email,
-      name: user.user_name,
-      role: role_code.replace("_", " "),
-      token: invite_token,
-      instituteId: req.instituteId,
-    });
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await emailService.sendInvitation({
+        to: email,
+        name: user.user_name,
+        role: role_code.replace("_", " "),
+        token: invite_token,
+        instituteId: req.instituteId,
+      });
+      emailSent = true;
+    } catch (emailErr) {
+      emailError = emailErr.message;
+      console.error("❌ Failed to send resend invitation email:", emailErr.message);
+    }
 
-    return res.json({ success: true, message: "Invitation resent successfully" });
+    return res.json({ 
+      success: true, 
+      message: emailSent
+        ? "Invitation resent successfully" 
+        : `Invitation token regenerated, but email delivery failed. Error: ${emailError}`
+    });
   } catch (error) {
     console.error("❌ RESEND INVITATION ERROR:", error);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -983,6 +996,7 @@ export const setPassword = async (req, res) => {
     await pool.query('UPDATE staff SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
     await pool.query('UPDATE student SET user_status_id = 1 WHERE student_user_id = $1', [user.user_id]);
     await pool.query('UPDATE master_admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
+    await pool.query('UPDATE guardian SET user_status_id = 1 WHERE guardian_user_id = $1', [user.user_id]);
 
     // Send confirmation email (non-blocking)
     try {
@@ -1216,6 +1230,8 @@ export const updateUserStatus = async (req, res) => {
       await pool.query('UPDATE admin SET user_status_id = 13 WHERE user_id = $1', [id]);
       await pool.query('UPDATE staff SET user_status_id = 13 WHERE user_id = $1', [id]);
       await pool.query('UPDATE student SET user_status_id = 13 WHERE student_user_id = $1', [id]);
+      await pool.query('UPDATE master_admin SET user_status_id = 13 WHERE user_id = $1', [id]);
+      await pool.query('UPDATE guardian SET user_status_id = 13 WHERE guardian_user_id = $1', [id]);
 
       try {
         await emailService.sendInvitation({
@@ -1239,6 +1255,8 @@ export const updateUserStatus = async (req, res) => {
         await pool.query('UPDATE admin SET user_status_id = $1 WHERE user_id = $2', [statusId, id]);
         await pool.query('UPDATE staff SET user_status_id = $1 WHERE user_id = $2', [statusId, id]);
         await pool.query('UPDATE student SET user_status_id = $1 WHERE student_user_id = $2', [statusId, id]);
+        await pool.query('UPDATE master_admin SET user_status_id = $1 WHERE user_id = $2', [statusId, id]);
+        await pool.query('UPDATE guardian SET user_status_id = $1 WHERE guardian_user_id = $2', [statusId, id]);
       }
 
       if (isDeactivating && oldUser.role_code === 'INSTITUTE_ADMIN') {
