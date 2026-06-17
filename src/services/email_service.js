@@ -96,9 +96,9 @@ class EmailService {
 
   // ── Specific email helpers ──────────────────────────────────────────────
 
-  async sendInvitation({ to, name, role, token, loginEmail, instituteId }) {
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const setPasswordUrl = `${frontendUrl}/auth/set-password?token=${token}`;
+  async sendInvitation({ to, name, role, token, loginEmail, instituteId, frontendUrl }) {
+    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const setPasswordUrl = `${baseUrl}/auth/set-password?token=${token}`;
     return this.sendEmail({
       to,
       subject: `You've been invited to CampusConnect — Set your password`,
@@ -108,9 +108,9 @@ class EmailService {
     });
   }
 
-  async sendMasterAdminSetup({ to, name, token, instituteId }) {
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const setPasswordUrl = `${frontendUrl}/auth/set-password?token=${token}`;
+  async sendMasterAdminSetup({ to, name, token, instituteId, frontendUrl }) {
+    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const setPasswordUrl = `${baseUrl}/auth/set-password?token=${token}`;
     return this.sendEmail({
       to,
       subject: `CampusConnect — Set your Master Admin password`,
@@ -120,8 +120,9 @@ class EmailService {
     });
   }
 
-  async sendPasswordChangedConfirmation({ to, name, instituteId }) {
-    const loginUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/login`;
+  async sendPasswordChangedConfirmation({ to, name, instituteId, frontendUrl }) {
+    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const loginUrl = `${baseUrl}/auth/login`;
     return this.sendEmail({
       to,
       subject: "Your CampusConnect password has been set successfully",
@@ -131,8 +132,9 @@ class EmailService {
     });
   }
 
-  async sendForgotPassword({ to, name, token, instituteId }) {
-    const resetPasswordUrl = `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/reset-password?token=${token}`;
+  async sendForgotPassword({ to, name, token, instituteId, frontendUrl }) {
+    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const resetPasswordUrl = `${baseUrl}/auth/reset-password?token=${token}`;
     return this.sendEmail({
       to,
       subject: "Reset your CampusConnect password",

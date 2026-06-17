@@ -6,13 +6,24 @@ import { emailService } from "../services/email_service.js";
 
 import { StudentModel } from "../models/student_Model.js";
 
+const getFrontendUrl = (req) => {
+  if (req.headers.origin) return req.headers.origin;
+  if (req.headers.referer) {
+    try {
+      return new URL(req.headers.referer).origin;
+    } catch (e) {}
+  }
+  return null;
+};
+
 /* =========================
    LOGIN CONTROLLER
 ========================= */
 export const login = async (req, res) => {
   console.log(`🔑 Login attempt for: ${req.body.email}`);
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = req.body.email ? req.body.email.trim() : "";
     const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     if (!email || !password) {
@@ -55,6 +66,7 @@ export const login = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      console.log(`❌ Login Failed: User not found for email ${email}`);
       return res.status(401).json({
         success: false,
         message: "Invalid email",
@@ -65,12 +77,14 @@ export const login = async (req, res) => {
 
     // Check status
     if (user.status === "pending") {
+      console.log(`❌ Login Failed: Status is pending for user ${email}`);
       return res.status(403).json({
         success: false,
         message: "Your invitation is pending. Please set your password using the link sent to your email.",
       });
     }
     if (user.status === "deactivated" || !user.is_active) {
+      console.log(`❌ Login Failed: Status deactivated (${user.status}, is_active: ${user.is_active}) for user ${email}`);
       return res.status(403).json({
         success: false,
         deactivated: true,
@@ -80,6 +94,7 @@ export const login = async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
+      console.log(`❌ Login Failed: Password mismatch for user ${email}`);
       // 2. Log Failed Attempt
       await pool.query(
         `INSERT INTO login_attempts (ip_address, attempts, last_attempt) 
@@ -129,6 +144,7 @@ export const login = async (req, res) => {
     // Block if status is restricted (Allowed: 1:Active, 7:On Leave, 8:Probation)
     const allowedStatuses = [1, 7, 8];
     if (!allowedStatuses.includes(statusId)) {
+      console.log(`❌ Login Failed: Restricted status ${statusId} for user ${email}`);
       const statusNames = {
         2: "Inactive", 3: "Suspended", 4: "Rusticated", 5: "Alumni", 
         6: "Transferred", 9: "Resigned", 10: "Terminated", 11: "Retired", 
@@ -699,7 +715,8 @@ export const uploadAvatar = async (req, res) => {
 export const inviteUser = async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, email, phone, role_code, designation } = req.body;
+    const { name, phone, role_code, designation } = req.body;
+    const email = req.body.email ? req.body.email.trim() : "";
     const inviter_id = req.user.user_id;
     const inviter_role = Number(req.user.role_id);
     const institute_id = req.instituteId || req.user.institute_id;
@@ -826,6 +843,7 @@ export const inviteUser = async (req, res) => {
           role: role_code.replace(/_/g, " "),
           token: invite_token,
           instituteId: req.instituteId,
+          frontendUrl: getFrontendUrl(req),
         });
         emailSent = true;
       } catch (emailErr) {
@@ -899,6 +917,7 @@ export const resendInvitation = async (req, res) => {
         role: role_code.replace("_", " "),
         token: invite_token,
         instituteId: req.instituteId,
+        frontendUrl: getFrontendUrl(req),
       });
       emailSent = true;
     } catch (emailErr) {
@@ -1004,6 +1023,7 @@ export const setPassword = async (req, res) => {
         to: user.email,
         name: user.user_name,
         instituteId: user.institute_id,
+        frontendUrl: getFrontendUrl(req),
       });
     } catch (emailErr) {
       console.error("❌ Failed to send password changed confirmation email:", emailErr.message);
@@ -1050,6 +1070,7 @@ export const forgotPassword = async (req, res) => {
       name: user.user_name,
       token: reset_token,
       instituteId: user.institute_id,
+      frontendUrl: getFrontendUrl(req),
     });
 
     return res.json({ success: true, message: successMsg });
@@ -1102,6 +1123,7 @@ export const resetPassword = async (req, res) => {
         to: user.email,
         name: user.user_name,
         instituteId: user.institute_id,
+        frontendUrl: getFrontendUrl(req),
       });
     } catch (emailErr) {
       console.error("❌ Failed to send password reset confirmation email:", emailErr.message);
@@ -1240,6 +1262,7 @@ export const updateUserStatus = async (req, res) => {
           role: oldUser.role_code.replace(/_/g, " "),
           token: invite_token,
           instituteId: oldUser.institute_id,
+          frontendUrl: getFrontendUrl(req),
         });
       } catch (emailErr) {
         console.error("❌ Failed to send reactivation invitation email:", emailErr);
@@ -1478,6 +1501,7 @@ export const setupMasterAdmin = async (req, res) => {
         name: name,
         token: invite_token,
         instituteId,
+        frontendUrl: getFrontendUrl(req),
       });
       emailSent = true;
     } catch (emailErr) {
