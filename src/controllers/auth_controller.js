@@ -984,12 +984,16 @@ export const setPassword = async (req, res) => {
     await pool.query('UPDATE student SET user_status_id = 1 WHERE student_user_id = $1', [user.user_id]);
     await pool.query('UPDATE master_admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
 
-    // Send confirmation email
-    await emailService.sendPasswordChangedConfirmation({
-      to: user.email,
-      name: user.user_name,
-      instituteId: user.institute_id,
-    });
+    // Send confirmation email (non-blocking)
+    try {
+      await emailService.sendPasswordChangedConfirmation({
+        to: user.email,
+        name: user.user_name,
+        instituteId: user.institute_id,
+      });
+    } catch (emailErr) {
+      console.error("❌ Failed to send password changed confirmation email:", emailErr.message);
+    }
 
     return res.json({ success: true, message: "Password set successfully. You can now login." });
   } catch (error) {
@@ -1078,12 +1082,16 @@ export const resetPassword = async (req, res) => {
       [hashedPassword, user.user_id]
     );
 
-    // Send confirmation
-    await emailService.sendPasswordChangedConfirmation({
-      to: user.email,
-      name: user.user_name,
-      instituteId: user.institute_id,
-    });
+    // Send confirmation (non-blocking)
+    try {
+      await emailService.sendPasswordChangedConfirmation({
+        to: user.email,
+        name: user.user_name,
+        instituteId: user.institute_id,
+      });
+    } catch (emailErr) {
+      console.error("❌ Failed to send password reset confirmation email:", emailErr.message);
+    }
 
     return res.json({ success: true, message: "Password reset successfully. You can now login." });
   } catch (error) {
