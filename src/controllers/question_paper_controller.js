@@ -156,6 +156,51 @@ const QuestionPaperController = {
 
       browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
       const page = await browser.newPage();
+      
+      await page.setRequestInterception(true);
+      page.on('request', async (request) => {
+        const url = request.url();
+        if (url.includes('public/')) {
+          try {
+            const fs = await import('fs');
+            const parsedUrl = new URL(url);
+            let pathname = parsedUrl.pathname;
+            if (pathname.includes('public/')) {
+              pathname = pathname.substring(pathname.indexOf('public/'));
+            }
+            const relativePath = decodeURIComponent(pathname);
+            const absolutePath = path.resolve(path.join(__dirname, '..', '..', relativePath));
+            
+            if (fs.existsSync(absolutePath)) {
+              const fileBuffer = fs.readFileSync(absolutePath);
+              let contentType = 'image/png';
+              if (absolutePath.endsWith('.jpg') || absolutePath.endsWith('.jpeg')) {
+                contentType = 'image/jpeg';
+              } else if (absolutePath.endsWith('.gif')) {
+                contentType = 'image/gif';
+              } else if (absolutePath.endsWith('.svg')) {
+                contentType = 'image/svg+xml';
+              }
+              
+              await request.respond({
+                status: 200,
+                contentType,
+                body: fileBuffer
+              });
+              return;
+            }
+          } catch (err) {
+            console.error("Failed to intercept and serve local file:", url, err);
+          }
+        }
+        
+        if (url.startsWith('http') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+          await request.abort();
+        } else {
+          await request.continue();
+        }
+      });
+
       await page.setContent(html, { waitUntil: 'networkidle0' });
       const pdfBuffer = await page.pdf({
         format: 'A4',
@@ -185,6 +230,12 @@ const QuestionPaperController = {
       res.send(pdfBuffer);
     } catch (err) {
       console.error("PDF generation failed:", err);
+      try {
+        const fs = await import('fs');
+        fs.writeFileSync(path.join(__dirname, '..', '..', 'pdf_error.log'), `Error: ${err.message}\nStack: ${err.stack}\nTime: ${new Date().toISOString()}\n`);
+      } catch (e) {
+        console.error("Failed to write pdf_error.log:", e);
+      }
       if (browser) await browser.close();
       res.status(500).json({ success: false, message: err.message });
     }

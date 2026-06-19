@@ -502,6 +502,30 @@
           return new Date().toLocaleDateString('en-GB');
         }
       };
+
+      const parseSectionName = (raw) => {
+        if (!raw) return { title: "", group: "", name: "" };
+        const parts = raw.split("///");
+        if (parts.length >= 3) {
+          return {
+            title: parts[0] || "",
+            group: parts[1] || "",
+            name: parts[2] || ""
+          };
+        }
+        if (parts.length === 2) {
+          return {
+            title: parts[0] || "",
+            group: parts[1] || "",
+            name: ""
+          };
+        }
+        return {
+          title: raw,
+          group: "",
+          name: ""
+        };
+      };
     %>
 
     <% if (school.show_watermark) { %>
@@ -621,11 +645,22 @@
                    paper.sections.forEach(function(sec, secIdx) { 
                        if (!sec.questions || sec.questions.length === 0) return;
                        globalQNum++;
-                       const secTitle = getSectionTitle(sec.section_name);
+                       const parsed = parseSectionName(sec.section_name);
+                       const secTitle = getSectionTitle(parsed.title);
                        const secMarks = sec.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
                 %>
                     <!-- Fix 5: section-container with padding-top so new-page sections aren't cramped -->
                     <div class="section-container" style="page-break-inside: auto; margin-bottom: 10pt; width: 100%;">
+                         <% if (parsed.group || parsed.name) { %>
+                             <div style="width: 100%; text-align: center; margin-top: 12pt; margin-bottom: 6pt; page-break-inside: avoid;">
+                                 <% if (parsed.group) { %>
+                                     <div style="font-size: 11pt; font-weight: bold; font-family: 'Times New Roman', Times, serif;"><%= parsed.group %></div>
+                                 <% } %>
+                                 <% if (parsed.name) { %>
+                                     <div style="font-size: 10pt; font-weight: bold; font-family: 'Times New Roman', Times, serif; margin-top: 2pt;"><%= parsed.name %></div>
+                                 <% } %>
+                             </div>
+                         <% } %>
                         <!-- Section Header -->
                          <div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 2pt; margin-bottom: 6pt; width: 100%; gap: 30px;">
                              <span style="font-weight: 900; font-size: 10.5pt; letter-spacing: 0.5px; color: #000; flex: 1; min-width: 0;">
