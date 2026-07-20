@@ -44,7 +44,7 @@ async function run() {
       DROP TABLE IF EXISTS 
         activity_log, student_submissions, teacher_requests, teacher_messages, document_templates, school_profile, 
         notifications, substitute_assignments, leave_applications, leave_balance, leave_types, question_bank, 
-        questions, paper_sections, template_custom_content, document_templates, generated_documents, paper_format_templates, question_papers, holiday_cache, custom_holidays, promotion, document_generation, 
+        recurring_holidays, questions, paper_sections, template_custom_content, document_templates, generated_documents, paper_format_templates, question_papers, holiday_cache, custom_holidays, promotion, document_generation, 
         grade_boundary, notice_attachment, notices, notice_audience, materials, student_results, exam_grades, 
         exam, event_photos, event_attendance, event_period_exchanges, event_class_assignments, event_role_assignment, 
         events, attendance_record, attendance_session, fee_collection, fee_installment, fee_payment, fee_structure, schedule, class_enrollment, 
@@ -1075,14 +1075,32 @@ async function run() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS student_submissions (
         id SERIAL PRIMARY KEY,
+        material_id INTEGER REFERENCES materials(material_id) ON DELETE CASCADE,
         student_id INTEGER NOT NULL REFERENCES student(student_id) ON DELETE CASCADE,
-        staff_id INTEGER NOT NULL REFERENCES staff(staff_id) ON DELETE CASCADE,
-        title VARCHAR(255) NOT NULL,
+        staff_id INTEGER REFERENCES staff(staff_id) ON DELETE CASCADE,
+        title VARCHAR(255),
         file_url TEXT,
+        file_path VARCHAR(255),
         status VARCHAR(20) DEFAULT 'submitted',
+        grade VARCHAR(10),
+        feedback TEXT,
         remarks TEXT,
+        submitted_at TIMESTAMPTZ DEFAULT now(),
         created_at TIMESTAMPTZ DEFAULT now(),
         updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS recurring_holidays (
+        id           SERIAL PRIMARY KEY,
+        holiday_name VARCHAR(150) NOT NULL,
+        day          INTEGER NOT NULL,
+        month        INTEGER NOT NULL,
+        state_tag    VARCHAR(50),
+        is_active    BOOLEAN DEFAULT true,
+        created_at   TIMESTAMPTZ DEFAULT now(),
+        updated_at   TIMESTAMPTZ DEFAULT now()
       )
     `);
 
