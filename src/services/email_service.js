@@ -51,7 +51,7 @@ class EmailService {
       // Fetch school branding info (falls back to Sunshine Public School ID 3 instead of ID 1)
       const schoolProfile = await SchoolProfileModel.getProfile(instituteId || 3);
       const branding = {
-        schoolName: schoolProfile?.school_name || "CampusConnect",
+        schoolName: schoolProfile?.school_name || "SchoolOS",
         logoUrl: schoolProfile?.logo_url || "https://res.cloudinary.com/dmrin51u8/image/upload/v1713550000/logo_placeholder.png",
         primaryColor: schoolProfile?.primary_color || "#3b82f6",
       };
@@ -78,7 +78,7 @@ class EmailService {
       }
 
       const mailOptions = {
-        from: process.env.EMAIL_FROM || `"CampusConnect" <${process.env.EMAIL_USER}>`,
+        from: process.env.EMAIL_FROM || `"SchoolOS" <${process.env.EMAIL_USER}>`,
         to,
         subject,
         html,
@@ -101,7 +101,7 @@ class EmailService {
     const setPasswordUrl = `${baseUrl}/auth/set-password?token=${token}`;
     return this.sendEmail({
       to,
-      subject: `You've been invited to CampusConnect — Set your password`,
+      subject: `You've been invited to SchoolOS — Set your password`,
       templateName: "invitation",
       templateData: { name, role, setPasswordUrl, loginEmail: loginEmail || to },
       instituteId
@@ -113,7 +113,7 @@ class EmailService {
     const setPasswordUrl = `${baseUrl}/auth/set-password?token=${token}`;
     return this.sendEmail({
       to,
-      subject: `CampusConnect — Set your Master Admin password`,
+      subject: `SchoolOS — Set your Master Admin password`,
       templateName: "master_admin_setup",
       templateData: { name, setPasswordUrl, loginEmail: to },
       instituteId
@@ -125,7 +125,7 @@ class EmailService {
     const loginUrl = `${baseUrl}/auth/login`;
     return this.sendEmail({
       to,
-      subject: "Your CampusConnect password has been set successfully",
+      subject: "Your SchoolOS password has been set successfully",
       templateName: "password_changed",
       templateData: { name, loginUrl },
       instituteId
@@ -137,7 +137,7 @@ class EmailService {
     const resetPasswordUrl = `${baseUrl}/auth/reset-password?token=${token}`;
     return this.sendEmail({
       to,
-      subject: "Reset your CampusConnect password",
+      subject: "Reset your SchoolOS password",
       templateName: "forgot_password",
       templateData: { name, resetPasswordUrl },
       instituteId
@@ -147,7 +147,7 @@ class EmailService {
   async sendDeactivationNotification({ to, name, instituteId }) {
     return this.sendEmail({
       to,
-      subject: "Your CampusConnect account has been deactivated",
+      subject: "Your SchoolOS account has been deactivated",
       templateName: "deactivation",
       templateData: { name },
       instituteId
