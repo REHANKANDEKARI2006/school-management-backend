@@ -44,7 +44,7 @@ async function run() {
       DROP TABLE IF EXISTS 
         activity_log, student_submissions, teacher_requests, teacher_messages, document_templates, school_profile, 
         notifications, substitute_assignments, leave_applications, leave_balance, leave_types, question_bank, 
-        paper_format_templates, question_papers, holiday_cache, custom_holidays, promotion, document_generation, 
+        template_custom_content, document_templates, generated_documents, paper_format_templates, question_papers, holiday_cache, custom_holidays, promotion, document_generation, 
         grade_boundary, notice_attachment, notices, notice_audience, materials, student_results, exam_grades, 
         exam, event_photos, event_attendance, event_period_exchanges, event_class_assignments, event_role_assignment, 
         events, attendance_record, attendance_session, fee_collection, fee_installment, fee_payment, fee_structure, schedule, class_enrollment, 
@@ -617,6 +617,40 @@ async function run() {
         principal_name  VARCHAR(100),
         created_at      TIMESTAMPTZ DEFAULT now(),
         updated_at      TIMESTAMPTZ DEFAULT now()
+      )
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS document_templates (
+        id                SERIAL PRIMARY KEY,
+        template_name     VARCHAR(150) NOT NULL,
+        document_type     VARCHAR(50) NOT NULL,
+        base_template_id  VARCHAR(50) DEFAULT 'template1',
+        title             TEXT,
+        paragraph         TEXT,
+        remarks           TEXT,
+        content           TEXT,
+        character_limit   INTEGER,
+        language          VARCHAR(20) DEFAULT 'en',
+        institute_id      INTEGER REFERENCES institute(institute_id) ON DELETE CASCADE,
+        created_by        INTEGER REFERENCES "user"(user_id) ON DELETE SET NULL,
+        is_default        BOOLEAN DEFAULT FALSE,
+        created_at        TIMESTAMPTZ DEFAULT now(),
+        updated_at        TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS template_custom_content (
+        id SERIAL PRIMARY KEY,
+        document_type VARCHAR(50) NOT NULL,
+        template_id VARCHAR(50) NOT NULL,
+        language VARCHAR(20) NOT NULL,
+        title TEXT,
+        paragraph TEXT,
+        remarks TEXT,
+        institute_id INTEGER REFERENCES institute(institute_id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE(document_type, template_id, language, institute_id)
       )
     `);
 
