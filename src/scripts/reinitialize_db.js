@@ -741,6 +741,8 @@ async function run() {
         author_type   VARCHAR(30) NOT NULL,
         author_id     INTEGER,
         audience_id   INTEGER NOT NULL REFERENCES notice_audience(audience_id) ON DELETE CASCADE,
+        class_id      INTEGER REFERENCES class(class_id),
+        class_ids     INTEGER[] DEFAULT '{}',
         img_url       VARCHAR(255),
         attachment_id INTEGER,
         post_date     DATE DEFAULT CURRENT_DATE,
