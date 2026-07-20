@@ -859,25 +859,32 @@ async function run() {
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS paper_sections (
-        section_id    SERIAL PRIMARY KEY,
-        paper_id      INTEGER NOT NULL REFERENCES question_papers(paper_id) ON DELETE CASCADE,
-        title         VARCHAR(255),
-        instructions  TEXT,
-        section_order INTEGER DEFAULT 1,
-        created_at    TIMESTAMPTZ DEFAULT now()
+        section_id          SERIAL PRIMARY KEY,
+        paper_id            INTEGER NOT NULL REFERENCES question_papers(paper_id) ON DELETE CASCADE,
+        section_name        VARCHAR(255),
+        title               VARCHAR(255),
+        instructions        TEXT,
+        section_order       INTEGER DEFAULT 1,
+        total_section_marks DOUBLE PRECISION DEFAULT 0,
+        created_at          TIMESTAMPTZ DEFAULT now()
       )
     `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS questions (
-        question_id   SERIAL PRIMARY KEY,
-        section_id    INTEGER NOT NULL REFERENCES paper_sections(section_id) ON DELETE CASCADE,
-        question_text TEXT NOT NULL,
-        question_type VARCHAR(50) DEFAULT 'subjective',
-        marks         DOUBLE PRECISION DEFAULT 1,
-        options       JSONB DEFAULT '[]',
+        question_id    SERIAL PRIMARY KEY,
+        section_id     INTEGER NOT NULL REFERENCES paper_sections(section_id) ON DELETE CASCADE,
+        question_text  TEXT NOT NULL,
+        question_type  VARCHAR(50) DEFAULT 'subjective',
+        question_data  JSONB DEFAULT '{}',
+        marks          DOUBLE PRECISION DEFAULT 1,
+        options        JSONB DEFAULT '[]',
         question_order INTEGER DEFAULT 1,
-        created_at    TIMESTAMPTZ DEFAULT now()
+        difficulty     VARCHAR(50) DEFAULT 'Medium',
+        answer_key     TEXT,
+        explanation    TEXT,
+        blooms_taxonomy VARCHAR(100),
+        created_at     TIMESTAMPTZ DEFAULT now()
       )
     `);
 
