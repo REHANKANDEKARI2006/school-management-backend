@@ -44,7 +44,7 @@ async function run() {
       DROP TABLE IF EXISTS 
         activity_log, student_submissions, teacher_requests, teacher_messages, document_templates, school_profile, 
         notifications, substitute_assignments, leave_applications, leave_balance, leave_types, question_bank, 
-        template_custom_content, document_templates, generated_documents, paper_format_templates, question_papers, holiday_cache, custom_holidays, promotion, document_generation, 
+        questions, paper_sections, template_custom_content, document_templates, generated_documents, paper_format_templates, question_papers, holiday_cache, custom_holidays, promotion, document_generation, 
         grade_boundary, notice_attachment, notices, notice_audience, materials, student_results, exam_grades, 
         exam, event_photos, event_attendance, event_period_exchanges, event_class_assignments, event_role_assignment, 
         events, attendance_record, attendance_session, fee_collection, fee_installment, fee_payment, fee_structure, schedule, class_enrollment, 
@@ -832,23 +832,52 @@ async function run() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS question_papers (
         paper_id            SERIAL PRIMARY KEY,
+        exam_id             INTEGER REFERENCES exam(exam_id) ON DELETE SET NULL,
         title               VARCHAR(255),
-        class_name          VARCHAR(20)  NOT NULL,
+        class_id            INTEGER REFERENCES class(class_id) ON DELETE SET NULL,
+        subject_id          INTEGER REFERENCES subject(subject_id) ON DELETE SET NULL,
+        class_name          VARCHAR(20),
         section             VARCHAR(10),
-        subject             VARCHAR(100) NOT NULL,
+        subject             VARCHAR(100),
         exam_type           VARCHAR(50),
         exam_date           DATE,
         total_marks         INTEGER      NOT NULL DEFAULT 80,
         duration_mins       INTEGER      NOT NULL DEFAULT 180,
+        instructions        TEXT,
         sections            JSONB        NOT NULL DEFAULT '[]',
         status              VARCHAR(20)  NOT NULL DEFAULT 'draft',
+        is_template         BOOLEAN      DEFAULT FALSE,
         format_template_id  INTEGER,
         created_by          INTEGER,
-        institute_id        INTEGER,
+        institute_id        INTEGER      REFERENCES institute(institute_id) ON DELETE CASCADE,
         inst_name           VARCHAR(255),
         inst_address        VARCHAR(500),
         created_at          TIMESTAMPTZ  DEFAULT now(),
         updated_at          TIMESTAMPTZ  DEFAULT now()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS paper_sections (
+        section_id    SERIAL PRIMARY KEY,
+        paper_id      INTEGER NOT NULL REFERENCES question_papers(paper_id) ON DELETE CASCADE,
+        title         VARCHAR(255),
+        instructions  TEXT,
+        section_order INTEGER DEFAULT 1,
+        created_at    TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS questions (
+        question_id   SERIAL PRIMARY KEY,
+        section_id    INTEGER NOT NULL REFERENCES paper_sections(section_id) ON DELETE CASCADE,
+        question_text TEXT NOT NULL,
+        question_type VARCHAR(50) DEFAULT 'subjective',
+        marks         DOUBLE PRECISION DEFAULT 1,
+        options       JSONB DEFAULT '[]',
+        question_order INTEGER DEFAULT 1,
+        created_at    TIMESTAMPTZ DEFAULT now()
       )
     `);
 
