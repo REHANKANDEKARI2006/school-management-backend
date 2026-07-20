@@ -116,7 +116,7 @@ export const StudentModel = {
       LEFT JOIN section sec ON sec.section_id = c.section_id
       LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
       WHERE s.student_id = $1
-        AND u.institute_id = $2
+        AND ($2::INTEGER IS NULL OR u.institute_id = $2::INTEGER)
         AND s.is_deleted = FALSE
       `,
       [id, instituteId]

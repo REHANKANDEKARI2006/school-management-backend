@@ -522,7 +522,7 @@ export const DocumentService = {
     }
   },
 
-  async generateMarkSheet(studentId, userId = null, providedBrowser = null, templateId = null, instituteId = null) {
+  async generateMarkSheet(studentId, userId = null, templateId = null, providedBrowser = null, instituteId = null) {
     let browser = providedBrowser;
     let shouldCloseBrowser = !providedBrowser;
     try {
@@ -703,7 +703,7 @@ ${bodyHtml}
   },
 
 
-  async generateFeeReceipt(paymentId, userId = null, providedBrowser = null, templateId = null, instituteId = null) {
+  async generateFeeReceipt(paymentId, userId = null, templateId = null, providedBrowser = null, instituteId = null) {
     let browser = providedBrowser;
     let shouldCloseBrowser = !providedBrowser;
     try {

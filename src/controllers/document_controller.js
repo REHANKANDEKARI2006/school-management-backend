@@ -243,7 +243,7 @@ export const DocumentController = {
       const user_id = req.user?.user_id;
       const templateId = req.query.template || null;
       
-      const pdfBuffer = await DocumentService.generateFeeReceipt(paymentId, user_id, null, templateId, req.instituteId);
+      const pdfBuffer = await DocumentService.generateFeeReceipt(paymentId, user_id, templateId, null, req.instituteId);
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Fee_Receipt_${paymentId}.pdf"`);
@@ -349,7 +349,7 @@ export const DocumentController = {
         }
       }
 
-      const pdfBuffer = await DocumentService.generateMarkSheet(studentId, user_id, null, templateId, req.instituteId);
+      const pdfBuffer = await DocumentService.generateMarkSheet(studentId, user_id, templateId, null, req.instituteId);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="MarkSheet_${studentId}.pdf"`);
