@@ -390,8 +390,8 @@ async function run() {
       CREATE TABLE IF NOT EXISTS schedule (
         schedule_id   SERIAL PRIMARY KEY,
         class_id      INTEGER NOT NULL REFERENCES class(class_id) ON DELETE CASCADE,
-        staff_id      INTEGER NOT NULL REFERENCES staff(staff_id) ON DELETE CASCADE,
-        subject_id    INTEGER NOT NULL REFERENCES subject(subject_id) ON DELETE CASCADE,
+        staff_id      INTEGER REFERENCES staff(staff_id) ON DELETE CASCADE,
+        subject_id    INTEGER REFERENCES subject(subject_id) ON DELETE CASCADE,
         schedule_date DATE,
         day_of_week   SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
         period_number SMALLINT NOT NULL,
