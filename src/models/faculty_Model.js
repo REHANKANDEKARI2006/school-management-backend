@@ -91,16 +91,18 @@ export const FacultyModel = {
         const userRes = await client.query(
           `INSERT INTO "user" (
             user_name, institute_id, email, role_id,
+            password_hash,
             status, is_active,
             invite_token, invite_token_expiry, created_by
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING user_id`,
           [
             fullName,
             authUser.institute_id,
             email,
             role_id || 3, // Default to Teacher if not specified
+            "PENDING_INVITE",  // Placeholder — replaced when user sets password via invite link
             "pending",
             false,
             invite_token,
