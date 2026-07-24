@@ -26,6 +26,7 @@ import holidayRoutes from "./routes/holiday_routes.js";
 import { HolidayService } from "./services/holiday_service.js";
 import { seedMasterAdmin } from "./scripts/seed_master_admin.js";
 import { emailService } from "./services/email_service.js";
+import { syncAllSequences } from "./utils/sync_sequences.js";
 
 // Cron Jobs
 import { startCronJobs } from "./cron/status_tracker.js";
@@ -115,6 +116,9 @@ app.listen(PORT, '0.0.0.0', async () => {
    console.log(`✅ Backend server running on http://0.0.0.0:${PORT}`);
    startCronJobs();
    seedMasterAdmin();
+
+   // Auto-fix any out-of-sync primary key sequences
+   syncAllSequences();
 
    // Verify Email SMTP on startup
    emailService.verify();

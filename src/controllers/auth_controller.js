@@ -780,11 +780,13 @@ export const inviteUser = async (req, res) => {
       const userRes = await client.query(
         `INSERT INTO "user" (
           user_name, email, phone, role_id, 
+          password_hash,
           institute_id, status, is_active,
           invite_token, invite_token_expiry, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING user_id`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING user_id`,
         [
           name, email, phone || null, role_id, 
+          "PENDING_INVITE",
           institute_id, "pending", false,
           invite_token, invite_token_expiry, inviter_id
         ]
@@ -1464,10 +1466,11 @@ export const setupMasterAdmin = async (req, res) => {
     const newUserRes = await client.query(
       `INSERT INTO "user" (
         user_name, email, phone, role_id, institute_id, 
+        password_hash,
         is_active, status, invite_token, invite_token_expiry
-      ) VALUES ($1, $2, $3, $4, $5, false, 'pending', $6, $7) 
+      ) VALUES ($1, $2, $3, $4, $5, $6, false, 'pending', $7, $8) 
       RETURNING user_id, user_name, email, role_id, institute_id`,
-      [name, email, phone || null, roleId, instituteId, invite_token, invite_token_expiry]
+      [name, email, phone || null, roleId, instituteId, "PENDING_INVITE", invite_token, invite_token_expiry]
     );
     const newUser = newUserRes.rows[0];
 
