@@ -4,7 +4,7 @@ import { storage } from "../config/cloudinary.js";
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB limit
+        fileSize: 4 * 1024 * 1024, // 4MB limit
     }
 });
 

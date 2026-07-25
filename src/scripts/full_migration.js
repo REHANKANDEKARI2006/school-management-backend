@@ -235,10 +235,13 @@ async function runFullMigration() {
         phone_token    VARCHAR(100),
         invite_token   VARCHAR(255),
         invite_token_expiry TIMESTAMPTZ,
+        reset_token    VARCHAR(255),
+        reset_token_expiry TIMESTAMPTZ,
         created_by     INTEGER,
         created_at     TIMESTAMPTZ DEFAULT now(),
         updated_at     TIMESTAMPTZ DEFAULT now(),
         last_login     TIMESTAMPTZ,
+        status         VARCHAR(50) DEFAULT 'active',
         CONSTRAINT user_institute_id_fkey
           FOREIGN KEY (institute_id) REFERENCES public.institute(institute_id),
         CONSTRAINT user_role_id_fkey
@@ -246,6 +249,17 @@ async function runFullMigration() {
       )
     `);
     console.log('  ✅ user');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS used_tokens (
+        id             SERIAL PRIMARY KEY,
+        token          VARCHAR(255) NOT NULL,
+        token_type     VARCHAR(50) NOT NULL,
+        user_id        INTEGER REFERENCES "user"(user_id) ON DELETE CASCADE,
+        used_at        TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    console.log('  ✅ used_tokens');
 
     // ══════════════════════════════════════════
     // TIER 3: Tables depending on user
@@ -636,7 +650,18 @@ async function runFullMigration() {
         UNIQUE(event_id, class_id, student_id)
       )
     `);
-    console.log('  ✅ event_attendance');
+      CREATE TABLE IF NOT EXISTS generated_documents (
+        id             SERIAL PRIMARY KEY,
+        student_id     INTEGER REFERENCES student(student_id) ON DELETE CASCADE,
+        doc_type       VARCHAR(50) NOT NULL,
+        template_id    VARCHAR(100),
+        generated_by   INTEGER REFERENCES "user"(user_id) ON DELETE SET NULL,
+        created_at     TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    console.log('  ✅ generated_documents');
+
+    await client.query(`
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS event_photos (

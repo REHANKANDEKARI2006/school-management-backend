@@ -18,7 +18,10 @@ router.post(
   (req, res, functionWrapper) => {
     upload.single("file")(req, res, function (err) {
       if (err) {
-        return res.status(500).json({ success: false, message: err.message || "File upload failed" });
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ success: false, message: "File size exceeds the 4 MB limit. Please select an image smaller than 4 MB." });
+        }
+        return res.status(400).json({ success: false, message: err.message || "File upload failed" });
       }
       functionWrapper();
     });

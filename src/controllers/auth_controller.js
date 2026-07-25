@@ -807,9 +807,12 @@ export const inviteUser = async (req, res) => {
         [userId, name, email, phone || "", role_code === "TEACHER" ? 3 : 12, designation || role_code, 13]
       );
     } else if (role_code === "STUDENT") {
+      const nameParts = name.trim().split(/\s+/);
+      const stuFirstName = nameParts[0] || name;
+      const stuLastName = nameParts.slice(1).join(' ') || '';
       await client.query(
-        `INSERT INTO student (student_user_id, stu_first_name, email, user_status_id) VALUES ($1, $2, $3, $4)`,
-        [userId, name, email, 13]
+        `INSERT INTO student (student_user_id, stu_first_name, stu_last_name, email, user_status_id) VALUES ($1, $2, $3, $4, $5)`,
+        [userId, stuFirstName, stuLastName, email, 13]
       );
     } else {
       // Fallback for all other Staff/Admin roles
@@ -1011,6 +1014,36 @@ export const setPassword = async (req, res) => {
       'UPDATE "user" SET password_hash = $1, status = $2, is_active = $3, invite_token = NULL, invite_token_expiry = NULL WHERE user_id = $4',
       [hashedPassword, "active", true, user.user_id]
     );
+
+    // If this is a student user, also update the linked guardian user's password and status
+    const studentCheck = await pool.query('SELECT student_id FROM student WHERE student_user_id = $1', [user.user_id]);
+    if (studentCheck.rows.length > 0) {
+      const studentId = studentCheck.rows[0].student_id;
+      const guardianCheck = await pool.query('SELECT guardian_user_id FROM guardian WHERE student_id = $1', [studentId]);
+      if (guardianCheck.rows.length > 0) {
+        const guardianUserId = guardianCheck.rows[0].guardian_user_id;
+        await pool.query(
+          'UPDATE "user" SET password_hash = $1, status = $2, is_active = $3, invite_token = NULL, invite_token_expiry = NULL WHERE user_id = $4',
+          [hashedPassword, "active", true, guardianUserId]
+        );
+        await pool.query('UPDATE guardian SET user_status_id = 1 WHERE guardian_user_id = $1', [guardianUserId]);
+      }
+    }
+
+    // If this is a guardian user, also update the linked student user's password and status
+    const guardianCheck = await pool.query('SELECT student_id FROM guardian WHERE guardian_user_id = $1', [user.user_id]);
+    if (guardianCheck.rows.length > 0) {
+      const studentId = guardianCheck.rows[0].student_id;
+      const linkedStudent = await pool.query('SELECT student_user_id FROM student WHERE student_id = $1', [studentId]);
+      if (linkedStudent.rows.length > 0) {
+        const studentUserId = linkedStudent.rows[0].student_user_id;
+        await pool.query(
+          'UPDATE "user" SET password_hash = $1, status = $2, is_active = $3, invite_token = NULL, invite_token_expiry = NULL WHERE user_id = $4',
+          [hashedPassword, "active", true, studentUserId]
+        );
+        await pool.query('UPDATE student SET user_status_id = 1 WHERE student_user_id = $1', [studentUserId]);
+      }
+    }
 
     // Update role-specific status if needed (Active = 1)
     await pool.query('UPDATE admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);

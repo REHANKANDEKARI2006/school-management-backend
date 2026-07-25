@@ -296,17 +296,23 @@ export const StudentModel = {
           email,
           password_hash,
           role_id,
-          is_active
+          is_active,
+          status,
+          invite_token,
+          invite_token_expiry
         )
-        VALUES ($1,$2,$3,$4,$5,true)
+        VALUES ($1,$2,$3,$4,$5,false,$6,$7,$8)
         RETURNING user_id
         `,
         [
           safeGuardianEmail,
           authUser.institute_id,
           safeGuardianEmail,
-          "TEMP_PASSWORD",
+          "PENDING",
           20,
+          "pending",
+          inviteToken,
+          inviteTokenExpiry
         ]
       );
 
@@ -321,9 +327,10 @@ export const StudentModel = {
           grdn_last_name,
           student_id,
           phone,
-          email
+          email,
+          user_status_id
         )
-        VALUES ($1,$2,$3,$4,$5,$6)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
         `,
         [
           guardianUserId,
@@ -332,6 +339,7 @@ export const StudentModel = {
           studentId,
           primaryContact,
           safeGuardianEmail,
+          user_status_id || 13, // 13 = Pending Approval
         ]
       );
 
@@ -532,13 +540,13 @@ export const StudentModel = {
       await client.query("BEGIN");
 
       // Delete child records for student
-      await client.query("DELETE FROM class_enrollment WHERE student_id = $1", [id]);
-      await client.query("DELETE FROM attendance_record WHERE student_id = $1", [id]);
-      await client.query("DELETE FROM exam_grades WHERE student_id = $1", [id]);
-      await client.query("DELETE FROM fee_collection WHERE student_id = $1", [id]);
-      await client.query("DELETE FROM event_attendance WHERE student_id = $1", [id]);
-      await client.query("DELETE FROM promotion WHERE student_id = $1", [id]);
-      await client.query("DELETE FROM generated_documents WHERE student_id = $1", [id]);
+      await client.query("DELETE FROM class_enrollment WHERE student_id = $1", [id]).catch(() => {});
+      await client.query("DELETE FROM attendance_record WHERE student_id = $1", [id]).catch(() => {});
+      await client.query("DELETE FROM exam_grades WHERE student_id = $1", [id]).catch(() => {});
+      await client.query("DELETE FROM fee_collection WHERE student_id = $1", [id]).catch(() => {});
+      await client.query("DELETE FROM event_attendance WHERE student_id = $1", [id]).catch(() => {});
+      await client.query("DELETE FROM promotion WHERE student_id = $1", [id]).catch(() => {});
+      await client.query("DELETE FROM generated_documents WHERE student_id = $1", [id]).catch(() => {});
       
       // Delete guardian and its related user record
       const { rows } = await client.query("DELETE FROM guardian WHERE student_id = $1 RETURNING guardian_user_id", [id]);
