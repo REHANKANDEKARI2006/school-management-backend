@@ -2,48 +2,30 @@ import pool from "../config/db.js";
 
 export const SchoolProfileModel = {
   async getProfile(instituteId) {
-    const id = instituteId || 3;
-    const { rows } = await pool.query(`SELECT * FROM school_profile WHERE id = $1`, [id]);
-    if (rows.length > 0) {
-      return rows[0];
-    }
-
     try {
+      const id = instituteId || 3;
+      const { rows } = await pool.query(`SELECT * FROM school_profile WHERE id = $1`, [id]);
+      if (rows.length > 0) {
+        return rows[0];
+      }
       const instRes = await pool.query(
         "SELECT name, email, phone, address, logo_url FROM institute WHERE institute_id = $1",
         [id]
       );
       if (instRes.rows.length > 0) {
         const inst = instRes.rows[0];
-        const insertQuery = `
-          INSERT INTO school_profile (
-            id, school_name, organization_name, email, phone, address, principal_name, logo_url, academic_year,
-            selected_id_card_template, selected_bonafide_template, selected_mark_sheet_template,
-            selected_general_certificate_template, selected_leaving_certificate_template, selected_fee_receipt_template
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-          RETURNING *;
-        `;
-        const insertRes = await pool.query(insertQuery, [
+        return {
           id,
-          inst.name || "School Name",
-          inst.name || "Organization Name",
-          inst.email || "school@demo.edu.in",
-          inst.phone || "+1 234 567 8900",
-          inst.address || "School Address",
-          "Principal Name",
-          inst.logo_url || "",
-          "2026-27",
-          "template1",
-          "template1",
-          "template1",
-          "template1",
-          "template1",
-          "template1"
-        ]);
-        return insertRes.rows[0];
+          school_name: inst.name || "SchoolOS",
+          email: inst.email || "school@demo.edu.in",
+          phone: inst.phone || "",
+          address: inst.address || "",
+          logo_url: inst.logo_url || "",
+          primary_color: "#3b82f6"
+        };
       }
     } catch (err) {
-      console.error("Failed to create default school profile:", err);
+      console.error("Failed to get school profile:", err);
     }
     return null;
   },
