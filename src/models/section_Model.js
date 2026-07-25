@@ -1,5 +1,5 @@
-import { Pool } from "pg";
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+import pool from "../config/db.js";
+
 
 export const SectionModel = {
 

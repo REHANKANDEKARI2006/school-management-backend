@@ -2,13 +2,9 @@ import { Router } from "express";
 import { ClassController } from "../controllers/class_controller.js";
 import authMiddleware from "../middleware/auth_middleware.js";
 import instituteMiddleware from "../middleware/institute_middleware.js";
-import { Pool } from "pg";
+import pool from "../config/db.js";
 
 const router = Router();
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 // Apply auth and institute isolation middlewares to all routes
 router.use(authMiddleware);

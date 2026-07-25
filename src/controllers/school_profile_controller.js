@@ -17,8 +17,8 @@ export const SchoolProfileController = {
       const data = await SchoolProfileService.upsertProfile(req.instituteId, req.body);
       res.status(200).json({ success: true, message: "School profile updated successfully", data });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, message: "Error updating school profile" });
+      console.error("❌ UPSERT SCHOOL PROFILE ERROR:", err);
+      res.status(500).json({ success: false, message: err.message || "Error updating school profile" });
     }
   },
 

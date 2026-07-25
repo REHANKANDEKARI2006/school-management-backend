@@ -1,21 +1,25 @@
-// routes/faculty_routes.js
 import { Router } from "express";
 import { FacultyController } from "../controllers/faculty_controller.js";
 import authMiddleware from "../middleware/auth_middleware.js";
+import instituteMiddleware from "../middleware/institute_middleware.js";
+import { allowRoles } from "../middleware/role_middleware.js";
 import upload from "../middlewares/upload.js";
 
 const router = Router();
+
+router.use(authMiddleware);
+router.use(instituteMiddleware);
 
 /* =========================
    PROTECTED FACULTY ROUTES
 ========================= */
 
-router.get("/", authMiddleware, FacultyController.getAllFaculty);
-router.get("/:id", authMiddleware, FacultyController.getFacultyById);
+router.get("/", allowRoles(1, 2, 3, 4, 10, 11), FacultyController.getAllFaculty);
+router.get("/:id", allowRoles(1, 2, 3, 4, 10, 11), FacultyController.getFacultyById);
 
 router.post(
   "/upload-photo",
-  authMiddleware,
+  allowRoles(1, 2),
   (req, res, next) => {
     upload.single("file")(req, res, function (err) {
       if (err) {
@@ -30,8 +34,8 @@ router.post(
   FacultyController.uploadPhoto
 );
 
-router.post("/", authMiddleware, FacultyController.createFaculty);
-router.patch("/:id", authMiddleware, FacultyController.updateFaculty);
-router.delete("/:id", authMiddleware, FacultyController.deleteFaculty);
+router.post("/", allowRoles(1, 2), FacultyController.createFaculty);
+router.patch("/:id", allowRoles(1, 2), FacultyController.updateFaculty);
+router.delete("/:id", allowRoles(1, 2), FacultyController.deleteFaculty);
 
 export default router;

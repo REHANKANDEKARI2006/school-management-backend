@@ -1,20 +1,51 @@
-import { Pool } from "pg";
-import dotenv from "dotenv";
+import pool from "../config/db.js";
 import crypto from "crypto";
 import { emailService } from "../services/email_service.js";
-
-dotenv.config();
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 export const StudentModel = {
   /* =========================
      GET ALL
   ========================= */
-  async getAll(instituteId) {
+  async getAll(instituteId, { classId = null, search = null, statusId = null, page = 1, limit = 50 } = {}) {
+    let whereClauses = [`s.is_deleted = FALSE`, `u.institute_id = $1`];
+    const params = [instituteId];
+    let paramIdx = 2;
+
+    if (classId) {
+      whereClauses.push(`ce.class_id = $${paramIdx++}`);
+      params.push(classId);
+    }
+
+    if (statusId) {
+      whereClauses.push(`s.user_status_id = $${paramIdx++}`);
+      params.push(statusId);
+    }
+
+    if (search && search.trim()) {
+      whereClauses.push(`(s.stu_first_name ILIKE $${paramIdx} OR s.stu_last_name ILIKE $${paramIdx} OR s.email ILIKE $${paramIdx} OR g.email ILIKE $${paramIdx})`);
+      params.push(`%${search.trim()}%`);
+      paramIdx++;
+    }
+
+    const whereStr = `WHERE ${whereClauses.join(' AND ')}`;
+
+    // Total count
+    const countRes = await pool.query(`
+      SELECT COUNT(DISTINCT s.student_id)
+      FROM student s
+      INNER JOIN "user" u ON u.user_id = s.student_user_id
+      LEFT JOIN guardian g ON g.student_id = s.student_id
+      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
+      ${whereStr}
+    `, params);
+
+    const total = parseInt(countRes.rows[0].count, 10);
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10)));
+    const offset = (pageNum - 1) * limitNum;
+
+    const dataParams = [...params, limitNum, offset];
+
     const { rows } = await pool.query(`
       SELECT 
         s.student_id,
@@ -33,17 +64,24 @@ export const StudentModel = {
       FROM student s
       INNER JOIN "user" u ON u.user_id = s.student_user_id
       LEFT JOIN guardian g ON g.student_id = s.student_id
-      LEFT JOIN class_enrollment ce
-        ON ce.student_id = s.student_id
-        AND ce.status_id = 1
+      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
       LEFT JOIN class c ON c.class_id = ce.class_id
       LEFT JOIN section sec ON sec.section_id = c.section_id
       LEFT JOIN user_status ust ON ust.user_status_id = s.user_status_id
-      WHERE s.is_deleted = FALSE
-        AND u.institute_id = $1
+      ${whereStr}
       ORDER BY s.student_id DESC
-    `, [instituteId]);
-    return rows;
+      LIMIT $${paramIdx++} OFFSET $${paramIdx++}
+    `, dataParams);
+
+    return {
+      rows,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    };
   },
 
   /* =========================
@@ -196,12 +234,40 @@ export const StudentModel = {
 
       const finalProfileUrl = profile_url || avatar;
 
-      const safeStudentEmail = email || `${stu_first_name.toLowerCase().replace(/\s/g, '')}${Date.now().toString().slice(-4)}@student.com`;
-      const safeGuardianEmail =
-        parentEmail || `guardian_${Date.now()}@temp.com`;
+      const safeStudentEmail = email && email.trim() !== '' ? email.trim() : `${stu_first_name.toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now().toString().slice(-4)}@student.com`;
+      const safeGuardianEmail = parentEmail && parentEmail.trim() !== '' ? parentEmail.trim() : `guardian_${Date.now()}@temp.com`;
+
+      const safeUserStatusId = (user_status_id && !isNaN(Number(user_status_id)) && Number(user_status_id) > 0)
+        ? Number(user_status_id)
+        : 1;
+      const safeBgId = (bg_id && !isNaN(Number(bg_id)) && Number(bg_id) > 0)
+        ? Number(bg_id)
+        : null;
+      const safeGenderId = (gender_id && !isNaN(Number(gender_id)) && Number(gender_id) > 0)
+        ? Number(gender_id)
+        : null;
+      const safeClassId = (class_id && !isNaN(Number(class_id)) && Number(class_id) > 0)
+        ? Number(class_id)
+        : null;
+      const safeDob = (date_of_birth && String(date_of_birth).trim() !== '')
+        ? String(date_of_birth).trim()
+        : null;
+      const safeJoinedDate = (joined_date && String(joined_date).trim() !== '')
+        ? String(joined_date).trim()
+        : new Date().toISOString();
 
       const inviteToken = crypto.randomBytes(32).toString("hex");
       const inviteTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      /* ---------- ENSURE UNIQUE STUDENT USERNAME ---------- */
+      let studentUsername = safeStudentEmail;
+      const existingUserCheck = await client.query(
+        'SELECT user_id FROM "user" WHERE LOWER(user_name) = LOWER($1)',
+        [studentUsername]
+      );
+      if (existingUserCheck.rows.length > 0) {
+        studentUsername = `${stu_first_name.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}@student.com`;
+      }
 
       /* ---------- CREATE STUDENT USER ---------- */
       const studentUserRes = await client.query(
@@ -221,7 +287,7 @@ export const StudentModel = {
         RETURNING user_id
         `,
         [
-          safeStudentEmail,
+          studentUsername,
           authUser.institute_id,
           safeStudentEmail,
           "PENDING",
@@ -258,22 +324,22 @@ export const StudentModel = {
           stu_first_name,
           stu_last_name,
           safeStudentEmail,
-          address,
-          date_of_birth,
-          bg_id,
-          user_status_id,
-          joined_date,
+          address || null,
+          safeDob,
+          safeBgId,
+          safeUserStatusId,
+          safeJoinedDate,
           finalProfileUrl,
-          gender_id ? Number(gender_id) : null,
+          safeGenderId,
         ]
       );
 
       const studentId = studentRes.rows[0].student_id;
 
       /* ==================================================
-         ✅ NEW: CREATE CLASS ENROLLMENT (NO LINE REMOVED)
+         CREATE CLASS ENROLLMENT
       ================================================== */
-      if (class_id) {
+      if (safeClassId) {
         await client.query(
           `
             INSERT INTO class_enrollment (
@@ -283,40 +349,58 @@ export const StudentModel = {
             )
             VALUES ($1, $2, 1)
             `,
-          [studentId, class_id]
+          [studentId, safeClassId]
         );
       }
 
-      /* ---------- CREATE GUARDIAN USER ---------- */
-      const guardianUserRes = await client.query(
-        `
-        INSERT INTO "user" (
-          user_name,
-          institute_id,
-          email,
-          password_hash,
-          role_id,
-          is_active,
-          status,
-          invite_token,
-          invite_token_expiry
-        )
-        VALUES ($1,$2,$3,$4,$5,false,$6,$7,$8)
-        RETURNING user_id
-        `,
-        [
-          safeGuardianEmail,
-          authUser.institute_id,
-          safeGuardianEmail,
-          "PENDING",
-          20,
-          "pending",
-          inviteToken,
-          inviteTokenExpiry
-        ]
+      /* ---------- GET OR CREATE GUARDIAN USER ---------- */
+      let guardianUserId;
+      const existingGuardianUser = await client.query(
+        'SELECT user_id FROM "user" WHERE LOWER(email) = LOWER($1) AND role_id = 20 LIMIT 1',
+        [safeGuardianEmail]
       );
 
-      const guardianUserId = guardianUserRes.rows[0].user_id;
+      if (existingGuardianUser.rows.length > 0) {
+        guardianUserId = existingGuardianUser.rows[0].user_id;
+      } else {
+        let guardianUsername = safeGuardianEmail;
+        const existingGrdnNameCheck = await client.query(
+          'SELECT user_id FROM "user" WHERE LOWER(user_name) = LOWER($1)',
+          [guardianUsername]
+        );
+        if (existingGrdnNameCheck.rows.length > 0) {
+          guardianUsername = `guardian_${Date.now()}_${Math.floor(Math.random() * 1000)}@temp.com`;
+        }
+
+        const guardianUserRes = await client.query(
+          `
+          INSERT INTO "user" (
+            user_name,
+            institute_id,
+            email,
+            password_hash,
+            role_id,
+            is_active,
+            status,
+            invite_token,
+            invite_token_expiry
+          )
+          VALUES ($1,$2,$3,$4,$5,false,$6,$7,$8)
+          RETURNING user_id
+          `,
+          [
+            guardianUsername,
+            authUser.institute_id,
+            safeGuardianEmail,
+            "PENDING",
+            20,
+            "pending",
+            inviteToken,
+            inviteTokenExpiry
+          ]
+        );
+        guardianUserId = guardianUserRes.rows[0].user_id;
+      }
 
       /* ---------- CREATE GUARDIAN ---------- */
       await client.query(
@@ -345,42 +429,44 @@ export const StudentModel = {
 
       await client.query("COMMIT");
 
-      let emailSent = false;
-      let emailError = null;
+      // ── NON-BLOCKING BACKGROUND EMAIL DISPATCH ──
+      setImmediate(async () => {
+        const startTime = Date.now();
+        try {
+          // 1. Send Invitation to Student via Guardian's Email
+          await emailService.sendInvitation({
+            to: safeGuardianEmail,
+            name: `${stu_first_name} ${stu_last_name}`,
+            role: "Student",
+            token: inviteToken,
+            loginEmail: safeGuardianEmail,
+            instituteId: authUser.institute_id,
+            frontendUrl: authUser.frontendUrl
+          });
 
-      try {
-        // 1. Send Invitation to Student via Guardian's Email
-        await emailService.sendInvitation({
-          to: safeGuardianEmail,
-          name: `${stu_first_name} ${stu_last_name}`,
-          role: "Student",
-          token: inviteToken,
-          loginEmail: safeGuardianEmail,
-          instituteId: authUser.institute_id
-        });
+          // 2. Send Confirmation to Guardian
+          let className = "Assigned Class";
+          if (class_id) {
+            const classRes = await pool.query('SELECT class_name FROM class WHERE class_id = $1', [class_id]);
+            if (classRes.rows.length > 0) className = classRes.rows[0].class_name;
+          }
 
-        // 2. Send Confirmation to Guardian
-        let className = "Assigned Class";
-        if (class_id) {
-          const classRes = await pool.query('SELECT class_name FROM class WHERE class_id = $1', [class_id]);
-          if (classRes.rows.length > 0) className = classRes.rows[0].class_name;
+          await emailService.sendStudentEnrollmentConfirmation({
+            to: safeGuardianEmail,
+            guardianName: fatherName || "Guardian",
+            studentName: `${stu_first_name} ${stu_last_name}`,
+            className: className,
+            enrollmentDate: new Date(joined_date || Date.now()).toLocaleDateString(),
+            instituteId: authUser.institute_id,
+            frontendUrl: authUser.frontendUrl
+          });
+          console.log(`⏱️ [BACKGROUND EMAIL] Student enrollment emails sent in ${Date.now() - startTime}ms`);
+        } catch (emailErr) {
+          console.error("❌ [BACKGROUND EMAIL ERROR] Student creation emails failed:", emailErr.message);
         }
+      });
 
-        await emailService.sendStudentEnrollmentConfirmation({
-          to: safeGuardianEmail,
-          guardianName: fatherName || "Guardian",
-          studentName: `${stu_first_name} ${stu_last_name}`,
-          className: className,
-          enrollmentDate: new Date(joined_date || Date.now()).toLocaleDateString(),
-          instituteId: authUser.institute_id
-        });
-        emailSent = true;
-      } catch (emailErr) {
-        console.error("❌ Student Creation Emails Failed:", emailErr.message);
-        emailError = emailErr.message;
-      }
-
-      return { student_id: studentId, email_sent: emailSent, email_error: emailError };
+      return { student_id: studentId, email_sent: true };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;

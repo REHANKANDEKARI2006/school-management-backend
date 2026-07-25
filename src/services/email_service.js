@@ -4,6 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { SchoolProfileModel } from "../models/school_profile_model.js";
 import axios from "axios";
+import https from "https";
+
+const ipv4Agent = new https.Agent({ family: 4, keepAlive: true });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +16,9 @@ class EmailService {
     this.transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST || "smtp.gmail.com",
       port: parseInt(process.env.EMAIL_PORT) || 587,
-      secure: parseInt(process.env.EMAIL_PORT) === 465, // true for 465 (SSL), false for 587 (TLS)
+      secure: parseInt(process.env.EMAIL_PORT) === 465,
+      pool: true,
+      maxConnections: 5,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
@@ -26,21 +31,24 @@ class EmailService {
    */
   async verify() {
     if (process.env.EMAIL_BRIDGE_URL) {
-      console.log("ℹ️ Production Email Bridge configured. Bypassing local SMTP startup verification.");
+      console.log("ℹ️ Production Email Bridge configured. Bypassing local startup verification.");
       return true;
     }
+
+    if (process.env.BREVO_API_KEY) {
+      console.log("⚡ Primary Email Service: Brevo HTTP REST API (v3) configured.");
+    }
+
     try {
       await this.transporter.verify();
-      console.log("✅ Email service SMTP verified — ready to send emails.");
+      console.log("✅ Fallback Email Service (Nodemailer SMTP) verified.");
       return true;
     } catch (error) {
-      console.error("❌ Email service SMTP verification FAILED:");
-      console.error(`   Code    : ${error.code}`);
-      console.error(`   Message : ${error.message}`);
-      console.error(`   Host    : ${process.env.EMAIL_HOST}`);
-      console.error(`   Port    : ${process.env.EMAIL_PORT}`);
-      console.error(`   User    : ${process.env.EMAIL_USER}`);
-      console.error("   → Check EMAIL_USER and EMAIL_PASS in .env (EMAIL_PASS must be a 16-char Gmail App Password)");
+      if (process.env.BREVO_API_KEY) {
+        console.log("ℹ️ Fallback SMTP verification skipped or failed, but Primary Brevo HTTP API is active.");
+        return true;
+      }
+      console.error("❌ Email service verification FAILED:", error.message);
       return false;
     }
   }
@@ -68,7 +76,7 @@ class EmailService {
           subject,
           html,
           secret: process.env.EMAIL_BRIDGE_SECRET,
-        });
+        }, { timeout: 5000 });
         if (response.data && response.data.success) {
           console.log(`✅ Email sent successfully via bridge: ${response.data.messageId}`);
           return response.data;
@@ -77,16 +85,54 @@ class EmailService {
         }
       }
 
+      console.log(`✉️ Sending email to: ${to} (Subject: "${subject}", School: "${branding.schoolName}")`);
+
+      // ── PRIMARY METHOD: BREVO HTTP REST API (v3) ──
+      const brevoApiKey = process.env.BREVO_API_KEY;
+      if (brevoApiKey) {
+        try {
+          const senderEmail = process.env.EMAIL_USER || "hello@prophetbird.com";
+          const senderName = branding.schoolName || "SchoolOS";
+
+          const brevoRes = await axios.post(
+            "https://api.brevo.com/v3/smtp/email",
+            {
+              sender: { name: senderName, email: senderEmail },
+              to: [{ email: to }],
+              subject,
+              htmlContent: html
+            },
+            {
+              headers: {
+                "api-key": brevoApiKey,
+                "Content-Type": "application/json",
+                "accept": "application/json"
+              },
+              httpsAgent: ipv4Agent,
+              timeout: 2500
+            }
+          );
+          console.log(`✅ Email sent successfully via Primary Brevo HTTP API: ${brevoRes.data?.messageId || brevoRes.data?.id}`);
+          return brevoRes.data;
+        } catch (brevoErr) {
+          const brevoErrMsg = brevoErr.response?.data?.message || brevoErr.message;
+          console.warn(`⚠️ Primary Brevo HTTP API error (${brevoErrMsg}). Falling back to Nodemailer SMTP...`);
+          if (brevoErr.response?.data?.code === "unauthorized" && brevoErrMsg.includes("unrecognised IP address")) {
+            console.warn(`👉 Action needed in Brevo Dashboard: Authorize IP at https://app.brevo.com/security/authorised_ips`);
+          }
+        }
+      }
+
+      // ── SECONDARY FALLBACK METHOD: NODEMAILER SMTP ──
       const mailOptions = {
-        from: process.env.EMAIL_FROM || `"SchoolOS" <${process.env.EMAIL_USER}>`,
+        from: process.env.EMAIL_FROM || `"SchoolOS" <${process.env.EMAIL_USER || "hello@prophetbird.com"}>`,
         to,
         subject,
         html,
       };
 
-      console.log(`✉️ Sending email to: ${to} (Subject: "${subject}", School: "${branding.schoolName}")`);
       const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Email sent successfully: ${info.messageId}`);
+      console.log(`✅ Email sent successfully via Fallback SMTP: ${info.messageId}`);
       return info;
     } catch (error) {
       console.error(`❌ Failed to send email to ${to}:`, error.message);
@@ -94,10 +140,18 @@ class EmailService {
     }
   }
 
+  normalizeBaseUrl(url) {
+    let base = (url || process.env.FRONTEND_URL || "http://localhost:3000").trim();
+    if (!base.startsWith("http://") && !base.startsWith("https://")) {
+      base = `https://${base}`;
+    }
+    return base.replace(/\/+$/, "");
+  }
+
   // ── Specific email helpers ──────────────────────────────────────────────
 
   async sendInvitation({ to, name, role, token, loginEmail, instituteId, frontendUrl }) {
-    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const baseUrl = this.normalizeBaseUrl(frontendUrl);
     const setPasswordUrl = `${baseUrl}/auth/set-password?token=${token}`;
     return this.sendEmail({
       to,
@@ -109,7 +163,7 @@ class EmailService {
   }
 
   async sendMasterAdminSetup({ to, name, token, instituteId, frontendUrl }) {
-    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const baseUrl = this.normalizeBaseUrl(frontendUrl);
     const setPasswordUrl = `${baseUrl}/auth/set-password?token=${token}`;
     return this.sendEmail({
       to,
@@ -121,7 +175,7 @@ class EmailService {
   }
 
   async sendPasswordChangedConfirmation({ to, name, instituteId, frontendUrl }) {
-    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const baseUrl = this.normalizeBaseUrl(frontendUrl);
     const loginUrl = `${baseUrl}/auth/login`;
     return this.sendEmail({
       to,
@@ -133,7 +187,7 @@ class EmailService {
   }
 
   async sendForgotPassword({ to, name, token, instituteId, frontendUrl }) {
-    const baseUrl = frontendUrl || process.env.FRONTEND_URL || "http://localhost:3000";
+    const baseUrl = this.normalizeBaseUrl(frontendUrl);
     const resetPasswordUrl = `${baseUrl}/auth/reset-password?token=${token}`;
     return this.sendEmail({
       to,

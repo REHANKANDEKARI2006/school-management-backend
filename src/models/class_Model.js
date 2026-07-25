@@ -1,11 +1,7 @@
-import { Pool } from "pg";
+import pool from "../config/db.js";
 import dotenv from "dotenv";
+import { cache } from "../utils/cache.js";
 dotenv.config();
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 export const SectionModel = {
 
@@ -39,6 +35,10 @@ export const SectionModel = {
 export const ClassModel = {
 
   async getAll(instituteId) {
+    const cacheKey = `classes_all_${instituteId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
     const sql = `
       SELECT c.*, s.section_name 
       FROM class c
@@ -47,6 +47,7 @@ export const ClassModel = {
       ORDER BY c.class_id DESC;
     `;
     const { rows } = await pool.query(sql, [instituteId]);
+    cache.set(cacheKey, rows, 120); // Cache for 2 mins
     return rows;
   },
 
@@ -109,6 +110,7 @@ export const ClassModel = {
     ];
 
     const { rows } = await pool.query(sql, values);
+    cache.delPattern("classes_all_");
     return rows[0];
   },
 
@@ -119,10 +121,12 @@ export const ClassModel = {
       VALUES ($1, $2)
     `;
     await pool.query(sql, [classId, sectionId]);
+    cache.delPattern("classes_all_");
   },
 
   async update(query, values) {
     const { rows } = await pool.query(query, values);
+    cache.delPattern("classes_all_");
     return rows[0] || null;
   },
 
@@ -176,6 +180,7 @@ export const ClassModel = {
       const { rows } = await client.query(sql, [id, instituteId]);
       
       await client.query("COMMIT");
+      cache.delPattern("classes_all_");
       return rows[0] || null;
     } catch (err) {
       await client.query("ROLLBACK");

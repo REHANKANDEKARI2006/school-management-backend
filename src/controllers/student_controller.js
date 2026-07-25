@@ -26,21 +26,31 @@ export const StudentController = {
   async getAllStudents(req, res) {
     try {
       const institute_id = req.instituteId;
-      let { class_id } = req.query;
+      const { class_id, search, status_id, page, limit } = req.query;
 
-      // Isolation: Admin see all, Teachers see all in institute (unless class_id filter passed)
-      
-      let data;
-      if (class_id) {
-        data = await StudentService.getStudentsByClassId(parseInt(class_id), institute_id);
-      } else {
-        data = await StudentService.getAllStudents(institute_id);
+      const result = await StudentService.getAllStudents(institute_id, {
+        classId: class_id ? parseInt(class_id, 10) : null,
+        search,
+        statusId: status_id ? parseInt(status_id, 10) : null,
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 50
+      });
+
+      // If page or search parameter was provided, return with pagination object
+      if (page || limit || search || status_id) {
+        return res.json({
+          success: true,
+          data: result.rows,
+          pagination: result.pagination
+        });
       }
-      res.json({ success: true, data });
+
+      // Backward compatibility for existing UI components that read data directly as an array
+      return res.json({ success: true, data: result.rows });
     } catch (err) {
       res.status(err.status || 500).json({
         success: false,
-        message: err.message,
+        message: err.message || "Server error fetching students",
       });
     }
   },
@@ -61,6 +71,7 @@ export const StudentController = {
   },
 
   async createStudent(req, res) {
+    const startTime = Date.now();
     try {
       if (!req.user || !req.user.user_id || !req.instituteId) {
         return res.status(401).json({
@@ -69,35 +80,71 @@ export const StudentController = {
         });
       }
 
-      // Ensure authUser has correct active institute_id
-      const authUser = { ...req.user, institute_id: req.instituteId };
+      const { stu_first_name, class_id } = req.body;
+      if (!stu_first_name || !stu_first_name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "First name is required to enroll a student",
+        });
+      }
 
+const getFrontendUrl = (req) => {
+  if (req.headers.origin) return req.headers.origin;
+  if (req.headers.referer) {
+    try {
+      return new URL(req.headers.referer).origin;
+    } catch (e) {}
+  }
+  return null;
+};
+
+      const authUser = { ...req.user, institute_id: req.instituteId, frontendUrl: getFrontendUrl(req) };
+
+      const dbStartTime = Date.now();
       const data = await StudentService.createStudent(
         req.body,
         authUser
       );
+      const dbDuration = Date.now() - dbStartTime;
 
       // Log activity
-      const { DashboardService } = await import("../services/dashboard_service.js");
-      await DashboardService.addActivityEntry(
-        req.user.user_id, 
-        'student_enrolled', 
-        `New student enrolled: ${req.body.stu_first_name} ${req.body.stu_last_name}`,
-        req.instituteId
-      );
+      try {
+        const { DashboardService } = await import("../services/dashboard_service.js");
+        await DashboardService.addActivityEntry(
+          req.user.user_id, 
+          'student_enrolled', 
+          `New student enrolled: ${req.body.stu_first_name} ${req.body.stu_last_name || ''}`,
+          req.instituteId
+        );
+      } catch (actErr) { console.error(actErr); }
+
+      const totalDuration = Date.now() - startTime;
+      console.log(`⚡ [ADD STUDENT PERF] Total API Response Time: ${totalDuration}ms (DB Tx: ${dbDuration}ms, Email: Non-blocking background)`);
 
       res.status(201).json({
         success: true,
-        message: "Student created successfully",
+        message: "Student created successfully. Invitation email is being sent.",
         data: { student_id: data.student_id },
-        email_sent: data.email_sent,
-        email_error: data.email_error
+        email_sent: true,
+        execution_time_ms: totalDuration
       });
     } catch (err) {
-      console.error(err);
+      console.error("❌ Student creation error:", err);
+      if (err.code === '23505') {
+        return res.status(400).json({
+          success: false,
+          message: "A student or guardian account with this email/details already exists.",
+        });
+      }
+      if (err.code === '22007' || err.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid date or numeric input provided for student fields.",
+        });
+      }
       res.status(err.status || 500).json({
         success: false,
-        message: err.message,
+        message: err.message || "Server error creating student",
       });
     }
   },

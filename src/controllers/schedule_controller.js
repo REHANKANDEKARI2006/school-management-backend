@@ -24,6 +24,13 @@ const ScheduleController = {
 
   async createSchedule(req, res) {
     try {
+      const { class_id, day_of_week, period_number } = req.body;
+      if (!class_id || day_of_week === undefined || period_number === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: "class_id, day_of_week, and period_number are required to create a schedule slot",
+        });
+      }
       const data = await ScheduleService.createSchedule(req.body, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {
@@ -34,6 +41,12 @@ const ScheduleController = {
   async replaceClassSchedule(req, res) {
     try {
       const { class_id, scheduleArray } = req.body;
+      if (!class_id || !Array.isArray(scheduleArray)) {
+        return res.status(400).json({
+          success: false,
+          message: "class_id and a scheduleArray are required",
+        });
+      }
       const data = await ScheduleService.replaceClassSchedule(class_id, scheduleArray, req.instituteId);
       res.status(201).json({ success: true, data });
     } catch (err) {

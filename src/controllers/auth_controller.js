@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import pool from "../config/db.js";
 import crypto from "crypto";
 import { emailService } from "../services/email_service.js";
+import { cache } from "../utils/cache.js";
 
 import { StudentModel } from "../models/student_Model.js";
 
@@ -612,6 +613,14 @@ export const changePassword = async (req, res) => {
     const { user_id } = req.user;
     const { currentPassword, newPassword } = req.body;
 
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Current password and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: "New password must be at least 6 characters long" });
+    }
+
     const userRes = await pool.query(`SELECT password_hash FROM "user" WHERE user_id = $1`, [user_id]);
     if (userRes.rows.length === 0) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -713,6 +722,7 @@ export const uploadAvatar = async (req, res) => {
    INVITE USER (Admin/Teacher/Staff)
 ========================= */
 export const inviteUser = async (req, res) => {
+  const startTime = Date.now();
   const client = await pool.connect();
   try {
     const { name, phone, role_code, designation } = req.body;
@@ -827,44 +837,49 @@ export const inviteUser = async (req, res) => {
     // 5. Send Invitation Email (non-blocking)
     let emailSent = false;
     let emailError = null;
-
-    // We only send invitation if it's a new user OR if they were already pending (re-invite)
+    // 5. Send Invitation Email (NON-BLOCKING BACKGROUND DISPATCH)
     const isPending = isNewUser || (userCheck.rows[0]?.status === "pending");
     
-    // If user already exists and is active, we don't need a token, they can just login
-    // BUT usually the admin wants to notify them. For now, let's follow the token flow if pending.
     if (isPending) {
-      // If they were already pending, we need a token. If we didn't generate one above (reuse case), generate it now.
       if (!invite_token) {
         invite_token = crypto.randomBytes(32).toString("hex");
         const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await pool.query('UPDATE "user" SET invite_token = $1, invite_token_expiry = $2 WHERE user_id = $3', [invite_token, invite_token_expiry, userId]);
       }
 
-      try {
-        await emailService.sendInvitation({
-          to: email,
-          name: name,
-          role: role_code.replace(/_/g, " "),
-          token: invite_token,
-          instituteId: req.instituteId,
-          frontendUrl: getFrontendUrl(req),
-        });
-        emailSent = true;
-      } catch (emailErr) {
-        emailError = emailErr.message;
-        console.error("❌ Invitation email failed:", emailErr.message);
-      }
+      const emailTo = email;
+      const nameTo = name;
+      const roleTo = role_code.replace(/_/g, " ");
+      const tokenTo = invite_token;
+      const instId = req.instituteId;
+      const frontUrl = getFrontendUrl(req);
+
+      setImmediate(async () => {
+        const emailStartTime = Date.now();
+        try {
+          await emailService.sendInvitation({
+            to: emailTo,
+            name: nameTo,
+            role: roleTo,
+            token: tokenTo,
+            instituteId: instId,
+            frontendUrl: frontUrl,
+          });
+          console.log(`⏱️ [BACKGROUND EMAIL] User invitation sent to ${emailTo} in ${Date.now() - emailStartTime}ms`);
+        } catch (emailErr) {
+          console.error("❌ [BACKGROUND EMAIL ERROR] User invitation email failed:", emailErr.message);
+        }
+      });
     }
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`⚡ [INVITE USER PERF] Total API Response Time: ${totalDuration}ms (Email: Non-blocking background)`);
 
     return res.json({
       success: true,
-      message: emailSent
-        ? `Invitation sent successfully to ${email}`
-        : isNewUser
-          ? `User created but email delivery failed. Error: ${emailError}`
-          : `User was already in the system. They have been added to ${role_code} and can log in with their existing credentials.`,
-      email_sent: emailSent,
+      message: `Invitation email is being sent to ${email}. Account created successfully.`,
+      email_sent: true,
+      execution_time_ms: totalDuration
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -960,7 +975,7 @@ export const verifyInviteToken = async (req, res) => {
       // Check if it was already used
       const usedRes = await pool.query('SELECT 1 FROM used_tokens WHERE token = $1 AND token_type = \'invite\'', [cleanToken]);
       if (usedRes.rows.length > 0) {
-        return res.json({ success: false, message: "You have already set your password using this link. Please log in.", isExpired: false });
+        return res.json({ success: false, message: "You have already set your password using this link. Please log in.", isExpired: false, isAlreadyUsed: true });
       }
       return res.json({ success: false, message: "This invitation link is invalid. Please contact your administrator.", isExpired: false });
     }
@@ -986,6 +1001,9 @@ export const setPassword = async (req, res) => {
     if (!token || !password) {
       return res.status(400).json({ success: false, message: "Token and password are required" });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
+    }
     const cleanToken = token.trim();
 
     const userRes = await pool.query(
@@ -1002,7 +1020,7 @@ export const setPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: "Token has expired" });
     }
 
-    const saltRounds = 12;
+    const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     await pool.query(
@@ -1124,6 +1142,9 @@ export const resetPassword = async (req, res) => {
     if (!token || !password) {
       return res.status(400).json({ success: false, message: "Token and password are required" });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
+    }
 
     const userRes = await pool.query(
       'SELECT user_id, user_name, email, reset_token_expiry, institute_id FROM "user" WHERE reset_token = $1',
@@ -1139,7 +1160,7 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: "Token has expired" });
     }
 
-    const saltRounds = 12;
+    const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     await pool.query(
@@ -1212,31 +1233,65 @@ export const verifyResetToken = async (req, res) => {
 ========================= */
 export const getUsers = async (req, res) => {
   try {
-    const { role_code } = req.query;
+    const { role_code, search, page = 1, limit = 50 } = req.query;
     const inviter_role = Number(req.user.role_id);
+    const instId = req.instituteId || req.user.institute_id;
 
-    let query = `
-      SELECT 
-        u.user_id, u.user_name, u.email, u.phone, u.status, u.is_active, 
-        u.invite_token, u.invite_token_expiry, r.role_name, r.role_code
-      FROM "user" u
-      JOIN user_role r ON u.role_id = r.role_id
-      WHERE u.institute_id = $1
-    `;
-    const params = [req.instituteId || req.user.institute_id];
+    let baseWhere = `WHERE u.institute_id = $1`;
+    const params = [instId];
+    let paramIdx = 2;
 
     if (role_code) {
-      query += " AND r.role_code = $2";
+      baseWhere += ` AND r.role_code = $${paramIdx++}`;
       params.push(role_code);
     }
 
-    // RBAC: Master Admin can see everyone. Admin can see Staff/Students.
     if (inviter_role === 2) {
-      query += " AND r.role_code NOT IN ('MASTER_ADMIN', 'INSTITUTE_ADMIN')";
+      baseWhere += ` AND r.role_code NOT IN ('MASTER_ADMIN', 'INSTITUTE_ADMIN')`;
     }
 
-    const result = await pool.query(query, params);
-    return res.json({ success: true, data: result.rows });
+    if (search && search.trim()) {
+      baseWhere += ` AND (u.user_name ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx})`;
+      params.push(`%${search.trim()}%`);
+      paramIdx++;
+    }
+
+    // 1. Get total count
+    const countRes = await pool.query(
+      `SELECT COUNT(u.user_id) FROM "user" u JOIN user_role r ON u.role_id = r.role_id ${baseWhere}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].count, 10);
+
+    // 2. Fetch paginated data
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10)));
+    const offset = (pageNum - 1) * limitNum;
+
+    const dataParams = [...params, limitNum, offset];
+    const query = `
+      SELECT 
+        u.user_id, u.user_name, u.email, u.phone, u.status, u.is_active, 
+        u.invite_token, u.invite_token_expiry, u.created_at,
+        r.role_name, r.role_code
+      FROM "user" u
+      JOIN user_role r ON u.role_id = r.role_id
+      ${baseWhere}
+      ORDER BY u.created_at DESC
+      LIMIT $${paramIdx++} OFFSET $${paramIdx++}
+    `;
+
+    const result = await pool.query(query, dataParams);
+    return res.json({
+      success: true,
+      data: result.rows,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (error) {
     console.error("❌ GET USERS ERROR:", error);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -1370,6 +1425,9 @@ export const updateUserStatus = async (req, res) => {
       }
     }
 
+    // Clear cached status for immediate effect
+    cache.del(`user_status_${id}`);
+
     return res.json({ success: true, message: "User status updated" });
   } catch (error) {
     console.error("❌ UPDATE STATUS ERROR:", error);
@@ -1397,19 +1455,20 @@ export const deleteUser = async (req, res) => {
 
     await client.query("BEGIN");
 
+    // Clean up or nullify references in dependent tables
+    await client.query('UPDATE activity_log SET user_id = NULL WHERE user_id = $1', [id]);
+    await client.query('UPDATE notifications SET user_id = NULL WHERE user_id = $1 OR sender_user_id = $1', [id]);
+    await client.query('UPDATE generated_documents SET generated_by = NULL WHERE generated_by = $1', [id]);
+    await client.query('UPDATE leave_applications SET approved_by = NULL WHERE approved_by = $1', [id]);
+    await client.query('DELETE FROM used_tokens WHERE user_id = $1', [id]);
+
     // 1. Delete from role-specific tables
     await client.query('DELETE FROM admin WHERE user_id = $1', [id]);
     await client.query('DELETE FROM staff WHERE user_id = $1', [id]);
     await client.query('DELETE FROM student WHERE student_user_id = $1', [id]);
     await client.query('DELETE FROM guardian WHERE guardian_user_id = $1', [id]);
-    
-    // 2. Delete from login_attempts (cleanup)
-    const userEmailRes = await client.query('SELECT email FROM "user" WHERE user_id = $1', [id]);
-    if (userEmailRes.rows.length > 0) {
-       // We don't have IP here, but we can't easily delete by email from login_attempts anyway as it's IP based.
-    }
 
-    // 3. Delete from main user table
+    // 2. Delete from main user table
     const result = await client.query('DELETE FROM "user" WHERE user_id = $1', [id]);
 
     if (result.rowCount === 0) {
@@ -1418,6 +1477,7 @@ export const deleteUser = async (req, res) => {
     }
 
     await client.query("COMMIT");
+    cache.del(`user_status_${id}`);
     return res.json({ success: true, message: "User account permanently deleted" });
   } catch (error) {
     await client.query("ROLLBACK");

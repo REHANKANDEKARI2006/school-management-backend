@@ -55,8 +55,12 @@ import resultsRoutes from "./routes/results_routes.js";
 import authMiddleware from "./middleware/auth_middleware.js";
 import instituteMiddleware from "./middleware/institute_middleware.js";
 
+import compression from "compression";
+
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+app.use(compression());
 
 app.use(cors({
    origin: true,
@@ -64,6 +68,7 @@ app.use(cors({
    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Institute-ID'],
    exposedHeaders: ["Content-Disposition", "Authorization"],
    credentials: true,
+   maxAge: 86400, // Cache CORS preflight for 24 hours
    preflightContinue: false,
    optionsSuccessStatus: 204
 }));

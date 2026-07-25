@@ -8,6 +8,7 @@ import {
 } from "../controllers/auth_controller.js";
 import authMiddleware from "../middleware/auth_middleware.js";
 import instituteMiddleware from "../middleware/institute_middleware.js";
+import { allowRoles } from "../middleware/role_middleware.js";
 import upload from "../middlewares/upload.js";
 
 const router = express.Router();
@@ -18,16 +19,16 @@ router.get("/profile", authMiddleware, getProfile);
 router.put("/update-profile", authMiddleware, updateProfile);
 router.put("/change-password", authMiddleware, changePassword);
 router.post("/upload-avatar", authMiddleware, upload.single("file"), uploadAvatar);
-router.post("/invite-user", authMiddleware, instituteMiddleware, inviteUser);
-router.post("/resend-invitation", authMiddleware, instituteMiddleware, resendInvitation);
+router.post("/invite-user", authMiddleware, instituteMiddleware, allowRoles(1, 2), inviteUser);
+router.post("/resend-invitation", authMiddleware, instituteMiddleware, allowRoles(1, 2), resendInvitation);
 router.get("/verify-invite-token", verifyInviteToken);
 router.get("/verify-reset-token", verifyResetToken);
 router.post("/set-password", setPassword);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
-router.get("/users", authMiddleware, instituteMiddleware, getUsers);
-router.patch("/users/:id", authMiddleware, instituteMiddleware, updateUserStatus);
-router.delete("/users/:id", authMiddleware, instituteMiddleware, deleteUser);
+router.get("/users", authMiddleware, instituteMiddleware, allowRoles(1, 2), getUsers);
+router.patch("/users/:id", authMiddleware, instituteMiddleware, allowRoles(1, 2), updateUserStatus);
+router.delete("/users/:id", authMiddleware, instituteMiddleware, allowRoles(1, 2), deleteUser);
 
 // Setup & switcher routes
 router.get("/setup-status", getSetupStatus);

@@ -2,7 +2,40 @@ import pool from "../config/db.js";
 import crypto from "crypto";
 
 export const FacultyModel = {
-  async getAll(instituteId) {
+  async getAll(instituteId, { search = null, deptId = null, page = 1, limit = 50 } = {}) {
+    let whereClauses = [`u.institute_id = $1`, `s.role_id = 3`];
+    const params = [instituteId];
+    let paramIdx = 2;
+
+    if (deptId) {
+      whereClauses.push(`s.dept_id = $${paramIdx++}`);
+      params.push(deptId);
+    }
+
+    if (search && search.trim()) {
+      whereClauses.push(`(s.staff_first_name ILIKE $${paramIdx} OR s.staff_last_name ILIKE $${paramIdx} OR s.email ILIKE $${paramIdx} OR d.dept_name ILIKE $${paramIdx})`);
+      params.push(`%${search.trim()}%`);
+      paramIdx++;
+    }
+
+    const whereStr = `WHERE ${whereClauses.join(' AND ')}`;
+
+    // Total count
+    const countRes = await pool.query(`
+      SELECT COUNT(s.staff_id)
+      FROM staff s
+      JOIN "user" u ON s.user_id = u.user_id
+      LEFT JOIN department d ON s.dept_id = d.dept_id
+      ${whereStr}
+    `, params);
+
+    const total = parseInt(countRes.rows[0].count, 10);
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.max(1, Math.min(200, parseInt(limit, 10)));
+    const offset = (pageNum - 1) * limitNum;
+
+    const dataParams = [...params, limitNum, offset];
+
     const query = `
       SELECT s.*, us.status_name, d.dept_name, sub.subject_name
       FROM staff s
@@ -10,11 +43,20 @@ export const FacultyModel = {
       LEFT JOIN user_status us ON s.user_status_id = us.user_status_id
       LEFT JOIN department d ON s.dept_id = d.dept_id
       LEFT JOIN subject sub ON s.subject_id = sub.subject_id
-      WHERE u.institute_id = $1 AND s.role_id = 3
-      ORDER BY s.created_at DESC;
+      ${whereStr}
+      ORDER BY s.created_at DESC
+      LIMIT $${paramIdx++} OFFSET $${paramIdx++};
     `;
-    const res = await pool.query(query, [instituteId]);
-    return res.rows;
+    const res = await pool.query(query, dataParams);
+    return {
+      rows: res.rows,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    };
   },
 
   async findById(id, instituteId) {
@@ -88,6 +130,16 @@ export const FacultyModel = {
         invite_token = crypto.randomBytes(32).toString("hex");
         const invite_token_expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+        /* ---------- ENSURE UNIQUE FACULTY USERNAME ---------- */
+        let facultyUsername = email && email.trim() !== '' ? email.trim() : `${staff_first_name.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}@faculty.com`;
+        const existingNameCheck = await client.query(
+          'SELECT user_id FROM "user" WHERE LOWER(user_name) = LOWER($1)',
+          [facultyUsername]
+        );
+        if (existingNameCheck.rows.length > 0) {
+          facultyUsername = `${staff_first_name.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}@faculty.com`;
+        }
+
         const userRes = await client.query(
           `INSERT INTO "user" (
             user_name, institute_id, email, role_id,
@@ -98,7 +150,7 @@ export const FacultyModel = {
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING user_id`,
           [
-            fullName,
+            facultyUsername,
             authUser.institute_id,
             email,
             role_id || 3, // Default to Teacher if not specified
@@ -245,8 +297,20 @@ export const FacultyModel = {
   },
 
   async softDelete(id) {
-    const query = "UPDATE staff SET user_status_id = 2 WHERE staff_id = $1 RETURNING *";
-    const res = await pool.query(query, [id]);
-    return res.rows[0];
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const res = await client.query("UPDATE staff SET user_status_id = 2 WHERE staff_id = $1 RETURNING *", [id]);
+      if (res.rows.length > 0 && res.rows[0].user_id) {
+        await client.query("UPDATE \"user\" SET status = 'deactivated', is_active = false WHERE user_id = $1", [res.rows[0].user_id]);
+      }
+      await client.query("COMMIT");
+      return res.rows[0];
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   },
 };

@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import pool from "../config/db.js";
+import { cache } from "../utils/cache.js";
 
 export default async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -17,13 +18,26 @@ export default async function authMiddleware(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Check database to ensure the user is active and not deactivated
-    const userRes = await pool.query(
-      'SELECT status, is_active FROM "user" WHERE user_id = $1',
-      [decoded.user_id]
-    );
+    const cacheKey = `user_status_${decoded.user_id}`;
+    let userState = cache.get(cacheKey);
 
-    if (userRes.rows.length === 0 || userRes.rows[0].status === "deactivated" || !userRes.rows[0].is_active) {
+    if (!userState) {
+      const userRes = await pool.query(
+        'SELECT status, is_active FROM "user" WHERE user_id = $1',
+        [decoded.user_id]
+      );
+
+      if (userRes.rows.length === 0) {
+        userState = { valid: false, reason: "not_found" };
+      } else {
+        const u = userRes.rows[0];
+        const isValid = u.status !== "deactivated" && u.is_active;
+        userState = { valid: isValid, status: u.status, is_active: u.is_active };
+      }
+      cache.set(cacheKey, userState, 60); // 60s TTL
+    }
+
+    if (!userState.valid) {
       console.error(`AUTH 401 => User ${decoded.user_id} is deactivated or not found.`);
       return res.status(401).json({
         success: false,

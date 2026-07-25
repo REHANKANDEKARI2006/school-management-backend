@@ -2,11 +2,11 @@ import { FacultyModel } from "../models/faculty_Model.js";
 
 export const FacultyService = {
 
-  async getAllFaculty(authUser) {
+  async getAllFaculty(authUser, options = {}) {
     if (!authUser?.institute_id) {
       throw Object.assign(new Error("Unauthorized: Institute ID missing from token"), { status: 401 });
     }
-    return await FacultyModel.getAll(authUser.institute_id);
+    return await FacultyModel.getAll(authUser.institute_id, options);
   },
 
 

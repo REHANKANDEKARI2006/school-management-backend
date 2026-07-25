@@ -7,8 +7,24 @@ export const FacultyController = {
   async getAllFaculty(req, res) {
     try {
       const authUser = { ...req.user, institute_id: req.instituteId };
-      const data = await FacultyService.getAllFaculty(authUser);
-      res.status(200).json({ success: true, data });
+      const { search, dept_id, page, limit } = req.query;
+
+      const result = await FacultyService.getAllFaculty(authUser, {
+        search,
+        deptId: dept_id ? parseInt(dept_id, 10) : null,
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 50
+      });
+
+      if (page || limit || search || dept_id) {
+        return res.status(200).json({
+          success: true,
+          data: result.rows,
+          pagination: result.pagination
+        });
+      }
+
+      res.status(200).json({ success: true, data: result.rows });
     } catch (err) {
       console.error("DEBUG: getAllFaculty - ERROR:", err);
       res.status(err.status || 500).json({ success: false, message: err.message });
@@ -40,6 +56,7 @@ export const FacultyController = {
   },
 
   async createFaculty(req, res) {
+    const startTime = Date.now();
     try {
       if (!req.user || !req.instituteId) {
         return res.status(401).json({
@@ -48,47 +65,73 @@ export const FacultyController = {
         });
       }
 
+      const { staff_first_name, email } = req.body;
+      if (!staff_first_name || !staff_first_name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "First name is required to create faculty",
+        });
+      }
+      if (!email || !email.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Email is required to create faculty",
+        });
+      }
+
       const authUser = { ...req.user, institute_id: req.instituteId };
+      const dbStartTime = Date.now();
       const data = await FacultyService.createFaculty(req.body, authUser);
+      const dbDuration = Date.now() - dbStartTime;
 
-      // ── Auto-send invitation email for new user accounts ──────────────
-      let emailSent = false;
-      let emailWarning = null;
-
+      // ── Auto-send invitation email for new user accounts (NON-BLOCKING BACKGROUND DISPATCH) ──
       if (data.isNewUser && data.invite_token) {
         const roleLabel = req.body.role_id === 3 ? "Teacher" : "Staff";
-        
-        try {
-          await emailService.sendInvitation({
-            to: req.body.email,
-            name: data.fullName || req.body.email,
-            role: roleLabel,
-            token: data.invite_token,
-            instituteId: req.instituteId,
-          });
-          console.log(`✅ Invitation email sent to ${req.body.email} for new faculty.`);
-          emailSent = true;
-        } catch (emailErr) {
-          emailWarning = emailErr.message;
-          console.error("❌ Faculty invite email failed:", emailErr.message);
-        }
+        const emailTo = req.body.email;
+        const nameTo = data.fullName || req.body.email;
+        const tokenTo = data.invite_token;
+        const instId = req.instituteId;
+
+        setImmediate(async () => {
+          const emailStartTime = Date.now();
+          try {
+            await emailService.sendInvitation({
+              to: emailTo,
+              name: nameTo,
+              role: roleLabel,
+              token: tokenTo,
+              instituteId: instId,
+              frontendUrl: getFrontendUrl(req),
+            });
+            console.log(`⏱️ [BACKGROUND EMAIL] Faculty invitation sent to ${emailTo} in ${Date.now() - emailStartTime}ms`);
+          } catch (emailErr) {
+            console.error("❌ [BACKGROUND EMAIL ERROR] Faculty invite email failed:", emailErr.message);
+          }
+        });
       }
 
       // Strip internal fields before returning to client
       const { invite_token, isNewUser, fullName, ...staffData } = data;
 
+      const totalDuration = Date.now() - startTime;
+      console.log(`⚡ [ADD FACULTY PERF] Total API Response Time: ${totalDuration}ms (DB Tx: ${dbDuration}ms, Email: Non-blocking background)`);
+
       res.status(201).json({
         success: true,
-        message: emailSent
-          ? "Faculty created and invitation email sent successfully."
-          : data.isNewUser
-            ? `Faculty created. ${emailWarning || "Invitation email not sent."}`
-            : "Faculty created successfully.",
-        email_sent: emailSent,
+        message: "Faculty created successfully. Invitation email is being sent.",
+        email_sent: true,
         data: staffData,
+        execution_time_ms: totalDuration
       });
     } catch (err) {
-      res.status(err.status || 500).json({ success: false, message: err.message });
+      console.error("❌ Faculty creation error:", err);
+      if (err.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: `A faculty member with the email ${req.body.email} or details already exists.`,
+        });
+      }
+      res.status(err.status || 500).json({ success: false, message: err.message || "Error creating faculty" });
     }
   },
 

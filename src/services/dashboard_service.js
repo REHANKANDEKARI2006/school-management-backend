@@ -87,48 +87,52 @@ class DashboardServiceClass {
   }
 
   async getTeacherStats(staffId) {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // 1. Today's Classes
-    const classesTodayRes = await pool.query(`
-      SELECT COUNT(*) FROM schedule 
-      WHERE staff_id = $1 
-      AND day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)
-    `, [staffId]);
+    const [
+      classesTodayRes,
+      attendancePendingRes,
+      marksPendingRes,
+      nextExamRes
+    ] = await Promise.all([
+      // 1. Today's Classes
+      pool.query(`
+        SELECT COUNT(*) FROM schedule 
+        WHERE staff_id = $1 
+        AND day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)
+      `, [staffId]),
 
-    // 2. Attendance Pending
-    // We count slots today where no attendance session has been created yet
-    const attendancePendingRes = await pool.query(`
-      SELECT COUNT(*) FROM schedule s
-      WHERE s.staff_id = $1 
-      AND s.day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)
-      AND NOT EXISTS (
-        SELECT 1 FROM attendance_session ats 
-        WHERE ats.class_id = s.class_id 
-        AND ats.subject_id = s.subject_id
-        AND ats.attendance_date = CURRENT_DATE
-      )
-    `, [staffId]);
+      // 2. Attendance Pending
+      pool.query(`
+        SELECT COUNT(*) FROM schedule s
+        WHERE s.staff_id = $1 
+        AND s.day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance_session ats 
+          WHERE ats.class_id = s.class_id 
+          AND ats.subject_id = s.subject_id
+          AND ats.attendance_date = CURRENT_DATE
+        )
+      `, [staffId]),
 
-    // 3. Marks Pending
-    const marksPendingRes = await pool.query(`
-      SELECT COUNT(DISTINCT e.exam_id) FROM exam e 
-      JOIN schedule s ON s.class_id = e.class_id AND s.subject_id = e.subject_id
-      WHERE s.staff_id = $1 
-      AND e.date_time < NOW()
-      AND NOT EXISTS (SELECT 1 FROM exam_grades eg WHERE eg.exam_id = e.exam_id)
-    `, [staffId]);
+      // 3. Marks Pending
+      pool.query(`
+        SELECT COUNT(DISTINCT e.exam_id) FROM exam e 
+        JOIN schedule s ON s.class_id = e.class_id AND s.subject_id = e.subject_id
+        WHERE s.staff_id = $1 
+        AND e.date_time < NOW()
+        AND NOT EXISTS (SELECT 1 FROM exam_grades eg WHERE eg.exam_id = e.exam_id)
+      `, [staffId]),
 
-    // 4. Next Exam
-    const nextExamRes = await pool.query(`
-      SELECT e.exam_name as name, e.date_time as date 
-      FROM exam e 
-      JOIN schedule s ON s.class_id = e.class_id AND s.subject_id = e.subject_id
-      WHERE s.staff_id = $1 
-      AND e.date_time > NOW() 
-      ORDER BY e.date_time ASC 
-      LIMIT 1
-    `, [staffId]);
+      // 4. Next Exam
+      pool.query(`
+        SELECT e.exam_name as name, e.date_time as date 
+        FROM exam e 
+        JOIN schedule s ON s.class_id = e.class_id AND s.subject_id = e.subject_id
+        WHERE s.staff_id = $1 
+        AND e.date_time > NOW() 
+        ORDER BY e.date_time ASC 
+        LIMIT 1
+      `, [staffId])
+    ]);
 
     return {
       totalClassesToday: parseInt(classesTodayRes.rows[0].count),

@@ -6,6 +6,14 @@ const ExamsController = {
 
   async createExam(req, res) {
     try {
+      const { exam_name, class_id, subject_id, exam_type_id } = req.body;
+      if (!exam_name || !exam_name.trim() || !class_id || !subject_id || !exam_type_id) {
+        return res.status(400).json({
+          success: false,
+          message: "exam_name, class_id, subject_id, and exam_type_id are required to create an exam",
+        });
+      }
+
       const data = await ExamsService.createExam(req.body, req.instituteId);
 
       // Log activity
@@ -19,7 +27,7 @@ const ExamsController = {
           );
       } catch (e) { console.error(e); }
 
-      res.json({ success: true, message: "Exam created", data });
+      res.status(201).json({ success: true, message: "Exam created", data });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }

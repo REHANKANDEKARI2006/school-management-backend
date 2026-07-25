@@ -1,12 +1,14 @@
 import { Router } from "express";
 import ResultsController from "../controllers/results_controller.js";
 import authMiddleware from "../middleware/auth_middleware.js";
+import instituteMiddleware from "../middleware/institute_middleware.js";
 import { allowRoles } from "../middleware/role_middleware.js";
 
 const router = Router();
 
-// All result routes require authentication
+// All result routes require authentication and institute isolation
 router.use(authMiddleware);
+router.use(instituteMiddleware);
 
 // 1. Faculty portal - My Results list (Completed/exams list assigned to teacher)
 router.get("/faculty/assigned", allowRoles(3, 4), ResultsController.getFacultyAssignedExams);

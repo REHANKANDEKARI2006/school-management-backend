@@ -43,7 +43,7 @@ const QuestionPaperModel = {
     return rows[0];
   },
 
-  // 3. Hierarchical Get
+  // 3. Hierarchical Get (N+1 Query Fixed)
   async getById(paper_id, instituteId) {
     const paperQuery = `
       SELECT qp.*, c.class_name, s.subject_name, e.exam_name, e.date_time
@@ -63,14 +63,24 @@ const QuestionPaperModel = {
     `;
     const { rows: sections } = await pool.query(sectionsQuery, [paper_id]);
 
-    for (let section of sections) {
+    if (sections.length > 0) {
+      const sectionIds = sections.map(s => s.section_id);
       const questionsQuery = `
         SELECT * FROM questions
-        WHERE section_id = $1
+        WHERE section_id = ANY($1::int[])
         ORDER BY question_order ASC
       `;
-      const { rows: questions } = await pool.query(questionsQuery, [section.section_id]);
-      section.questions = questions;
+      const { rows: allQuestions } = await pool.query(questionsQuery, [sectionIds]);
+
+      const questionsBySection = {};
+      for (const q of allQuestions) {
+        if (!questionsBySection[q.section_id]) questionsBySection[q.section_id] = [];
+        questionsBySection[q.section_id].push(q);
+      }
+
+      for (const sec of sections) {
+        sec.questions = questionsBySection[sec.section_id] || [];
+      }
     }
 
     paper.sections = sections;

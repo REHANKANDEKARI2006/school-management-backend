@@ -1,8 +1,8 @@
 import { StudentModel } from "../models/student_Model.js";
 
 export const StudentService = {
-  async getAllStudents(instituteId) {
-    return await StudentModel.getAll(instituteId);
+  async getAllStudents(instituteId, options = {}) {
+    return await StudentModel.getAll(instituteId, options);
   },
 
   async getStudentsByClassId(classId, instituteId) {

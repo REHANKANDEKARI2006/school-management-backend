@@ -1,11 +1,5 @@
-import { Pool } from "pg";
-import dotenv from "dotenv";
-dotenv.config();
+import pool from "../config/db.js";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 export const GuardianModel = {
   async create(g) {

@@ -52,6 +52,10 @@ export const AttendanceController = {
   async createSession(req, res) {
     try {
       const { class_id, subject_id, attendance_date } = req.body;
+      if (!class_id || !subject_id) {
+        return res.status(400).json({ success: false, message: "class_id and subject_id are required" });
+      }
+
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
 
@@ -84,8 +88,17 @@ export const AttendanceController = {
 
   async createRecords(req, res) {
     try {
-      const { session_id, sessionId } = req.body;
+      const { session_id, sessionId, records } = req.body;
       const finalSessionId = session_id || sessionId;
+
+      if (!finalSessionId) {
+        return res.status(400).json({ success: false, message: "session_id is required" });
+      }
+
+      if (!Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ success: false, message: "records must be a non-empty array" });
+      }
+
       const { user_id, role_id } = req.user;
       const isTeacher = [3, 4, 5].includes(Number(role_id));
 
