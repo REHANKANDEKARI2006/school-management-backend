@@ -27,21 +27,27 @@ class EmailService {
   }
 
   /**
-   * Verify SMTP connection — call this on server startup.
+   * Verify email configuration — call this on server startup.
+   * Logs exactly which email method is configured so you can confirm in Railway logs.
    */
   async verify() {
-    if (process.env.EMAIL_BRIDGE_URL) {
-      console.log("ℹ️ Production Email Bridge configured. Bypassing local startup verification.");
-      return true;
-    }
+    console.log("─────────────────────────────────────────────────");
+    console.log("📧 [EMAIL SERVICE] Startup Configuration Check:");
+    console.log(`   BREVO_API_KEY: ${process.env.BREVO_API_KEY ? "✅ SET (" + process.env.BREVO_API_KEY.substring(0, 12) + "...)" : "❌ NOT SET"}`);
+    console.log(`   EMAIL_USER (sender): ${process.env.EMAIL_USER || "❌ NOT SET"}`);
+    console.log(`   EMAIL_HOST: ${process.env.EMAIL_HOST || "(default: smtp.gmail.com)"}`);
+    console.log(`   EMAIL_PORT: ${process.env.EMAIL_PORT || "(default: 587)"}`);
+    console.log(`   EMAIL_PASS: ${process.env.EMAIL_PASS ? "✅ SET" : "❌ NOT SET"}`);
+    console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || "❌ NOT SET (will use request origin)"}`);
+    console.log("─────────────────────────────────────────────────");
 
     if (process.env.BREVO_API_KEY) {
-      console.log("⚡ Primary Email Service: Brevo HTTP REST API (v3) configured.");
+      console.log("⚡ Primary Email Method: Brevo HTTP REST API (v3)");
     }
 
     try {
       await this.transporter.verify();
-      console.log("✅ Fallback Email Service (Nodemailer SMTP) verified.");
+      console.log("✅ Fallback Email Method (Nodemailer SMTP) verified.");
       return true;
     } catch (error) {
       if (process.env.BREVO_API_KEY) {
@@ -54,6 +60,9 @@ class EmailService {
   }
 
   async sendEmail({ to, subject, templateName, templateData, instituteId }) {
+    const callId = `EMAIL-${Date.now().toString(36).toUpperCase()}`;
+    console.log(`\n📧 [${callId}] sendEmail() CALLED — to: ${to}, subject: "${subject}", template: ${templateName}`);
+
     let html = "";
     try {
       // Fetch school branding info (falls back to Sunshine Public School ID 3 instead of ID 1)
@@ -67,32 +76,17 @@ class EmailService {
       // Compile EJS template
       const templatePath = path.join(__dirname, `../templates/auth/${templateName}.ejs`);
       html = await ejs.renderFile(templatePath, { ...templateData, branding });
-
-      // If EMAIL_BRIDGE_URL is set, send via HTTP POST request to Vercel
-      if (process.env.EMAIL_BRIDGE_URL) {
-        console.log(`✉️ Sending email to: ${to} via Vercel SMTP Bridge...`);
-        const response = await axios.post(process.env.EMAIL_BRIDGE_URL, {
-          to,
-          subject,
-          html,
-          secret: process.env.EMAIL_BRIDGE_SECRET,
-        }, { timeout: 5000 });
-        if (response.data && response.data.success) {
-          console.log(`✅ Email sent successfully via bridge: ${response.data.messageId}`);
-          return response.data;
-        } else {
-          throw new Error(response.data?.error || "Unknown bridge failure");
-        }
-      }
-
-      console.log(`✉️ Sending email to: ${to} (Subject: "${subject}", School: "${branding.schoolName}")`);
+      console.log(`📧 [${callId}] Template rendered successfully (${html.length} chars)`);
 
       // ── PRIMARY METHOD: BREVO HTTP REST API (v3) ──
       const brevoApiKey = process.env.BREVO_API_KEY;
       if (brevoApiKey) {
+        console.log(`📧 [${callId}] Attempting Method: BREVO_HTTP_API`);
         try {
           const senderEmail = process.env.EMAIL_USER || "hello@prophetbird.com";
           const senderName = branding.schoolName || "SchoolOS";
+
+          console.log(`📧 [${callId}] Brevo request — sender: "${senderName}" <${senderEmail}>, to: ${to}`);
 
           const brevoRes = await axios.post(
             "https://api.brevo.com/v3/smtp/email",
@@ -109,21 +103,34 @@ class EmailService {
                 "accept": "application/json"
               },
               httpsAgent: ipv4Agent,
-              timeout: 2500
+              timeout: 10000
             }
           );
-          console.log(`✅ Email sent successfully via Primary Brevo HTTP API: ${brevoRes.data?.messageId || brevoRes.data?.id}`);
+          console.log(`✅ [${callId}] Email sent via Brevo HTTP API — messageId: ${brevoRes.data?.messageId || brevoRes.data?.id}, status: ${brevoRes.status}`);
           return brevoRes.data;
         } catch (brevoErr) {
-          const brevoErrMsg = brevoErr.response?.data?.message || brevoErr.message;
-          console.warn(`⚠️ Primary Brevo HTTP API error (${brevoErrMsg}). Falling back to Nodemailer SMTP...`);
-          if (brevoErr.response?.data?.code === "unauthorized" && brevoErrMsg.includes("unrecognised IP address")) {
-            console.warn(`👉 Action needed in Brevo Dashboard: Authorize IP at https://app.brevo.com/security/authorised_ips`);
+          const brevoStatus = brevoErr.response?.status || "N/A";
+          const brevoErrData = brevoErr.response?.data || {};
+          const brevoErrMsg = brevoErrData.message || brevoErr.message;
+          const brevoErrCode = brevoErrData.code || "unknown";
+          console.error(`❌ [${callId}] BREVO HTTP API FAILED:`);
+          console.error(`   Status: ${brevoStatus}`);
+          console.error(`   Code: ${brevoErrCode}`);
+          console.error(`   Message: ${brevoErrMsg}`);
+          console.error(`   Full Error Data: ${JSON.stringify(brevoErrData)}`);
+
+          if (brevoErrCode === "unauthorized" && brevoErrMsg.includes("unrecognised IP address")) {
+            console.warn(`👉 [${callId}] Action needed: Authorize Railway's IP in Brevo Dashboard → https://app.brevo.com/security/authorised_ips`);
           }
+
+          console.log(`📧 [${callId}] Falling back to Nodemailer SMTP...`);
         }
+      } else {
+        console.warn(`⚠️ [${callId}] BREVO_API_KEY not set — skipping Brevo, attempting SMTP fallback`);
       }
 
       // ── SECONDARY FALLBACK METHOD: NODEMAILER SMTP ──
+      console.log(`📧 [${callId}] Attempting Method: NODEMAILER_SMTP`);
       const mailOptions = {
         from: process.env.EMAIL_FROM || `"SchoolOS" <${process.env.EMAIL_USER || "hello@prophetbird.com"}>`,
         to,
@@ -132,10 +139,12 @@ class EmailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log(`✅ Email sent successfully via Fallback SMTP: ${info.messageId}`);
+      console.log(`✅ [${callId}] Email sent via Fallback SMTP — messageId: ${info.messageId}`);
       return info;
     } catch (error) {
-      console.error(`❌ Failed to send email to ${to}:`, error.message);
+      console.error(`❌ [${callId}] ALL email methods FAILED for ${to}:`);
+      console.error(`   Error: ${error.message}`);
+      console.error(`   Stack: ${error.stack?.split("\n").slice(0, 3).join("\n")}`);
       throw error;
     }
   }

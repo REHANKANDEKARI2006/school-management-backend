@@ -6,16 +6,7 @@ import { emailService } from "../services/email_service.js";
 import { cache } from "../utils/cache.js";
 
 import { StudentModel } from "../models/student_Model.js";
-
-const getFrontendUrl = (req) => {
-  if (req.headers.origin) return req.headers.origin;
-  if (req.headers.referer) {
-    try {
-      return new URL(req.headers.referer).origin;
-    } catch (e) {}
-  }
-  return null;
-};
+import { getFrontendUrl } from "../utils/url_helpers.js";
 
 /* =========================
    LOGIN CONTROLLER

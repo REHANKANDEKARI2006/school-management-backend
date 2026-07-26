@@ -1,6 +1,7 @@
 // controllers/faculty_controller.js
 import { FacultyService } from "../services/faculty_Service.js";
 import { emailService } from "../services/email_service.js";
+import { getFrontendUrl } from "../utils/url_helpers.js";
 
 export const FacultyController = {
 

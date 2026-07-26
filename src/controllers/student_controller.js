@@ -1,5 +1,6 @@
 import { StudentService } from "../services/student_Service.js";
 import pool from "../config/db.js";
+import { getFrontendUrl } from "../utils/url_helpers.js";
 
 export const StudentController = {
   async uploadPhoto(req, res) {
@@ -87,16 +88,6 @@ export const StudentController = {
           message: "First name is required to enroll a student",
         });
       }
-
-const getFrontendUrl = (req) => {
-  if (req.headers.origin) return req.headers.origin;
-  if (req.headers.referer) {
-    try {
-      return new URL(req.headers.referer).origin;
-    } catch (e) {}
-  }
-  return null;
-};
 
       const authUser = { ...req.user, institute_id: req.instituteId, frontendUrl: getFrontendUrl(req) };
 
