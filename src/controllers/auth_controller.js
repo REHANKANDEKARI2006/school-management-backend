@@ -1095,10 +1095,13 @@ export const forgotPassword = async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: "Email required" });
 
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // Clean client IP (extract first IP if x-forwarded-for contains comma-separated chain)
+    const rawIp = (req.headers['x-forwarded-for'] || req.ip || req.socket?.remoteAddress || '127.0.0.1')
+      .toString().split(',')[0].trim();
+    const ipKey = `fp_${rawIp}`.substring(0, 45);
 
     // Rate Limiting Check for Forgot Password
-    const attemptRes = await pool.query('SELECT attempts, last_attempt FROM login_attempts WHERE ip_address = $1', [`fp_${ip}`]);
+    const attemptRes = await pool.query('SELECT attempts, last_attempt FROM login_attempts WHERE ip_address = $1', [ipKey]);
     if (attemptRes.rows.length > 0) {
       const { attempts, last_attempt } = attemptRes.rows[0];
       const lockoutTime = 15 * 60 * 1000; // 15 mins
@@ -1115,7 +1118,7 @@ export const forgotPassword = async (req, res) => {
        VALUES ($1, 1, now())
        ON CONFLICT (ip_address) 
        DO UPDATE SET attempts = login_attempts.attempts + 1, last_attempt = now()`,
-      [`fp_${ip}`]
+      [ipKey]
     );
 
     // Success response for security even if email doesn't exist
@@ -1139,13 +1142,18 @@ export const forgotPassword = async (req, res) => {
       [reset_token, reset_token_expiry, user.user_id]
     );
 
-    await emailService.sendForgotPassword({
-      to: email,
-      name: user.user_name,
-      token: reset_token,
-      instituteId: user.institute_id,
-      frontendUrl: getFrontendUrl(req),
-    });
+    // Send email non-blockingly with fallback log
+    try {
+      await emailService.sendForgotPassword({
+        to: email,
+        name: user.user_name,
+        token: reset_token,
+        instituteId: user.institute_id,
+        frontendUrl: getFrontendUrl(req),
+      });
+    } catch (emailErr) {
+      console.error("❌ Failed to send forgot password email:", emailErr.message);
+    }
 
     return res.json({ success: true, message: successMsg });
   } catch (error) {
