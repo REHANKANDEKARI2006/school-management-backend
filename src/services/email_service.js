@@ -34,6 +34,7 @@ class EmailService {
     console.log("─────────────────────────────────────────────────");
     console.log("📧 [EMAIL SERVICE] Startup Configuration Check:");
     console.log(`   BREVO_API_KEY: ${process.env.BREVO_API_KEY ? "✅ SET (" + process.env.BREVO_API_KEY.substring(0, 12) + "...)" : "❌ NOT SET"}`);
+    console.log(`   BREVO_SENDER_EMAIL: ${process.env.BREVO_SENDER_EMAIL || "⚠️ NOT SET (will fallback to EMAIL_USER)"}`);
     console.log(`   EMAIL_USER (sender): ${process.env.EMAIL_USER || "❌ NOT SET"}`);
     console.log(`   EMAIL_HOST: ${process.env.EMAIL_HOST || "(default: smtp.gmail.com)"}`);
     console.log(`   EMAIL_PORT: ${process.env.EMAIL_PORT || "(default: 587)"}`);
@@ -83,7 +84,7 @@ class EmailService {
       if (brevoApiKey) {
         console.log(`📧 [${callId}] Attempting Method: BREVO_HTTP_API`);
         try {
-          const senderEmail = process.env.EMAIL_USER || "hello@prophetbird.com";
+          const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || "hello@prophetbird.com";
           const senderName = branding.schoolName || "SchoolOS";
 
           console.log(`📧 [${callId}] Brevo request — sender: "${senderName}" <${senderEmail}>, to: ${to}`);
