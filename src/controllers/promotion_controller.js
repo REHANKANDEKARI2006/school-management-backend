@@ -1,4 +1,5 @@
 import { PromotionModel } from "../models/promotion_model.js";
+import pool from "../config/db.js";
 
 export const PromotionController = {
 
@@ -30,37 +31,32 @@ export const PromotionController = {
   /* ─── GET /api/promotion/classes ─── */
   async getClasses(req, res) {
     try {
-      const classes = await PromotionModel.getAllClassesOrdered(req.instituteId);
+      const instituteId = req.instituteId;
+      const classes = await PromotionModel.getClassesForPromotion(instituteId);
       res.json({ success: true, data: classes });
     } catch (err) {
       console.error("[PromotionController] getClasses error:", err);
-      res.status(500).json({ success: false, message: "Failed to fetch classes" });
+      res.status(500).json({ success: false, message: "Failed to fetch classes for promotion" });
     }
   },
 
-  /* ─── POST /api/promotion/promote ─── */
-  async promote(req, res) {
+  /* ─── POST /api/promotion/process ─── */
+  async processPromotions(req, res) {
     try {
       const { user_id, role_id } = req.user;
       const instituteId = req.instituteId;
       const { promotions } = req.body;
-      // promotions = [{ studentId, targetClassId }]
 
       if (!Array.isArray(promotions) || promotions.length === 0) {
-        return res.status(400).json({ success: false, message: "No promotions provided" });
+        return res.status(400).json({ success: false, message: "No promotion items provided" });
       }
 
-      // Teacher/Class Teacher restriction: verify all students belong to their class
+      // Teacher validation
       if (role_id === 3 || role_id === 4) {
         const classId = await PromotionModel.getClassTeacherClassId(user_id);
         if (!classId) {
           return res.status(403).json({ success: false, message: "No class assigned to this teacher" });
         }
-
-        const { Pool } = await import("pg");
-        const { default: dotenv } = await import("dotenv");
-        dotenv.config();
-        const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
         const studentIds = promotions.map(p => p.studentId);
         const check = await pool.query(
@@ -75,11 +71,6 @@ export const PromotionController = {
       }
 
       // Enforce that the target classes and students belong to the active school
-      const { Pool } = await import("pg");
-      const { default: dotenv } = await import("dotenv");
-      dotenv.config();
-      const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-
       const targetClassIds = [...new Set(promotions.map(p => p.targetClassId))];
       const classCheck = await pool.query(
         `SELECT COUNT(*) FROM class WHERE class_id = ANY($1) AND institute_id != $2`,

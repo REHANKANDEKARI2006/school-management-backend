@@ -61,7 +61,7 @@ export const login = async (req, res) => {
       console.log(`❌ Login Failed: User not found for email ${email}`);
       return res.status(401).json({
         success: false,
-        message: "Invalid email",
+        message: "Invalid credentials",
       });
     }
 
@@ -155,13 +155,13 @@ export const login = async (req, res) => {
         institute_id: user.institute_id,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
     );
 
     const refreshToken = jwt.sign(
       { user_id: user.user_id },
       process.env.JWT_REFRESH_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "2h" }
     );
 
     let studentDetails = null;
@@ -238,7 +238,7 @@ export const refreshToken = (req, res) => {
             institute_id: institute_id
           },
           process.env.JWT_SECRET,
-          { expiresIn: "1h" }
+          { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
         );
 
         return res.json({
@@ -608,8 +608,8 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ success: false, message: "Current password and new password are required" });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: "New password must be at least 6 characters long" });
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: "New password must be at least 8 characters long" });
     }
 
     const userRes = await pool.query(`SELECT password_hash FROM "user" WHERE user_id = $1`, [user_id]);
@@ -1054,12 +1054,19 @@ export const setPassword = async (req, res) => {
       }
     }
 
-    // Update role-specific status if needed (Active = 1)
-    await pool.query('UPDATE admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
-    await pool.query('UPDATE staff SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
-    await pool.query('UPDATE student SET user_status_id = 1 WHERE student_user_id = $1', [user.user_id]);
-    await pool.query('UPDATE master_admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
-    await pool.query('UPDATE guardian SET user_status_id = 1 WHERE guardian_user_id = $1', [user.user_id]);
+    // Update role-specific status targeted by role_id
+    const userRoleId = Number(user.role_id);
+    if (userRoleId === 1) {
+      await pool.query('UPDATE master_admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
+    } else if (userRoleId === 2) {
+      await pool.query('UPDATE admin SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
+    } else if (userRoleId === 18) {
+      await pool.query('UPDATE student SET user_status_id = 1 WHERE student_user_id = $1', [user.user_id]);
+    } else if (userRoleId === 20) {
+      await pool.query('UPDATE guardian SET user_status_id = 1 WHERE guardian_user_id = $1', [user.user_id]);
+    } else {
+      await pool.query('UPDATE staff SET user_status_id = 1 WHERE user_id = $1', [user.user_id]);
+    }
 
     // Send confirmation email (non-blocking)
     try {
@@ -1087,6 +1094,29 @@ export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: "Email required" });
+
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    // Rate Limiting Check for Forgot Password
+    const attemptRes = await pool.query('SELECT attempts, last_attempt FROM login_attempts WHERE ip_address = $1', [`fp_${ip}`]);
+    if (attemptRes.rows.length > 0) {
+      const { attempts, last_attempt } = attemptRes.rows[0];
+      const lockoutTime = 15 * 60 * 1000; // 15 mins
+      if (attempts >= 5 && (new Date() - new Date(last_attempt)) < lockoutTime) {
+        return res.status(429).json({
+          success: false,
+          message: "Too many password reset attempts. Please try again in 15 minutes.",
+        });
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO login_attempts (ip_address, attempts, last_attempt) 
+       VALUES ($1, 1, now())
+       ON CONFLICT (ip_address) 
+       DO UPDATE SET attempts = login_attempts.attempts + 1, last_attempt = now()`,
+      [`fp_${ip}`]
+    );
 
     // Success response for security even if email doesn't exist
     const successMsg = "If this email exists, a reset link has been sent.";
@@ -1133,8 +1163,8 @@ export const resetPassword = async (req, res) => {
     if (!token || !password) {
       return res.status(400).json({ success: false, message: "Token and password are required" });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, message: "Password must be at least 6 characters long" });
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, message: "Password must be at least 8 characters long" });
     }
 
     const userRes = await pool.query(
@@ -1679,7 +1709,7 @@ export const setupSchool = async (req, res) => {
         institute_id: newInstituteId,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
     );
 
     res.status(201).json({
@@ -1736,7 +1766,7 @@ export const switchSchool = async (req, res) => {
         institute_id: Number(institute_id),
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m" }
     );
 
     res.status(200).json({

@@ -1,60 +1,10 @@
 <%
-// Dynamic Branding Resolution
-let schoolName = branding.schoolName;
-let logoUrl = branding.logoUrl;
-let primaryColor = branding.primaryColor;
+// Branding is resolved by the controller/service layer and passed in as template variables.
+// Templates must NEVER access the database or spawn processes.
+let schoolName = (branding && branding.schoolName) || "SchoolOS";
+let logoUrl = (branding && branding.logoUrl) || "";
+let primaryColor = (branding && branding.primaryColor) || "#3b82f6";
 
-try {
-    if (typeof loginEmail !== 'undefined' && loginEmail) {
-        const cp = process.getBuiltinModule('child_process');
-        const path = process.getBuiltinModule('path');
-        const dbPath = 'file:///' + path.resolve(process.cwd(), 'src/config/db.js').replace(/\\/g, '/');
-        const dbQueryCode = `
-            import('${dbPath}').then(async (m) => {
-                const pool = m.default;
-                try {
-                    const email = process.argv[1];
-                    const userRes = await pool.query('SELECT institute_id FROM \\\"user\\\" WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
-                    if (userRes.rows.length > 0) {
-                        const instId = userRes.rows[0].institute_id;
-                        const profileRes = await pool.query('SELECT school_name, logo_url, primary_color FROM school_profile WHERE id = $1', [instId]);
-                        if (profileRes.rows.length > 0) {
-                            console.log(JSON.stringify(profileRes.rows[0]));
-                            process.exit(0);
-                        }
-                    }
-                } catch (e) {}
-                process.exit(1);
-            });
-        `;
-        const result = cp.spawnSync('node', ['-e', dbQueryCode, loginEmail], {
-            timeout: 5000
-        });
-        if (result.status === 0) {
-            const lines = result.stdout.toString().split('\n');
-            let dbBranding = null;
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                    try {
-                        dbBranding = JSON.parse(trimmed);
-                        break;
-                    } catch (e) {}
-                }
-            }
-            if (dbBranding) {
-                if (dbBranding.school_name) schoolName = dbBranding.school_name;
-                if (dbBranding.logo_url) logoUrl = dbBranding.logo_url;
-                if (dbBranding.primary_color) primaryColor = dbBranding.primary_color;
-            }
-        }
-    }
-} catch (err) {
-    // Fail silently, fallback to passed branding properties
-}
-
-primaryColor = primaryColor || "#3b82f6";
-schoolName = schoolName || "SchoolOS";
 
 // Eliminate dummy/placeholder logos so we only display actual school logos
 if (logoUrl && (logoUrl.includes("logo_placeholder.png") || logoUrl.trim() === "" || logoUrl === "undefined")) {
