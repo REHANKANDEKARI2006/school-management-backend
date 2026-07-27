@@ -16,5 +16,6 @@ router.get("/classes", authMiddleware, allowRoles(...ALLOWED), PromotionControll
 
 // POST promote students
 router.post("/promote", authMiddleware, allowRoles(...ALLOWED), PromotionController.promote);
+router.post("/process", authMiddleware, allowRoles(...ALLOWED), PromotionController.processPromotions);
 
 export default router;

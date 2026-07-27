@@ -42,6 +42,10 @@ export const PromotionController = {
 
   /* ─── POST /api/promotion/process ─── */
   async processPromotions(req, res) {
+    return this.promote(req, res);
+  },
+
+  async promote(req, res) {
     try {
       const { user_id, role_id } = req.user;
       const instituteId = req.instituteId;
