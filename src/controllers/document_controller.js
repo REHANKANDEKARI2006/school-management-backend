@@ -418,46 +418,6 @@ export const DocumentController = {
     }
   },
 
-  async generateBulkMarkSheets(req, res) {
-    try {
-      const { studentIds, templateId } = req.body;
-      const { user_id, role_id } = req.user;
-
-      if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
-        return res.status(400).json({ success: false, message: "No student IDs provided" });
-      }
-
-      // Isolation Check
-      if ([3, 4, 5].includes(role_id)) {
-        const staffRes = await pool.query(
-          `SELECT class_id FROM class WHERE staff_id = (SELECT staff_id FROM staff WHERE user_id = $1 LIMIT 1) LIMIT 1`,
-          [user_id]
-        );
-        const assignedClassId = staffRes.rows[0]?.class_id;
-        
-        const countRes = await pool.query(
-          `SELECT COUNT(*) FROM student s
-           JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status_id = 1
-           WHERE s.student_id = ANY($1) AND ce.class_id != $2`,
-          [studentIds, assignedClassId]
-        );
-        
-        if (parseInt(countRes.rows[0].count) > 0) {
-          return res.status(403).json({ success: false, message: "Unauthorized: One or more students are not in your class" });
-        }
-      }
-
-      const pdfBuffer = await DocumentService.generateBulkMarkSheets(studentIds, user_id, templateId, req.instituteId);
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="Bulk_Mark_Sheets.pdf"`);
-      res.status(200).send(pdfBuffer);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, message: "Error generating bulk Mark Sheets PDF" });
-    }
-  },
-
   async generateBulkFeeReceipts(req, res) {
     try {
       const { studentIds, templateId } = req.body;

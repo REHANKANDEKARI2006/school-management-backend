@@ -1,5 +1,5 @@
 /**
- * notification_Model.js — Enhanced for Leave Management
+ * notification_Model.js — Enhanced for Leave Management with Unread Count Caching
  */
 
 import db from '../config/db.js';
@@ -24,14 +24,19 @@ export const NotificationModel = {
       VALUES ($1, $2, $3, $4, $5, $6, $7, false)
       RETURNING *
     `, [user_id, sender_user_id, related_leave_id, title, message, type, action_payload ? JSON.stringify(action_payload) : null]);
+
+    // Invalidate user notification caches
     cache.del(`user_notifications_${user_id}`);
+    cache.del(`user_unread_count_${user_id}`);
     return rows[0];
   },
 
-  async getByUser(user_id) {
+  async getByUser(user_id, forceFresh = false) {
     const cacheKey = `user_notifications_${user_id}`;
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
+    if (!forceFresh) {
+      const cached = cache.get(cacheKey);
+      if (cached) return cached;
+    }
 
     const { rows } = await db.query(`
       SELECT notification_id, title, message, type, is_read, created_at, action_payload, related_leave_id 
@@ -45,13 +50,22 @@ export const NotificationModel = {
     return rows;
   },
 
-  async getUnreadCount(user_id) {
+  async getUnreadCount(user_id, forceFresh = false) {
+    const cacheKey = `user_unread_count_${user_id}`;
+    if (!forceFresh) {
+      const cached = cache.get(cacheKey);
+      if (cached !== null) return cached;
+    }
+
     const { rows } = await db.query(`
       SELECT COUNT(*) AS count
       FROM notifications
       WHERE user_id = $1 AND is_read = false
     `, [user_id]);
-    return parseInt(rows[0].count, 10);
+
+    const count = parseInt(rows[0].count, 10);
+    cache.set(cacheKey, count, 30); // 30s TTL
+    return count;
   },
 
   async markAsRead(notification_id, user_id) {
@@ -61,7 +75,10 @@ export const NotificationModel = {
       WHERE notification_id = $1 AND user_id = $2
       RETURNING *
     `, [notification_id, user_id]);
+
+    // Invalidate user notification caches
     cache.del(`user_notifications_${user_id}`);
+    cache.del(`user_unread_count_${user_id}`);
     return rows[0];
   },
 
@@ -69,6 +86,9 @@ export const NotificationModel = {
     await db.query(`
       UPDATE notifications SET is_read = true WHERE user_id = $1
     `, [user_id]);
+
+    // Invalidate user notification caches
     cache.del(`user_notifications_${user_id}`);
+    cache.del(`user_unread_count_${user_id}`);
   }
 };

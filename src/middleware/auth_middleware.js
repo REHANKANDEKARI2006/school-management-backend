@@ -4,16 +4,21 @@ import { cache } from "../utils/cache.js";
 
 export default async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
+  let token = null;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    console.error(`AUTH 401 => No token provided for ${req.method} ${req.originalUrl}. Headers:`, req.headers);
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
+    console.error(`AUTH 401 => No token provided for ${req.method} ${req.originalUrl}.`);
     return res.status(401).json({
       success: false,
       message: "No token provided",
     });
   }
-
-  const token = authHeader.split(" ")[1];
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);

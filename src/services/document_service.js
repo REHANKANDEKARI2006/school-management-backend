@@ -379,7 +379,7 @@ export const DocumentService = {
       const schoolProfile = await SchoolProfileModel.getProfile(student.institute_id);
       if (!schoolProfile) throw new Error("School profile not configured");
 
-      let selectedTemplate = templateId || schoolProfile.selected_bonafide_template || 'template1';
+      let selectedTemplate = schoolProfile.selected_bonafide_template || (templateId && templateId !== 'template1' ? templateId : 'template2');
       let docTemplate = null;
       let baseTemplate = selectedTemplate;
 
@@ -1307,32 +1307,6 @@ ${bodyHtml}
       throw error;
     } finally {
       await this._safeBrowserClose(browser);
-    }
-  },
-
-  async generateBulkMarkSheets(studentIds, userId, templateId = null, instituteId = null) {
-    let browser = null;
-    try {
-      if (!Array.isArray(studentIds) || studentIds.length === 0) throw new Error("No student IDs");
-      browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--no-first-run'] });
-      const mergedPdf = await PDFDocument.create();
-
-      for (const id of studentIds) {
-        try {
-          const pdfBuffer = await this.generateMarkSheet(id, userId, browser, templateId, instituteId);
-          const pdfDoc = await PDFDocument.load(pdfBuffer);
-          const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
-          copiedPages.forEach((page) => mergedPdf.addPage(page));
-        } catch (err) {
-          console.error(`Error generating MarkSheet for student ${id}:`, err);
-        }
-      }
-
-      await this._safeBrowserClose(browser);
-      return Buffer.from(await mergedPdf.save());
-    } catch (err) {
-      await this._safeBrowserClose(browser);
-      throw err;
     }
   },
 

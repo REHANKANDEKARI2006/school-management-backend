@@ -15,6 +15,7 @@ const ExamsController = {
       }
 
       const data = await ExamsService.createExam(req.body, req.instituteId);
+      const enrichedData = data ? { ...data, computed_status: computeStatus(data) } : data;
 
       // Log activity
       try {
@@ -27,7 +28,7 @@ const ExamsController = {
           );
       } catch (e) { console.error(e); }
 
-      res.status(201).json({ success: true, message: "Exam created", data });
+      res.status(201).json({ success: true, message: "Exam created", data: enrichedData });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
@@ -53,7 +54,7 @@ const ExamsController = {
     try {
       const data = await ExamsService.getExamById(req.params.id, req.instituteId);
       if (!data) return res.status(404).json({ success: false, message: "Exam not found" });
-      res.json({ success: true, data });
+      res.json({ success: true, data: { ...data, computed_status: computeStatus(data) } });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
@@ -62,7 +63,8 @@ const ExamsController = {
   async updateExam(req, res) {
     try {
       const data = await ExamsService.updateExam(req.params.id, req.body, req.instituteId);
-      res.json({ success: true, message: "Exam updated", data });
+      const enrichedData = data ? { ...data, computed_status: computeStatus(data) } : data;
+      res.json({ success: true, message: "Exam updated", data: enrichedData });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }

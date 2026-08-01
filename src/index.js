@@ -50,12 +50,15 @@ import notificationRoutes from "./routes/notification_routes.js";
 import promotionRoutes from "./routes/promotion_routes.js";
 import documentTemplateRoutes from "./routes/document_template_routes.js";
 import resultsRoutes from "./routes/results_routes.js";
+import bulkDocumentRoutes from "./routes/bulk_document_routes.js";
 
 
 import authMiddleware from "./middleware/auth_middleware.js";
 import instituteMiddleware from "./middleware/institute_middleware.js";
 
 import compression from "compression";
+import { runWithQueryContext } from "./config/db.js";
+import { getStats, printSummary } from "./utils/query_logger.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -83,6 +86,12 @@ app.use(cors({
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 app.use('/public', express.static('public'));
+
+// 📊 Query context tracking — wraps each request so all DB queries are tagged
+app.use((req, res, next) => {
+  const context = `${req.method} ${req.originalUrl.split('?')[0]}`;
+  runWithQueryContext(context, 'api', () => next());
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/students", authMiddleware, instituteMiddleware, studentRoutes);
@@ -113,7 +122,29 @@ app.use("/api/notifications", authMiddleware, instituteMiddleware, notificationR
 app.use("/api/promotion", authMiddleware, instituteMiddleware, promotionRoutes);
 app.use("/api/document-templates", authMiddleware, instituteMiddleware, documentTemplateRoutes);
 app.use("/api/results", authMiddleware, instituteMiddleware, resultsRoutes);
+app.use("/api/bulk-documents", authMiddleware, instituteMiddleware, bulkDocumentRoutes);
 
+
+// 📊 Admin-only Query Report Endpoint
+app.get("/api/admin/query-report", authMiddleware, (req, res) => {
+  // Only allow Master Admin (role_id=1) to access
+  if (Number(req.user?.role_id) !== 1) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  const hours = parseInt(req.query.hours) || 24;
+  const stats = getStats(hours);
+  res.json({ success: true, data: stats });
+});
+
+// 📊 Print query summary to console on demand
+app.get("/api/admin/query-report/print", authMiddleware, (req, res) => {
+  if (Number(req.user?.role_id) !== 1) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
+  const hours = parseInt(req.query.hours) || 24;
+  printSummary(hours);
+  res.json({ success: true, message: `Summary printed to server console for last ${hours}h` });
+});
 
 // Global Error Handler
 app.use((err, req, res, next) => {

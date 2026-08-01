@@ -195,13 +195,17 @@ const QuestionPaperController = {
         }
         
         if (url.startsWith('http') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
-          await request.abort();
+          try {
+            await request.abort('blockedbyclient');
+          } catch (e) {}
         } else {
-          await request.continue();
+          try {
+            await request.continue();
+          } catch (e) {}
         }
       });
 
-      await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,

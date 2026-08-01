@@ -1,5 +1,7 @@
 import pg from "pg";
 import dotenv from "dotenv";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { logQuery } from "../utils/query_logger.js";
 dotenv.config();
 
 const pool = new pg.Pool({
@@ -19,11 +21,46 @@ pool.on("error", (err) => {
   console.error("❌ PostgreSQL error", err);
 });
 
+// AsyncLocalStorage to carry request context into nested async calls
+const queryContext = new AsyncLocalStorage();
+
+/**
+ * Set the query context for the current async scope.
+ * Call this from middleware to tag all queries within a request.
+ */
+export function setQueryContext(context, triggerType = 'api') {
+  const store = queryContext.getStore();
+  if (store) {
+    store.context = context;
+    store.triggerType = triggerType;
+  }
+}
+
+/**
+ * Get the current query context (route path, cron tag, etc.)
+ */
+export function getQueryContext() {
+  return queryContext.getStore() || { context: 'unknown', triggerType: 'unknown' };
+}
+
+/**
+ * Run a function within a query context scope.
+ */
+export function runWithQueryContext(context, triggerType, fn) {
+  return queryContext.run({ context, triggerType }, fn);
+}
+
 const queryWithRetry = async (text, params) => {
+  const start = performance.now();
+  let result;
+  let lastErr;
+
   for (let i = 0; i < 3; i++) {
     try {
-      return await pool.query(text, params);
+      result = await pool.query(text, params);
+      break;
     } catch (err) {
+      lastErr = err;
       const isNetworkError = 
         err.code === 'ENOTFOUND' || 
         err.code === 'EAI_AGAIN' || 
@@ -40,6 +77,13 @@ const queryWithRetry = async (text, params) => {
       throw err;
     }
   }
+
+  // Log the query after successful execution
+  const durationMs = performance.now() - start;
+  const { context, triggerType } = getQueryContext();
+  logQuery(context, typeof text === 'string' ? text : '(prepared)', durationMs, triggerType);
+
+  return result;
 };
 
 const dbProxy = new Proxy(pool, {

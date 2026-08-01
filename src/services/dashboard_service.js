@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { computeStatus } from '../utils/computeStatus.js';
 
 class DashboardServiceClass {
   async getAdminSummary(instituteId) {
@@ -546,6 +547,11 @@ class DashboardServiceClass {
       LIMIT 100
     `, [instituteId]);
 
+    const mappedRows = res.rows.map(item => ({
+      ...item,
+      computed_status: computeStatus(item)
+    }));
+
     const mappedHolidays = holidays.map(h => ({
       id: `h_${h.date}_${h.name}`,
       title: h.name,
@@ -554,10 +560,11 @@ class DashboardServiceClass {
       event_end_date: h.date,
       description: h.description || '',
       location: 'School Campus',
-      category: h.category // Preserve Maharashtra, Karnataka, National
+      category: h.category, // Preserve Maharashtra, Karnataka, National
+      computed_status: 'upcoming'
     }));
 
-    return [...res.rows, ...mappedHolidays].sort((a, b) => new Date(a.time) - new Date(b.time)).slice(0, 100);
+    return [...mappedRows, ...mappedHolidays].sort((a, b) => new Date(a.time) - new Date(b.time)).slice(0, 100);
   }
 
   async getAnnouncements(instituteId) {

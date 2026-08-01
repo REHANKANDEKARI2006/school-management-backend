@@ -47,3 +47,7 @@ bun.lockb
 
 # Secrets
 src/config/google-service-account.json
+
+# Script test output artifacts
+src/scripts/*.png
+src/scripts/*.pdf

@@ -19,7 +19,6 @@ router.post('/id-card/bulk', authMiddleware, DocumentController.generateBulkIdCa
 router.post('/bonafide/bulk', authMiddleware, DocumentController.generateBulkBonafide);
 router.post('/leaving-certificate/bulk', authMiddleware, DocumentController.generateBulkLeavingCertificates);
 router.post('/general-certificate/bulk', authMiddleware, DocumentController.generateBulkGeneralCertificates);
-router.post('/mark-sheet/bulk', authMiddleware, DocumentController.generateBulkMarkSheets);
 router.post('/fee-receipt/bulk', authMiddleware, DocumentController.generateBulkFeeReceipts);
 
 // GET Document history

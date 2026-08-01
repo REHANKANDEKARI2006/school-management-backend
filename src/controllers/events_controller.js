@@ -15,6 +15,9 @@ export const createEvent = async (req, res) => {
       });
     }
     const data = await EventsService.createEventWithExchange(req.body, req.instituteId);
+    if (data?.event) {
+      data.event.computed_status = computeStatus(data.event);
+    }
     res.status(201).json({
       success: true,
       message: "Event created successfully",
@@ -98,10 +101,11 @@ export const updateEvent = async (req, res) => {
       });
     }
     const data = await EventsService.updateEvent(req.params.id, req.body, req.instituteId);
+    const enrichedData = data ? { ...data, computed_status: computeStatus(data) } : data;
     res.json({
       success: true,
       message: "Event updated successfully",
-      data
+      data: enrichedData
     });
   } catch (error) {
     res.status(500).json({

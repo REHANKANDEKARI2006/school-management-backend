@@ -6,8 +6,9 @@ export default async function instituteMiddleware(req, res, next) {
     const headerVal = req.headers["x-institute-id"];
     const queryVal = req.query?.institute_id;
     const bodyVal = req.body?.institute_id;
+    const userVal = req.user?.institute_id;
     
-    const rawId = headerVal || queryVal || bodyVal;
+    const rawId = headerVal || queryVal || bodyVal || userVal;
     
     if (!rawId) {
       console.warn(`[MIDDLEWARE WARNING] Missing institute_id on route ${req.method} ${req.originalUrl}`);
