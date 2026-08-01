@@ -87,6 +87,10 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 app.use('/public', express.static('public'));
 
+// 🟢 Zero-DB Health Check Endpoints for platform monitoring (Railway / Render / Docker)
+app.get("/health", (req, res) => res.status(200).json({ status: "ok" }));
+app.get("/api/health", (req, res) => res.status(200).json({ status: "ok" }));
+
 // 📊 Query context tracking — wraps each request so all DB queries are tagged
 app.use((req, res, next) => {
   const context = `${req.method} ${req.originalUrl.split('?')[0]}`;
