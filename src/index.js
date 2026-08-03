@@ -77,7 +77,7 @@ const corsOptions = {
      /\.vercel\.app$/,
    ].filter(Boolean),
    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Institute-ID'],
+   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Institute-ID', 'x-skip-loader', 'X-Skip-Loader'],
    exposedHeaders: ["Content-Disposition", "Authorization"],
    credentials: true,
    maxAge: 86400, // Cache CORS preflight for 24 hours
