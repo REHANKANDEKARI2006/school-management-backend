@@ -32,7 +32,7 @@ export const PromotionController = {
   async getClasses(req, res) {
     try {
       const instituteId = req.instituteId;
-      const classes = await PromotionModel.getClassesForPromotion(instituteId);
+      const classes = await PromotionModel.getAllClassesOrdered(instituteId);
       res.json({ success: true, data: classes });
     } catch (err) {
       console.error("[PromotionController] getClasses error:", err);
