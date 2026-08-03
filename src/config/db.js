@@ -10,7 +10,7 @@ const pool = new pg.Pool({
   max: 20,
   min: 0,
   idleTimeoutMillis: 10000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 20000,  // 20s — allows for Neon cold-start wake-up after compute suspension
   keepAlive: false,
   allowExitOnIdle: true,
 });

@@ -65,9 +65,10 @@ const PORT = process.env.PORT || 5000;
 
 app.use(compression());
 
-app.use(cors({
+const corsOptions = {
    origin: [
      process.env.FRONTEND_URL,
+     "https://schoolos.prophetbird.com",
      /^http:\/\/localhost:\d+$/,
      /^http:\/\/127\.0\.0\.1:\d+$/,
      /^http:\/\/192\.168\.\d+\.\d+:\d+$/,
@@ -82,7 +83,8 @@ app.use(cors({
    maxAge: 86400, // Cache CORS preflight for 24 hours
    preflightContinue: false,
    optionsSuccessStatus: 204
-}));
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 app.use('/public', express.static('public'));
@@ -150,13 +152,30 @@ app.get("/api/admin/query-report/print", authMiddleware, (req, res) => {
   res.json({ success: true, message: `Summary printed to server console for last ${hours}h` });
 });
 
-// Global Error Handler
+// Global Error Handler — ensures CORS headers are present even on error responses
 app.use((err, req, res, next) => {
   console.error("Unhandled Backend Error:", err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+
+  // Re-apply CORS headers so the browser doesn't mask the real error as a CORS error
+  cors(corsOptions)(req, res, () => {
+    const isDbTimeout = err.message?.includes("timeout") || 
+                        err.message?.includes("Connection terminated") ||
+                        err.code === 'ECONNREFUSED' ||
+                        err.code === 'ENOTFOUND';
+
+    if (isDbTimeout) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is starting up, please try again in a few seconds.",
+        cold_start: true
+      });
+    }
+
+    res.status(err.status || 500).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+      error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   });
 });
 

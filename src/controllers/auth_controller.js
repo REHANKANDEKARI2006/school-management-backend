@@ -180,6 +180,22 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ LOGIN ERROR:", error);
+
+    // Detect Neon cold-start / DB connection timeout errors
+    const isDbColdStart = error.message?.includes("timeout") ||
+                          error.message?.includes("Connection terminated") ||
+                          error.code === 'ECONNREFUSED' ||
+                          error.code === 'ENOTFOUND' ||
+                          error.code === 'EAI_AGAIN';
+
+    if (isDbColdStart) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is starting up, please try again in a few seconds.",
+        cold_start: true
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: "Server error",
