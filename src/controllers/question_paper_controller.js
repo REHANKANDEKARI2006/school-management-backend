@@ -66,6 +66,17 @@ const QuestionPaperController = {
     }
   },
 
+  // PUT /api/question-papers/:id/full-save
+  async fullSave(req, res) {
+    try {
+      const data = await QuestionPaperModel.fullSave(req.params.id, req.body, req.instituteId);
+      res.json({ success: true, data });
+    } catch (err) {
+      console.error('Full save failed:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
   // POST /api/question-papers/:id/publish
   async publishPaper(req, res) {
     try {
@@ -159,49 +170,54 @@ const QuestionPaperController = {
       
       await page.setRequestInterception(true);
       page.on('request', async (request) => {
-        const url = request.url();
-        if (url.includes('public/')) {
-          try {
-            const fs = await import('fs');
-            const parsedUrl = new URL(url);
-            let pathname = parsedUrl.pathname;
-            if (pathname.includes('public/')) {
-              pathname = pathname.substring(pathname.indexOf('public/'));
-            }
-            const relativePath = decodeURIComponent(pathname);
-            const absolutePath = path.resolve(path.join(__dirname, '..', '..', relativePath));
-            
-            if (fs.existsSync(absolutePath)) {
-              const fileBuffer = fs.readFileSync(absolutePath);
-              let contentType = 'image/png';
-              if (absolutePath.endsWith('.jpg') || absolutePath.endsWith('.jpeg')) {
-                contentType = 'image/jpeg';
-              } else if (absolutePath.endsWith('.gif')) {
-                contentType = 'image/gif';
-              } else if (absolutePath.endsWith('.svg')) {
-                contentType = 'image/svg+xml';
-              }
-              
-              await request.respond({
-                status: 200,
-                contentType,
-                body: fileBuffer
-              });
-              return;
-            }
-          } catch (err) {
-            console.error("Failed to intercept and serve local file:", url, err);
-          }
-        }
-        
-        if (url.startsWith('http') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
-          try {
-            await request.abort('blockedbyclient');
-          } catch (e) {}
-        } else {
-          try {
+        try {
+          if (request.isInterceptResolutionHandled()) return;
+          const url = request.url();
+
+          if (url.startsWith('data:')) {
             await request.continue();
-          } catch (e) {}
+            return;
+          }
+
+          if (url.includes('/public/') || url.includes('localhost') || url.includes('127.0.0.1')) {
+            try {
+              const fs = await import('fs');
+              const parsedUrl = new URL(url);
+              let pathname = parsedUrl.pathname;
+              if (pathname.includes('/public/')) {
+                pathname = pathname.substring(pathname.indexOf('/public/'));
+              }
+              const relativePath = decodeURIComponent(pathname);
+              const absolutePath = path.resolve(path.join(__dirname, '..', '..', relativePath));
+
+              if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+                const fileBuffer = fs.readFileSync(absolutePath);
+                let contentType = 'image/png';
+                const ext = path.extname(absolutePath).toLowerCase();
+                if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+                else if (ext === '.gif') contentType = 'image/gif';
+                else if (ext === '.svg') contentType = 'image/svg+xml';
+                else if (ext === '.webp') contentType = 'image/webp';
+
+                await request.respond({
+                  status: 200,
+                  contentType,
+                  body: fileBuffer
+                });
+                return;
+              }
+            } catch (err) {
+              console.error("Failed to intercept and serve local file:", url, err);
+            }
+
+            // Immediately respond 404 to avoid Express single-thread deadlock
+            await request.respond({ status: 404, contentType: 'text/plain', body: 'Not found' });
+            return;
+          }
+
+          await request.abort('blockedbyclient');
+        } catch (e) {
+          // Fallback catch to ensure no pending request freezes puppeteer
         }
       });
 

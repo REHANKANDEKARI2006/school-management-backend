@@ -16,6 +16,7 @@ router.get("/upcoming-exams", allowRoles(1, 2, 3, 4), QuestionPaperController.ge
 router.post("/draft", allowRoles(1, 2, 3, 4), QuestionPaperController.createDraft);
 router.get("/:id", allowRoles(1, 2, 3, 4), QuestionPaperController.getById);
 router.patch("/:id", allowRoles(1, 2, 3, 4), QuestionPaperController.updatePaper);
+router.put("/:id/full-save", allowRoles(1, 2, 3, 4), QuestionPaperController.fullSave);
 router.delete("/:id", allowRoles(1, 2, 3, 4), QuestionPaperController.deletePaper);
 router.post("/:id/duplicate", allowRoles(1, 2, 3, 4), QuestionPaperController.duplicate);
 router.post("/:id/publish", allowRoles(1, 2, 3, 4), QuestionPaperController.publishPaper);

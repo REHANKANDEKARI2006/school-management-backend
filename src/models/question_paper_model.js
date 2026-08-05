@@ -250,6 +250,138 @@ const QuestionPaperModel = {
     }
     await pool.query('DELETE FROM questions WHERE question_id = $1', [question_id]);
     return true;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FULL SAVE — Transactional atomic save of entire paper structure
+  // ═══════════════════════════════════════════════════════════════════════════
+  async fullSave(paperId, data, instituteId) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Verify ownership
+      const ownerCheck = await client.query(
+        'SELECT paper_id FROM question_papers WHERE paper_id = $1 AND institute_id = $2',
+        [paperId, instituteId]
+      );
+      if (ownerCheck.rows.length === 0) {
+        throw new Error('Paper not found or unauthorized');
+      }
+
+      // 2. Update paper metadata
+      const metaFields = [];
+      const metaValues = [];
+      let mi = 1;
+      const allowedMeta = ['title', 'total_marks', 'duration_mins', 'instructions', 'status', 'is_template', 'passing_marks', 'difficulty_level', 'shuffle_questions', 'shuffle_options', 'show_marks', 'show_instructions', 'exam_id', 'class_id', 'subject_id'];
+      for (const field of allowedMeta) {
+        if (data[field] !== undefined) {
+          metaFields.push(`${field} = $${mi++}`);
+          metaValues.push(data[field]);
+        }
+      }
+      if (metaFields.length > 0) {
+        metaValues.push(paperId);
+        await client.query(
+          `UPDATE question_papers SET ${metaFields.join(', ')}, updated_at = now() WHERE paper_id = $${mi}`,
+          metaValues
+        );
+      }
+
+      // 3. Get existing sections from DB
+      const { rows: existingSections } = await client.query(
+        'SELECT section_id FROM paper_sections WHERE paper_id = $1',
+        [paperId]
+      );
+      const existingSectionIds = new Set(existingSections.map(s => s.section_id));
+
+      // 4. Process incoming sections
+      const incomingSections = data.sections || [];
+      const keptSectionIds = new Set();
+      const sectionIdMap = []; // [{frontendIdx, dbSectionId}]
+
+      for (let si = 0; si < incomingSections.length; si++) {
+        const sec = incomingSections[si];
+        const sectionOrder = si + 1;
+
+        if (sec.section_id && existingSectionIds.has(sec.section_id)) {
+          // UPDATE existing section
+          await client.query(
+            `UPDATE paper_sections SET section_name = $1, section_order = $2, total_section_marks = $3 WHERE section_id = $4`,
+            [sec.section_name, sectionOrder, sec.total_section_marks || 0, sec.section_id]
+          );
+          keptSectionIds.add(sec.section_id);
+          sectionIdMap.push({ idx: si, dbId: sec.section_id });
+        } else {
+          // INSERT new section
+          const { rows } = await client.query(
+            `INSERT INTO paper_sections (paper_id, section_name, section_order, total_section_marks) VALUES ($1, $2, $3, $4) RETURNING section_id`,
+            [paperId, sec.section_name, sectionOrder, sec.total_section_marks || 0]
+          );
+          sectionIdMap.push({ idx: si, dbId: rows[0].section_id });
+        }
+      }
+
+      // 5. DELETE removed sections (cascade deletes their questions via FK)
+      for (const existingId of existingSectionIds) {
+        if (!keptSectionIds.has(existingId)) {
+          await client.query('DELETE FROM questions WHERE section_id = $1', [existingId]);
+          await client.query('DELETE FROM paper_sections WHERE section_id = $1', [existingId]);
+        }
+      }
+
+      // 6. Process questions for each section
+      for (const { idx: si, dbId: dbSectionId } of sectionIdMap) {
+        const sec = incomingSections[si];
+        const incomingQuestions = sec.questions || [];
+
+        // Get existing questions for this section
+        const { rows: existingQuestions } = await client.query(
+          'SELECT question_id FROM questions WHERE section_id = $1',
+          [dbSectionId]
+        );
+        const existingQIds = new Set(existingQuestions.map(q => q.question_id));
+        const keptQIds = new Set();
+
+        for (let qi = 0; qi < incomingQuestions.length; qi++) {
+          const q = incomingQuestions[qi];
+          const qOrder = qi + 1;
+          const qData = JSON.stringify(q.question_data || {});
+
+          if (q.question_id && existingQIds.has(q.question_id)) {
+            // UPDATE existing question
+            await client.query(
+              `UPDATE questions SET question_type = $1, question_text = $2, question_data = $3, marks = $4, question_order = $5, answer_key = $6, subsection_label = $7 WHERE question_id = $8`,
+              [q.question_type, q.question_text || '', qData, q.marks || 1, qOrder, q.answer_key || null, q.subsection_label || '', q.question_id]
+            );
+            keptQIds.add(q.question_id);
+          } else {
+            // INSERT new question
+            await client.query(
+              `INSERT INTO questions (section_id, question_type, question_text, question_data, marks, question_order, answer_key, subsection_label) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              [dbSectionId, q.question_type, q.question_text || '', qData, q.marks || 1, qOrder, q.answer_key || null, q.subsection_label || '']
+            );
+          }
+        }
+
+        // DELETE removed questions
+        for (const existingQId of existingQIds) {
+          if (!keptQIds.has(existingQId)) {
+            await client.query('DELETE FROM questions WHERE question_id = $1', [existingQId]);
+          }
+        }
+      }
+
+      await client.query('COMMIT');
+
+      // 7. Return the full, fresh paper from DB
+      return this.getById(paperId, instituteId);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 };
 

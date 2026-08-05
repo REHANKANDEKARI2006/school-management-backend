@@ -654,8 +654,8 @@
                     <div class="section-container" style="page-break-inside: auto; margin-bottom: 10pt; width: 100%;">
                          <% if (parsed.group || parsed.name) { %>
                          <!-- Section Header (Centered layout matching live preview) -->
-                         <div style="width: 100%; padding-top: 8pt; padding-bottom: 2pt;">
-                             <div style="text-align: center; width: 100%;">
+                         <div style="width: 100%; padding-top: 8pt; padding-bottom: 2pt; position: relative;">
+                             <div style="text-align: center; width: 100%; padding-left: 70pt; padding-right: 70pt; box-sizing: border-box;">
                                  <div style="font-weight: bold; font-size: 11pt; color: #000; letter-spacing: 0.5px; text-transform: uppercase;">
                                      Section <%= String.fromCharCode(65 + secIdx) %>
                                  </div>
@@ -663,7 +663,7 @@
                                      <%= secTitle %>
                                  </div>
                              </div>
-                             <div style="text-align: right; width: 100%;">
+                             <div style="position: absolute; right: 0; top: 8pt; text-align: right;">
                                  <span style="font-size: 9.5pt; font-weight: 900; color: #000;">
                                      [<%= secMarks %> Marks]
                                  </span>
