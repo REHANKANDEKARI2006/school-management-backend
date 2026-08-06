@@ -863,7 +863,7 @@
                                                             <span class="case-sub-q-label">(<%= String.fromCharCode(97 + i) %>)</span>
                                                             <span class="case-sub-q-text"><%= sq.text || sq || "Sub-question" %></span>
                                                         </div>
-                                                        <span class="case-sub-q-marks">[<%= sq.marks || "" %>M]</span>
+                                                        <span class="case-sub-q-marks">[<%= sq.marks || "" %>]</span>
                                                     </div>
                                                 <% }); %>
                                             </div>
@@ -871,7 +871,7 @@
                                     </div>
                                     </div>
                                     <div class="q-marks-col" style="width: 70px; text-align: right; flex-shrink: 0;">
-                                        <span class="q-marks-label">[<%= q.marks %> Marks]</span>
+                                        <span class="q-marks-label">[<%= q.marks %>]</span>
                                     </div>
                                 </div>
                             <% }); %>

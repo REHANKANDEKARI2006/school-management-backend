@@ -165,6 +165,7 @@ async function run() {
         answer_key     TEXT,
         explanation    TEXT,
         blooms_taxonomy VARCHAR(100),
+        subsection_label VARCHAR(255) DEFAULT '',
         created_at     TIMESTAMPTZ DEFAULT now()
       )
     `);

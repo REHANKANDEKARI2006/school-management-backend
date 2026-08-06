@@ -114,6 +114,10 @@ async function diagnose() {
         await client.query("ALTER TABLE questions ADD COLUMN IF NOT EXISTS blooms_taxonomy VARCHAR(100)");
         console.log('   ✅ Added questions.blooms_taxonomy column');
       }
+      if (!qColNames.includes('subsection_label')) {
+        await client.query("ALTER TABLE questions ADD COLUMN IF NOT EXISTS subsection_label VARCHAR(255) DEFAULT ''");
+        console.log('   ✅ Added questions.subsection_label column');
+      }
       
       console.log('\n🎉 Schema fix complete! Paper generator should work now.');
     } else {

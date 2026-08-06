@@ -18,6 +18,7 @@ async function fixPaperSectionsSchema() {
     await client.query('ALTER TABLE questions ADD COLUMN IF NOT EXISTS answer_key TEXT');
     await client.query('ALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation TEXT');
     await client.query('ALTER TABLE questions ADD COLUMN IF NOT EXISTS blooms_taxonomy VARCHAR(100)');
+    await client.query('ALTER TABLE questions ADD COLUMN IF NOT EXISTS subsection_label VARCHAR(255) DEFAULT \'\'');
     console.log('✅ questions table updated.');
 
     console.log('\n=============================================');

@@ -17,7 +17,8 @@ const up = async () => {
       ADD COLUMN IF NOT EXISTS difficulty VARCHAR(50) DEFAULT 'Medium',
       ADD COLUMN IF NOT EXISTS answer_key TEXT,
       ADD COLUMN IF NOT EXISTS explanation TEXT,
-      ADD COLUMN IF NOT EXISTS blooms_taxonomy VARCHAR(100);
+      ADD COLUMN IF NOT EXISTS blooms_taxonomy VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS subsection_label VARCHAR(255) DEFAULT '';
     `);
 
     console.log('Successfully added new fields for dynamic Question Paper Generator logic.');
